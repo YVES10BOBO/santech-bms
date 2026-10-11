@@ -66,7 +66,7 @@ export interface Client {
 }
 
 // --- Field Visits (from Excel) ---
-export type VisitOutcome = 'PENDING' | 'FOLLOW_UP' | 'INTERESTED' | 'NOT_INTERESTED' | 'WON' | 'LOST';
+export type VisitOutcome = 'PENDING' | 'FOLLOW_UP' | 'INTERESTED' | 'NOT_INTERESTED' | 'WON' | 'LOST' | 'NEGOTIATION' | 'PROPOSAL';
 
 export interface FieldVisit {
   id: string;

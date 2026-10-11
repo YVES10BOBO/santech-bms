@@ -23,6 +23,11 @@ import SalaryPage from '@/pages/team/SalaryPage'
 import ContractsPage from '@/pages/contracts/ContractsPage'
 import InvoicesPage from '@/pages/finance/InvoicesPage'
 import SettingsPage from '@/pages/settings/SettingsPage'
+import FinancePage from '@/pages/finance/FinancePage'
+import ReportsPage from '@/pages/reports/ReportsPage'
+import NotificationsPage from '@/pages/notifications/NotificationsPage'
+import SupportPage from '@/pages/support/SupportPage'
+import ProductCatalogPage from '@/pages/settings/ProductCatalogPage'
 
 // Guard: requires authentication
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -96,7 +101,9 @@ export default function App() {
           <Route path="contracts" element={<ContractsPage />} />
 
           {/* Finance */}
-          <Route path="finance" element={<InvoicesPage />} />
+          {/* Finance P&L — override the existing /finance route to use FinancePage */}
+          <Route path="finance" element={<FinancePage />} />
+          {/* Keep the invoices sub-route */}
           <Route path="finance/invoices" element={<InvoicesPage />} />
 
           {/* Settings */}
@@ -105,6 +112,12 @@ export default function App() {
           <Route path="settings/company" element={<SettingsPage />} />
           <Route path="settings/roles" element={<SettingsPage />} />
           <Route path="settings/config" element={<SettingsPage />} />
+
+          {/* New pages */}
+          <Route path="reports" element={<ReportsPage />} />
+          <Route path="notifications" element={<NotificationsPage />} />
+          <Route path="support" element={<SupportPage />} />
+          <Route path="settings/products" element={<ProductCatalogPage />} />
 
           {/* 404 fallback */}
           <Route path="*" element={<Navigate to="/dashboard" replace />} />

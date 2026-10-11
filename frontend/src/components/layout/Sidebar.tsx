@@ -19,6 +19,9 @@ import {
   ChevronDown,
   ChevronRight,
   Building2,
+  Bell,
+  BarChart2,
+  Headphones,
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -76,8 +79,23 @@ const navItems: NavItem[] = [
     icon: DollarSign,
     module: 'finance',
     children: [
+      { label: 'Overview & P&L', path: '/finance', module: 'finance' },
       { label: 'Invoices & Payments', path: '/finance/invoices', module: 'finance' },
     ],
+  },
+  {
+    label: 'Reports',
+    icon: BarChart2,
+    path: undefined,
+    module: 'reports',
+    children: [{ label: 'All Reports', path: '/reports', module: 'reports' }],
+  },
+  {
+    label: 'Support',
+    icon: Headphones,
+    path: undefined,
+    module: 'support',
+    children: [{ label: 'Support Tickets', path: '/support', module: 'support' }],
   },
   {
     label: 'Projects',
@@ -107,7 +125,14 @@ const navItems: NavItem[] = [
       { label: 'Company Profile', path: '/settings/company', module: 'settings' },
       { label: 'Roles & Permissions', path: '/settings/roles', module: 'settings' },
       { label: 'System Config', path: '/settings/config', module: 'settings' },
+      { label: 'Product Catalog', path: '/settings/products', module: 'settings' },
     ],
+  },
+  {
+    label: 'Notifications',
+    icon: Bell,
+    path: '/notifications',
+    module: 'notifications',
   },
 ]
 
@@ -120,7 +145,7 @@ interface SidebarProps {
 export default function Sidebar({ collapsed, mobileOpen, onMobileClose }: SidebarProps) {
   const { user, canAccess, logout } = useAuthStore()
   const location = useLocation()
-  const [openMenus, setOpenMenus] = useState<string[]>(['CRM', 'Team', 'Settings'])
+  const [openMenus, setOpenMenus] = useState<string[]>(['CRM', 'Team', 'Settings', 'Reports', 'Support'])
 
   const toggleMenu = (label: string) => {
     setOpenMenus((prev) =>
