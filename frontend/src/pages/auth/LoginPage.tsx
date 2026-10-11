@@ -143,7 +143,7 @@ export default function LoginPage() {
         </form>
 
         <p className="mt-8 border-t border-slate-100 pt-5 text-center text-xs text-slate-400">
-          © 2026 Santech Innovate. All rights reserved.
+          © 2026 SAN TECH. All rights reserved.
         </p>
       </div>
     </div>

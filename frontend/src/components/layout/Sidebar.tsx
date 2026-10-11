@@ -168,7 +168,7 @@ export default function Sidebar({ collapsed, mobileOpen, onMobileClose }: Sideba
         collapsed ? 'w-16' : 'w-64',
         mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
       )}
-      style={{ background: 'linear-gradient(180deg, #1a2a6c 0%, #162058 60%, #0f1840 100%)' }}
+      style={{ background: 'linear-gradient(180deg, #0b1f44 0%, #0a1c3d 60%, #07152f 100%)' }}
     >
       {/* Imigongo subtle pattern overlay on sidebar */}
       <div
@@ -197,7 +197,7 @@ export default function Sidebar({ collapsed, mobileOpen, onMobileClose }: Sideba
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-0.5">
+      <nav className="sidebar-nav-scroll flex-1 overflow-y-auto py-4 px-2 space-y-0.5">
         {navItems.map((item) => {
           if (!canAccess(item.module)) return null
 

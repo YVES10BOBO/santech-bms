@@ -5,17 +5,17 @@
 @layer base {
   :root {
     --background: 220 25% 96%;
-    --foreground: 222.2 84% 4.9%;
+    --foreground: 216 65% 18%;
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 216 65% 18%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 216 65% 18%;
     --primary: 221.2 83.2% 53.3%;
     --primary-foreground: 210 40% 98%;
     --secondary: 210 40% 96.1%;
     --secondary-foreground: 222.2 47.4% 11.2%;
     --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted-foreground: 216 20% 52%;
     --accent: 210 40% 96.1%;
     --accent-foreground: 222.2 47.4% 11.2%;
     --destructive: 0 84.2% 60.2%;
@@ -38,6 +38,7 @@
 
   body {
     @apply text-foreground;
+    font-family: "Exo", "Open Sans", sans-serif;
     font-feature-settings: "rlig" 1, "calt" 1;
     background-color: #f0f2f5;
     background-image: none;
@@ -91,6 +92,15 @@
   transition: width 0.2s ease-in-out;
 }
 
+.sidebar-nav-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.sidebar-nav-scroll::-webkit-scrollbar {
+  display: none;
+}
+
 /* ── Custom scrollbar ── */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: #eef1f8; }
@@ -106,5 +116,25 @@ table thead th {
 }
 table tbody tr:hover {
   background-color: #f5f7fd !important;
+}
+
+@layer utilities {
+  .text-gray-400,
+  .text-slate-400 { color: #8495ae; }
+
+  .text-gray-500,
+  .text-slate-500 { color: #71839e; }
+
+  .text-gray-600,
+  .text-slate-600 { color: #596d89; }
+
+  .text-gray-700,
+  .text-slate-700 { color: #344a6b; }
+
+  .text-gray-800,
+  .text-slate-800 { color: #1e365b; }
+
+  .text-gray-900,
+  .text-slate-900 { color: #10284c; }
 }
 
