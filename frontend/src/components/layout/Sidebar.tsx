@@ -74,8 +74,10 @@ const navItems: NavItem[] = [
   {
     label: 'Finance',
     icon: DollarSign,
-    path: '/finance',
     module: 'finance',
+    children: [
+      { label: 'Invoices & Payments', path: '/finance/invoices', module: 'finance' },
+    ],
   },
   {
     label: 'Projects',

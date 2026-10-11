@@ -20,7 +20,8 @@ import TasksPage from '@/pages/projects/TasksPage'
 import EmployeesPage from '@/pages/team/EmployeesPage'
 import MyTasksPage from '@/pages/team/MyTasksPage'
 import SalaryPage from '@/pages/team/SalaryPage'
-import FinancePage from '@/pages/finance/FinancePage'
+import ContractsPage from '@/pages/contracts/ContractsPage'
+import InvoicesPage from '@/pages/finance/InvoicesPage'
 import SettingsPage from '@/pages/settings/SettingsPage'
 
 // Guard: requires authentication
@@ -91,8 +92,12 @@ export default function App() {
           <Route path="team/my-tasks" element={<MyTasksPage />} />
           <Route path="team/salary" element={<SalaryPage />} />
 
+          {/* Contracts */}
+          <Route path="contracts" element={<ContractsPage />} />
+
           {/* Finance */}
-          <Route path="finance" element={<FinancePage />} />
+          <Route path="finance" element={<InvoicesPage />} />
+          <Route path="finance/invoices" element={<InvoicesPage />} />
 
           {/* Settings */}
           <Route path="settings" element={<SettingsPage />} />

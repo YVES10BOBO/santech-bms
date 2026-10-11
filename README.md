@@ -298,30 +298,59 @@ SETTINGS   → Users | Roles | Company | Taxes | Currencies | Templates
 
 ## Development Progress
 
-### ✅ Completed
+### ✅ Phase 1 — Foundation (Completed)
 - [x] Project requirements gathered
 - [x] Excel sheet data structure analyzed (4 sheets: Self Employed, Institutions, Industries, Distributors)
 - [x] Full system architecture defined (28 modules)
-- [x] Tech stack selected
-- [x] README initialized and documented
-- [x] Project folder structure created
+- [x] Tech stack selected (React + TypeScript + Tailwind + Node.js + Express + PostgreSQL + Prisma)
+- [x] Project folder structure created (monorepo: frontend + backend)
 - [x] Frontend scaffolded (React + TypeScript + Vite + Tailwind CSS)
 - [x] Backend scaffolded (Node.js + Express + TypeScript)
 - [x] TypeScript type definitions for all system entities
 - [x] Authentication store (Zustand + JWT + role-based access)
-- [x] API client with auto token injection and 401 handling
-- [x] Utility functions (currency formatting, date, status colors)
-- [x] Full sidebar navigation with role-based menu visibility
-- [x] Top navigation bar with search and user profile
-- [x] Auth layout + Login page (with validation)
-- [x] Executive Dashboard with KPI cards and charts (Recharts)
-- [x] Field Visits page (Excel data migrated as mock data, filters, table)
+- [x] API client (Axios with auto token injection and 401 redirect)
+- [x] Utility functions (RWF currency, date formatting, status colors, initials)
+- [x] Sidebar navigation (collapsible, role-based menu visibility)
+- [x] Topbar (search, user profile, notifications bell)
+- [x] Auth layout + Login page (form validation, JWT login)
+- [x] Imigongo pattern background (Rwandan cultural design)
 - [x] Prisma database schema (all 28 modules modeled)
-- [x] Auth controller (login, getMe, change password)
-- [x] Clients controller with pagination and search
-- [x] Field Visits controller with role-based filtering
+- [x] Auth API (login, getMe, change password)
+- [x] Clients API (CRUD, pagination, search)
+- [x] Field Visits API (role-based filtering)
 - [x] All API routes with role-based authorization middleware
-- [x] Database seed file with default users and sample field visits
+- [x] Database seed file (default users + sample field visits)
+- [x] GitHub repository initialized (santech-bms)
+
+### ✅ Phase 2 — Core CRM Modules (Completed)
+- [x] Executive Dashboard — 8 KPI cards, revenue vs expenses chart, sales pipeline chart, service revenue pie chart, recent field visits
+- [x] Field Visits page — full Excel data migration, all 14 columns, filters (category, outcome, product, date range, contract won), rows per page (5/10/20/All), Record Visit modal form
+- [x] Customer Management — table with category tabs, status badges, Add/Edit modal, View side panel, filters, pagination
+- [x] Leads Management — lead journey flow (New → Contacted → Qualified → Converted), Advance status, Convert to Deal button, detail side panel, Add/Edit modal, filters, pagination
+
+### ✅ Phase 3 — Admin & Team Modules (Completed)
+- [x] User Management (Settings) — full CRUD, role badges, search, activate/deactivate, Add/Edit modal with password
+- [x] Employee Management — card grid with performance bars, employment status badges, Add/Edit modal, department/status filters
+- [x] Task Management — All Tasks + My Tasks toggle, assign tasks, Mark Complete → Pending Approval → Approve/Reject workflow, priority badges, filters
+- [x] My Tasks (Employee view) — personal task cards, status filter tabs, Mark Complete button, rejection reason display
+- [x] Salary Management — monthly salary table, bonuses/deductions, Mark Paid, Add Bonus/Deduction modal, Promotion modal, performance score bars
+
+### 🔄 Phase 4 — Sales & Finance (In Progress)
+- [x] Contracts — contract lifecycle (Draft → Review → Approval → Signing → Active → Completed), advance workflow button, view panel, Add/Edit modal
+- [x] Invoices & Payments — invoice table, record payment modal, outstanding balance tracking, overdue alerts, status badges
+- [ ] Finance / P&L — income vs expenses, profit & loss statement
+
+### 📋 Phase 5 — Operations
+- [ ] Projects — project management linked to contracts
+- [ ] Milestones — project milestones triggering invoices
+- [ ] Reports & Analytics — sales, finance, project reports with export
+
+### 📋 Phase 6 — Advanced Features
+- [ ] Notifications & Reminders — payment due, contract expiry, follow-up alerts
+- [ ] Customer Portal — clients view invoices, contracts, project progress
+- [ ] Support Tickets — after-sales support management
+- [ ] Audit Trail — log every action with user, date, old/new values
+- [ ] Marketing Campaigns — campaign management and ROI tracking
 
 ### 📋 Phase 1 — Foundation
 - [ ] Project scaffold (frontend + backend folders)
@@ -362,3 +391,4 @@ SETTINGS   → Users | Roles | Company | Taxes | Currencies | Templates
 ---
 
 *SAN TECH Business Management System — README updated continuously throughout development.*
+- [x] Deal Pipeline — Kanban board + list view, drag & drop between stages, probability bars, deal detail panel, Add/Edit modal, KPI cards
