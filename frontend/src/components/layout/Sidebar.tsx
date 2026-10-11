@@ -1,0 +1,285 @@
+import { NavLink, useLocation } from 'react-router-dom'
+import { cn } from '@/lib/utils'
+import { useAuthStore } from '@/store/authStore'
+import {
+  LayoutDashboard,
+  Users,
+  UserSearch,
+  MapPin,
+  TrendingUp,
+  Megaphone,
+  FileText,
+  DollarSign,
+  FolderKanban,
+  CheckSquare,
+  UserCog,
+  ListTodo,
+  Wallet,
+  Settings,
+  ChevronDown,
+  ChevronRight,
+  Building2,
+} from 'lucide-react'
+import { useState } from 'react'
+
+interface NavItem {
+  label: string
+  icon: React.ElementType
+  path?: string
+  module: string
+  children?: { label: string; path: string; module: string }[]
+}
+
+const navItems: NavItem[] = [
+  {
+    label: 'Dashboard',
+    icon: LayoutDashboard,
+    path: '/dashboard',
+    module: 'dashboard',
+  },
+  {
+    label: 'CRM',
+    icon: Users,
+    module: 'crm',
+    children: [
+      { label: 'Customers', path: '/crm/customers', module: 'crm' },
+      { label: 'Leads', path: '/crm/leads', module: 'crm' },
+      { label: 'Field Visits', path: '/crm/field-visits', module: 'crm' },
+    ],
+  },
+  {
+    label: 'Sales',
+    icon: TrendingUp,
+    module: 'sales',
+    children: [
+      { label: 'Deal Pipeline', path: '/sales/pipeline', module: 'sales' },
+    ],
+  },
+  {
+    label: 'Marketing',
+    icon: Megaphone,
+    module: 'marketing',
+    children: [
+      { label: 'Campaigns', path: '/marketing/campaigns', module: 'marketing' },
+    ],
+  },
+  {
+    label: 'Contracts',
+    icon: FileText,
+    module: 'contracts',
+    children: [
+      { label: 'All Contracts', path: '/contracts', module: 'contracts' },
+    ],
+  },
+  {
+    label: 'Finance',
+    icon: DollarSign,
+    path: '/finance',
+    module: 'finance',
+  },
+  {
+    label: 'Projects',
+    icon: FolderKanban,
+    module: 'projects',
+    children: [
+      { label: 'All Projects', path: '/projects', module: 'projects' },
+      { label: 'Tasks', path: '/projects/tasks', module: 'projects' },
+    ],
+  },
+  {
+    label: 'Team',
+    icon: UserCog,
+    module: 'team',
+    children: [
+      { label: 'Employees', path: '/team/employees', module: 'team' },
+      { label: 'My Tasks', path: '/team/my-tasks', module: 'team' },
+      { label: 'Salary', path: '/team/salary', module: 'team' },
+    ],
+  },
+  {
+    label: 'Settings',
+    icon: Settings,
+    module: 'settings',
+    children: [
+      { label: 'User Management', path: '/settings/users', module: 'settings' },
+      { label: 'Company Profile', path: '/settings/company', module: 'settings' },
+      { label: 'Roles & Permissions', path: '/settings/roles', module: 'settings' },
+      { label: 'System Config', path: '/settings/config', module: 'settings' },
+    ],
+  },
+]
+
+interface SidebarProps {
+  collapsed: boolean
+  mobileOpen: boolean
+  onMobileClose: () => void
+}
+
+export default function Sidebar({ collapsed, mobileOpen, onMobileClose }: SidebarProps) {
+  const { user, canAccess, logout } = useAuthStore()
+  const location = useLocation()
+  const [openMenus, setOpenMenus] = useState<string[]>(['CRM', 'Team', 'Settings'])
+
+  const toggleMenu = (label: string) => {
+    setOpenMenus((prev) =>
+      prev.includes(label) ? prev.filter((m) => m !== label) : [...prev, label]
+    )
+  }
+
+  const isMenuOpen = (label: string) => openMenus.includes(label)
+
+  const isActive = (path: string) => location.pathname === path
+  const isParentActive = (children?: { path: string }[]) =>
+    children?.some((c) => location.pathname.startsWith(c.path)) ?? false
+
+  return (
+    <aside
+      className={cn(
+        'flex flex-col h-screen sidebar-transition z-30',
+        'fixed lg:relative lg:translate-x-0',
+        collapsed ? 'w-16' : 'w-64',
+        mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+      )}
+      style={{ background: 'linear-gradient(180deg, #1a2a6c 0%, #162058 60%, #0f1840 100%)' }}
+    >
+      {/* Imigongo subtle pattern overlay on sidebar */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          backgroundImage: "url('/assets/imingogo-trimmed.png')",
+          backgroundSize: '80px auto',
+          backgroundRepeat: 'repeat',
+          opacity: 0.03,
+        }}
+      />
+      {/* Logo */}
+      <div className={cn(
+        'flex items-center gap-3 px-4 py-5 border-b border-santech-700',
+        collapsed ? 'justify-center' : ''
+      )}>
+        <div className="w-8 h-8 bg-santech-400 rounded-lg flex items-center justify-center flex-shrink-0">
+          <Building2 className="w-4 h-4 text-santech-900" />
+        </div>
+        {!collapsed && (
+          <div>
+            <p className="font-bold text-sm leading-tight">Santech</p>
+            <p className="text-santech-300 text-xs">Business Management</p>
+          </div>
+        )}
+      </div>
+
+      {/* Navigation */}
+      <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-0.5">
+        {navItems.map((item) => {
+          if (!canAccess(item.module)) return null
+
+          // Single link (no children)
+          if (item.path && !item.children) {
+            return (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                onClick={onMobileClose}
+                className={cn(
+                  'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all',
+                  isActive(item.path)
+                    ? 'bg-santech-500 text-white'
+                    : 'text-santech-200 hover:bg-santech-800 hover:text-white',
+                  collapsed ? 'justify-center' : ''
+                )}
+                title={collapsed ? item.label : undefined}
+              >
+                <item.icon className="w-4 h-4 flex-shrink-0" />
+                {!collapsed && <span>{item.label}</span>}
+              </NavLink>
+            )
+          }
+
+          // Expandable menu
+          const parentActive = isParentActive(item.children)
+          const open = isMenuOpen(item.label)
+
+          return (
+            <div key={item.label}>
+              <button
+                onClick={() => !collapsed && toggleMenu(item.label)}
+                className={cn(
+                  'w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all',
+                  parentActive
+                    ? 'bg-santech-800 text-white'
+                    : 'text-santech-200 hover:bg-santech-800 hover:text-white',
+                  collapsed ? 'justify-center' : ''
+                )}
+                title={collapsed ? item.label : undefined}
+              >
+                <item.icon className="w-4 h-4 flex-shrink-0" />
+                {!collapsed && (
+                  <>
+                    <span className="flex-1 text-left">{item.label}</span>
+                    {open ? (
+                      <ChevronDown className="w-3.5 h-3.5 text-santech-400" />
+                    ) : (
+                      <ChevronRight className="w-3.5 h-3.5 text-santech-400" />
+                    )}
+                  </>
+                )}
+              </button>
+
+              {/* Children */}
+              {!collapsed && open && item.children && (
+                <div className="ml-4 mt-0.5 space-y-0.5 border-l border-santech-700 pl-3">
+                  {item.children.map((child) => {
+                    if (!canAccess(child.module)) return null
+                    return (
+                      <NavLink
+                        key={child.path}
+                        to={child.path}
+                        onClick={onMobileClose}
+                        className={cn(
+                          'flex items-center px-2 py-1.5 rounded-md text-xs font-medium transition-all',
+                          isActive(child.path)
+                            ? 'bg-santech-500 text-white'
+                            : 'text-santech-300 hover:text-white hover:bg-santech-800'
+                        )}
+                      >
+                        {child.label}
+                      </NavLink>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </nav>
+
+      {/* User profile at bottom */}
+      {!collapsed && user && (
+        <div className="border-t border-santech-700 p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-santech-500 rounded-full flex items-center justify-center flex-shrink-0">
+              <span className="text-xs font-bold text-white">
+                {user.firstName[0]}{user.lastName[0]}
+              </span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-white truncate">
+                {user.firstName} {user.lastName}
+              </p>
+              <p className="text-xs text-santech-300 truncate capitalize">
+                {user.role.replace('_', ' ').toLowerCase()}
+              </p>
+            </div>
+            <button
+              onClick={logout}
+              className="text-santech-400 hover:text-white transition-colors text-xs"
+              title="Sign out"
+            >
+              Sign out
+            </button>
+          </div>
+        </div>
+      )}
+    </aside>
+  )
+}

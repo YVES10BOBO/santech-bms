@@ -1,0 +1,110 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 25% 96%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 85%;
+    --input: 214.3 31.8% 85%;
+    --ring: 221.2 83.2% 53.3%;
+    --radius: 0.75rem;
+
+    /* Imigongo brand colors */
+    --imigongo-navy: #1a2a6c;
+    --imigongo-blue: #1d3a8a;
+    --imigongo-mid: #2d52b8;
+    --imigongo-light: #e8edf8;
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+
+  body {
+    @apply text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    background-color: #f0f2f5;
+    background-image: none;
+    position: relative;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url('/assets/imingogo-trimmed.png');
+    background-repeat: repeat;
+    background-size: 60px auto;
+    background-attachment: fixed;
+    opacity: 0.08;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  #root {
+    position: relative;
+    z-index: 1;
+  }
+}
+
+/* ── Card styles — clearly visible against the background ── */
+@layer components {
+  .bms-card {
+    @apply bg-white rounded-xl shadow-sm;
+    border: 1.5px solid #dde3f0;
+  }
+
+  .bms-card-hover {
+    @apply bms-card transition-shadow hover:shadow-md;
+  }
+
+  /* Stronger card shadow for dashboard KPI cards */
+  .kpi-card {
+    @apply bg-white rounded-xl;
+    border: 1.5px solid #dde3f0;
+    box-shadow: 0 2px 8px rgba(26, 42, 108, 0.08);
+  }
+
+  .kpi-card:hover {
+    box-shadow: 0 4px 16px rgba(26, 42, 108, 0.13);
+  }
+}
+
+/* ── Sidebar uses deep Imigongo navy ── */
+.sidebar-transition {
+  transition: width 0.2s ease-in-out;
+}
+
+/* ── Custom scrollbar ── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: #eef1f8; }
+::-webkit-scrollbar-thumb { background: #a0aec0; border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: #718096; }
+
+/* ── Table styles ── */
+table thead tr {
+  background-color: #f0f3fb;
+}
+table thead th {
+  color: #3d5299;
+}
+table tbody tr:hover {
+  background-color: #f5f7fd !important;
+}
+

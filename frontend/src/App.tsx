@@ -1,0 +1,110 @@
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { Toaster } from 'react-hot-toast'
+import { useAuthStore } from '@/store/authStore'
+
+// Layouts
+import MainLayout from '@/components/layout/MainLayout'
+import AuthLayout from '@/components/layout/AuthLayout'
+
+// Auth pages
+import LoginPage from '@/pages/auth/LoginPage'
+
+// Main pages
+import DashboardPage from '@/pages/dashboard/DashboardPage'
+import CustomersPage from '@/pages/crm/CustomersPage'
+import LeadsPage from '@/pages/crm/LeadsPage'
+import FieldVisitsPage from '@/pages/crm/FieldVisitsPage'
+import PipelinePage from '@/pages/sales/PipelinePage'
+import ProjectsPage from '@/pages/projects/ProjectsPage'
+import TasksPage from '@/pages/projects/TasksPage'
+import EmployeesPage from '@/pages/team/EmployeesPage'
+import MyTasksPage from '@/pages/team/MyTasksPage'
+import SalaryPage from '@/pages/team/SalaryPage'
+import FinancePage from '@/pages/finance/FinancePage'
+import SettingsPage from '@/pages/settings/SettingsPage'
+
+// Guard: requires authentication
+function PrivateRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated } = useAuthStore()
+  return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />
+}
+
+// Guard: redirect to dashboard if already logged in
+function PublicRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated } = useAuthStore()
+  return !isAuthenticated ? <>{children}</> : <Navigate to="/dashboard" replace />
+}
+
+export default function App() {
+  return (
+    <Router>
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 4000,
+          style: {
+            background: '#fff',
+            color: '#1e293b',
+            boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
+          },
+        }}
+      />
+      <Routes>
+        {/* Public routes */}
+        <Route
+          path="/login"
+          element={
+            <PublicRoute>
+              <AuthLayout>
+                <LoginPage />
+              </AuthLayout>
+            </PublicRoute>
+          }
+        />
+
+        {/* Protected routes */}
+        <Route
+          path="/"
+          element={
+            <PrivateRoute>
+              <MainLayout />
+            </PrivateRoute>
+          }
+        >
+          <Route index element={<Navigate to="/dashboard" replace />} />
+          <Route path="dashboard" element={<DashboardPage />} />
+
+          {/* CRM */}
+          <Route path="crm/customers" element={<CustomersPage />} />
+          <Route path="crm/leads" element={<LeadsPage />} />
+          <Route path="crm/field-visits" element={<FieldVisitsPage />} />
+
+          {/* Sales */}
+          <Route path="sales/pipeline" element={<PipelinePage />} />
+
+          {/* Projects */}
+          <Route path="projects" element={<ProjectsPage />} />
+          <Route path="projects/tasks" element={<TasksPage />} />
+
+          {/* Team */}
+          <Route path="team/employees" element={<EmployeesPage />} />
+          <Route path="team/my-tasks" element={<MyTasksPage />} />
+          <Route path="team/salary" element={<SalaryPage />} />
+
+          {/* Finance */}
+          <Route path="finance" element={<FinancePage />} />
+
+          {/* Settings */}
+          <Route path="settings" element={<SettingsPage />} />
+          <Route path="settings/users" element={<SettingsPage />} />
+          <Route path="settings/company" element={<SettingsPage />} />
+          <Route path="settings/roles" element={<SettingsPage />} />
+          <Route path="settings/config" element={<SettingsPage />} />
+
+          {/* 404 fallback */}
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Route>
+      </Routes>
+    </Router>
+  )
+}

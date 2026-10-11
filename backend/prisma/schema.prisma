@@ -1,0 +1,524 @@
+// SAN-BMS — Prisma Database Schema
+// Santech Business Management System
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ===========================
+// ENUMS
+// ===========================
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  FINANCE_MANAGER
+  SALES_MANAGER
+  MARKETING_MANAGER
+  PROJECT_MANAGER
+  SALES_STAFF
+  EMPLOYEE
+  CUSTOMER
+}
+
+enum ClientCategory {
+  SELF_EMPLOYED
+  INSTITUTION
+  INDUSTRY
+  DISTRIBUTOR
+}
+
+enum ClientStatus {
+  PROSPECT
+  LEAD
+  QUALIFIED
+  CONTRACTOR
+  INACTIVE
+  LOST
+}
+
+enum ClientType {
+  CONTRACTOR
+  ACQUISITION
+}
+
+enum VisitOutcome {
+  PENDING
+  FOLLOW_UP
+  INTERESTED
+  NOT_INTERESTED
+  PROPOSAL
+  NEGOTIATION
+  WON
+  LOST
+}
+
+enum PipelineStage {
+  NEW_LEAD
+  CONTACTED
+  QUALIFIED
+  REQUIREMENT_ANALYSIS
+  PROPOSAL
+  NEGOTIATION
+  WON
+  LOST
+}
+
+enum ContractStatus {
+  DRAFT
+  REVIEW
+  APPROVAL
+  SIGNING
+  ACTIVE
+  RENEWAL
+  COMPLETED
+  CANCELLED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  DUE
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum ProjectStatus {
+  PLANNING
+  NOT_STARTED
+  IN_PROGRESS
+  ON_HOLD
+  AT_RISK
+  DELAYED
+  COMPLETED
+  CANCELLED
+}
+
+enum TaskStatus {
+  CREATED
+  ASSIGNED
+  ACCEPTED
+  IN_PROGRESS
+  REVIEW
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum EmploymentStatus {
+  ACTIVE
+  ON_LEAVE
+  SUSPENDED
+  TERMINATED
+}
+
+enum ProductCategory {
+  EVS
+  SANTRACK
+  REVIXSAN
+  SANBOOK
+  SANHUB
+  WEBSITE
+  MOBILE_APP
+  CRM
+  ERP
+  AI_SOLUTION
+  IOT
+  TRAINING
+  CONSULTANCY
+  MAINTENANCE
+  OTHER
+}
+
+// ===========================
+// USER & AUTH
+// ===========================
+
+model User {
+  id            String    @id @default(cuid())
+  firstName     String
+  lastName      String
+  email         String    @unique
+  password      String
+  phone         String?
+  role          UserRole  @default(EMPLOYEE)
+  avatar        String?
+  isActive      Boolean   @default(true)
+  lastLoginAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  employee              Employee?
+  fieldVisitsLogged     FieldVisit[]   @relation("LoggedBy")
+  tasksAssigned         Task[]         @relation("AssignedTo")
+  tasksCreated          Task[]         @relation("AssignedBy")
+  tasksApproved         Task[]         @relation("ApprovedBy")
+  clientsManaged        Client[]       @relation("AccountManager")
+  projectsManaged       Project[]      @relation("ProjectManager")
+  opportunitiesAssigned Opportunity[]  @relation("OpportunityAssignedTo")
+  contractsManaged      Contract[]     @relation("ContractManager")
+  auditLogs             AuditLog[]
+
+  @@map("users")
+}
+
+// ===========================
+// EMPLOYEE
+// ===========================
+
+model Employee {
+  id               String           @id @default(cuid())
+  userId           String           @unique
+  user             User             @relation(fields: [userId], references: [id])
+  employeeCode     String           @unique
+  department       String
+  position         String
+  hireDate         DateTime
+  employmentStatus EmploymentStatus @default(ACTIVE)
+  baseSalary       Float
+  currency         String           @default("RWF")
+  performanceScore Float            @default(0)
+  skills           String[]
+  managerId        String?
+  manager          Employee?        @relation("EmployeeManager", fields: [managerId], references: [id])
+  subordinates     Employee[]       @relation("EmployeeManager")
+  salaryRecords    SalaryRecord[]
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@map("employees")
+}
+
+model SalaryRecord {
+  id          String   @id @default(cuid())
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id])
+  month       Int
+  year        Int
+  baseSalary  Float
+  bonuses     Float    @default(0)
+  deductions  Float    @default(0)
+  netSalary   Float
+  currency    String   @default("RWF")
+  isPaid      Boolean  @default(false)
+  paidAt      DateTime?
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  @@unique([employeeId, month, year])
+  @@map("salary_records")
+}
+
+// ===========================
+// CLIENTS
+// ===========================
+
+model Client {
+  id                   String         @id @default(cuid())
+  companyName          String
+  category             ClientCategory
+  status               ClientStatus   @default(PROSPECT)
+  clientType           ClientType     @default(ACQUISITION)
+  registrationNumber   String?
+  address              String?
+  location             String?
+  phone                String
+  email                String?
+  website              String?
+  industry             String?
+  contactPersonName    String?
+  contactPersonPhone   String?
+  contactPersonEmail   String?
+  assignedToId         String?
+  assignedTo           User?          @relation("AccountManager", fields: [assignedToId], references: [id])
+  notes                String?
+  source               String?
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+
+  // Relations
+  fieldVisits  FieldVisit[]
+  opportunities Opportunity[]
+  contracts    Contract[]
+  invoices     Invoice[]
+  projects     Project[]
+
+  @@map("clients")
+}
+
+// ===========================
+// FIELD VISITS (from Excel)
+// ===========================
+
+model FieldVisit {
+  id                   String         @id @default(cuid())
+  visitDate            DateTime
+  companyName          String
+  category             ClientCategory
+  location             String?
+  contactName          String?
+  contactPhone         String
+  contactEmail         String?
+  needsAndObservation  String         @db.Text
+  whatSantechCanSell   String
+  outcome              VisitOutcome   @default(PENDING)
+  followUpDate         DateTime?
+  finalDecision        String?
+  comments             String?        @db.Text
+  amountPromising      Float?
+  contractWon          Boolean        @default(false)
+  recordedById         String
+  recordedBy           User           @relation("LoggedBy", fields: [recordedById], references: [id])
+  clientId             String?
+  client               Client?        @relation(fields: [clientId], references: [id])
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+
+  @@map("field_visits")
+}
+
+// ===========================
+// PRODUCTS / SERVICES
+// ===========================
+
+model Product {
+  id          String          @id @default(cuid())
+  name        String
+  category    ProductCategory
+  description String?
+  price       Float
+  cost        Float?
+  taxRate     Float           @default(0)
+  currency    String          @default("RWF")
+  isActive    Boolean         @default(true)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  opportunityProducts OpportunityProduct[]
+
+  @@map("products")
+}
+
+// ===========================
+// SALES PIPELINE
+// ===========================
+
+model Opportunity {
+  id                 String        @id @default(cuid())
+  name               String
+  clientId           String
+  client             Client        @relation(fields: [clientId], references: [id])
+  stage              PipelineStage @default(NEW_LEAD)
+  estimatedValue     Float
+  currency           String        @default("RWF")
+  probability        Float         @default(0)
+  expectedCloseDate  DateTime?
+  assignedToId       String
+  assignedTo         User          @relation("OpportunityAssignedTo", fields: [assignedToId], references: [id])
+  notes              String?
+  nextAction         String?
+  followUpDate       DateTime?
+  lostReason         String?
+  products           OpportunityProduct[]
+  contractId         String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  @@map("opportunities")
+}
+
+// Many-to-many: Opportunity <-> Product
+model OpportunityProduct {
+  opportunityId String
+  productId     String
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id])
+  product       Product     @relation(fields: [productId], references: [id])
+
+  @@id([opportunityId, productId])
+  @@map("opportunity_products")
+}
+
+// ===========================
+// CONTRACTS
+// ===========================
+
+model Contract {
+  id                  String         @id @default(cuid())
+  contractNumber      String         @unique
+  clientId            String
+  client              Client         @relation(fields: [clientId], references: [id])
+  projectName         String?
+  value               Float
+  currency            String         @default("RWF")
+  startDate           DateTime
+  endDate             DateTime
+  paymentTerms        String?
+  deliverables        String?        @db.Text
+  status              ContractStatus @default(DRAFT)
+  responsibleManagerId String?
+  responsibleManager  User?          @relation("ContractManager", fields: [responsibleManagerId], references: [id])
+  signedAt            DateTime?
+  signedDocumentUrl   String?
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  projects Project[]
+  invoices Invoice[]
+
+  @@map("contracts")
+}
+
+// ===========================
+// INVOICES & PAYMENTS
+// ===========================
+
+model Invoice {
+  id            String        @id @default(cuid())
+  invoiceNumber String        @unique
+  clientId      String
+  client        Client        @relation(fields: [clientId], references: [id])
+  contractId    String?
+  contract      Contract?     @relation(fields: [contractId], references: [id])
+  projectId     String?
+  amount        Float
+  taxAmount     Float         @default(0)
+  totalAmount   Float
+  currency      String        @default("RWF")
+  issueDate     DateTime
+  dueDate       DateTime
+  paidAmount    Float         @default(0)
+  status        InvoiceStatus @default(DRAFT)
+  notes         String?
+  payments      Payment[]
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@map("invoices")
+}
+
+model Payment {
+  id            String   @id @default(cuid())
+  invoiceId     String
+  invoice       Invoice  @relation(fields: [invoiceId], references: [id])
+  amount        Float
+  currency      String   @default("RWF")
+  paymentDate   DateTime
+  paymentMethod String
+  reference     String?
+  notes         String?
+  createdAt     DateTime @default(now())
+
+  @@map("payments")
+}
+
+// ===========================
+// PROJECTS & TASKS
+// ===========================
+
+model Project {
+  id               String        @id @default(cuid())
+  name             String
+  clientId         String
+  client           Client        @relation(fields: [clientId], references: [id])
+  contractId       String?
+  contract         Contract?     @relation(fields: [contractId], references: [id])
+  projectManagerId String
+  projectManager   User          @relation("ProjectManager", fields: [projectManagerId], references: [id])
+  budget           Float
+  contractValue    Float
+  currency         String        @default("RWF")
+  startDate        DateTime
+  endDate          DateTime
+  priority         Priority      @default(MEDIUM)
+  status           ProjectStatus @default(PLANNING)
+  progress         Float         @default(0)
+  description      String?       @db.Text
+  risks            String?
+  tasks            Task[]
+  milestones       Milestone[]
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@map("projects")
+}
+
+model Milestone {
+  id                String   @id @default(cuid())
+  projectId         String
+  project           Project  @relation(fields: [projectId], references: [id])
+  name              String
+  deadline          DateTime
+  deliverables      String?
+  paymentPercentage Float    @default(0)
+  isCompleted       Boolean  @default(false)
+  completedAt       DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("milestones")
+}
+
+model Task {
+  id              String     @id @default(cuid())
+  title           String
+  description     String?    @db.Text
+  projectId       String?
+  project         Project?   @relation(fields: [projectId], references: [id])
+  assignedToId    String
+  assignedTo      User       @relation("AssignedTo", fields: [assignedToId], references: [id])
+  assignedById    String
+  assignedBy      User       @relation("AssignedBy", fields: [assignedById], references: [id])
+  priority        Priority   @default(MEDIUM)
+  startDate       DateTime?
+  deadline        DateTime
+  estimatedHours  Float?
+  actualHours     Float?
+  status          TaskStatus @default(CREATED)
+  rejectionReason String?
+  completedAt     DateTime?
+  approvedAt      DateTime?
+  approvedById    String?
+  approvedBy      User?      @relation("ApprovedBy", fields: [approvedById], references: [id])
+  periodStart     DateTime?
+  periodEnd       DateTime?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  @@map("tasks")
+}
+
+// ===========================
+// AUDIT TRAIL
+// ===========================
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  action     String
+  entity     String
+  entityId   String
+  oldValue   Json?
+  newValue   Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@map("audit_logs")
+}
