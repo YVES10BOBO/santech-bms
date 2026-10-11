@@ -15,6 +15,7 @@ import CustomersPage from '@/pages/crm/CustomersPage'
 import LeadsPage from '@/pages/crm/LeadsPage'
 import FieldVisitsPage from '@/pages/crm/FieldVisitsPage'
 import PipelinePage from '@/pages/sales/PipelinePage'
+import QuotationsPage from '@/pages/sales/QuotationsPage'
 import ProjectsPage from '@/pages/projects/ProjectsPage'
 import TasksPage from '@/pages/projects/TasksPage'
 import EmployeesPage from '@/pages/team/EmployeesPage'
@@ -87,6 +88,7 @@ export default function App() {
 
           {/* Sales */}
           <Route path="sales/pipeline" element={<PipelinePage />} />
+          <Route path="sales/quotations" element={<QuotationsPage />} />
 
           {/* Projects */}
           <Route path="projects" element={<ProjectsPage />} />

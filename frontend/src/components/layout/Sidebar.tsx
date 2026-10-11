@@ -56,6 +56,7 @@ const navItems: NavItem[] = [
     module: 'sales',
     children: [
       { label: 'Deal Pipeline', path: '/sales/pipeline', module: 'sales' },
+      { label: 'Quotations', path: '/sales/quotations', module: 'sales' },
     ],
   },
   {
