@@ -92,6 +92,18 @@
   transition: width 0.2s ease-in-out;
 }
 
+/* ── Tighten page spacing globally ── */
+/* All pages use space-y-5 or space-y-6 — reduce gaps between sections */
+main > div.space-y-6 { gap: 0; }
+main > div.space-y-5 > * + * { margin-top: 0.75rem !important; }
+main > div.space-y-6 > * + * { margin-top: 0.75rem !important; }
+
+/* KPI stat cards — reduce internal padding slightly */
+.kpi-card { padding-top: 0.75rem !important; padding-bottom: 0.75rem !important; }
+
+/* Page headers — tighten margin */
+h1.text-2xl { margin-bottom: 0 !important; }
+
 .sidebar-nav-scroll {
   scrollbar-width: none;
   -ms-overflow-style: none;

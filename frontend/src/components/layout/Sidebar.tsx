@@ -113,7 +113,8 @@ const navItems: NavItem[] = [
     module: 'team',
     children: [
       { label: 'Employees', path: '/team/employees', module: 'team' },
-      { label: 'My Tasks', path: '/team/my-tasks', module: 'team' },
+      { label: 'Departments', path: '/team/departments', module: 'team' },
+      { label: 'My Tasks', path: '/team/my-tasks', module: 'my-tasks' },
       { label: 'Salary', path: '/team/salary', module: 'team' },
     ],
   },
@@ -125,8 +126,8 @@ const navItems: NavItem[] = [
       { label: 'User Management', path: '/settings/users', module: 'settings' },
       { label: 'Company Profile', path: '/settings/company', module: 'settings' },
       { label: 'Roles & Permissions', path: '/settings/roles', module: 'settings' },
-      { label: 'System Config', path: '/settings/config', module: 'settings' },
       { label: 'Product Catalog', path: '/settings/products', module: 'settings' },
+      { label: 'Audit Trail', path: '/settings/audit', module: 'settings' },
     ],
   },
   {

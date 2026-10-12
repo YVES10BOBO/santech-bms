@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, Search, X, ChevronDown, User } from 'lucide-react'
+import { Plus, Search, X, User, LayoutGrid, List } from 'lucide-react'
 import { cn, formatDate, formatCurrency, getInitials } from '@/lib/utils'
 
 type EmploymentStatus = 'ACTIVE' | 'ON_LEAVE' | 'SUSPENDED' | 'TERMINATED'
@@ -64,6 +64,7 @@ export default function EmployeesPage() {
   const [form, setForm] = useState(emptyForm)
   const [editId, setEditId] = useState<string | null>(null)
   const [error, setError] = useState('')
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
 
   const filtered = employees.filter(e => {
     const s = search.toLowerCase()
@@ -118,9 +119,28 @@ export default function EmployeesPage() {
           <h1 className="text-2xl font-bold text-gray-800">Employees</h1>
           <p className="text-gray-500 text-sm mt-0.5">Manage all staff profiles and performance</p>
         </div>
-        <button onClick={openAdd} className="flex items-center gap-2 px-4 py-2 bg-santech-600 text-white rounded-lg text-sm font-medium hover:bg-santech-700 transition-colors">
-          <Plus className="w-4 h-4" /> Add Employee
-        </button>
+        <div className="flex items-center gap-2">
+          {/* View toggle — like Google Drive */}
+          <div className="flex items-center bg-white border border-gray-200 rounded-lg p-1 gap-0.5">
+            <button
+              onClick={() => setViewMode('list')}
+              className={cn('p-1.5 rounded-md transition-colors', viewMode === 'list' ? 'bg-santech-600 text-white' : 'text-gray-400 hover:text-gray-600')}
+              title="List view"
+            >
+              <List className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setViewMode('grid')}
+              className={cn('p-1.5 rounded-md transition-colors', viewMode === 'grid' ? 'bg-santech-600 text-white' : 'text-gray-400 hover:text-gray-600')}
+              title="Grid view"
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </button>
+          </div>
+          <button onClick={openAdd} className="flex items-center gap-2 px-4 py-2 bg-santech-600 text-white rounded-lg text-sm font-medium hover:bg-santech-700 transition-colors">
+            <Plus className="w-4 h-4" /> Add Employee
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -147,65 +167,127 @@ export default function EmployeesPage() {
         </select>
       </div>
 
-      {/* Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filtered.map(emp => (
-          <div key={emp.id} className="bms-card p-5 flex flex-col gap-3">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-santech-600 flex items-center justify-center flex-shrink-0">
-                  <span className="text-white font-bold text-sm">{getInitials(`${emp.firstName} ${emp.lastName}`)}</span>
+      {/* ── GRID VIEW (Cards) ── */}
+      {viewMode === 'grid' && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filtered.map(emp => (
+            <div key={emp.id} className="bms-card p-5 flex flex-col gap-3">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-full bg-santech-600 flex items-center justify-center flex-shrink-0">
+                    <span className="text-white font-bold text-sm">{getInitials(`${emp.firstName} ${emp.lastName}`)}</span>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-800">{emp.firstName} {emp.lastName}</p>
+                    <p className="text-xs text-gray-500">{emp.position}</p>
+                    <p className="text-xs text-gray-400">{emp.employeeCode}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="font-semibold text-gray-800">{emp.firstName} {emp.lastName}</p>
-                  <p className="text-xs text-gray-500">{emp.position}</p>
-                  <p className="text-xs text-gray-400">{emp.employeeCode}</p>
+                <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', statusStyle[emp.employmentStatus])}>
+                  {emp.employmentStatus.replace('_', ' ')}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs text-gray-500">
+                <div><span className="text-gray-400">Dept:</span> <span className="text-gray-700 font-medium">{emp.department}</span></div>
+                <div><span className="text-gray-400">Hired:</span> <span className="text-gray-700">{formatDate(emp.hireDate)}</span></div>
+                <div><span className="text-gray-400">Salary:</span> <span className="text-gray-700 font-medium">{formatCurrency(emp.baseSalary)}</span></div>
+                <div><span className="text-gray-400">Phone:</span> <span className="text-gray-700">{emp.phone}</span></div>
+              </div>
+              <div>
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-gray-500">Performance</span>
+                  <span className="font-semibold text-gray-700">{emp.performanceScore}%</span>
+                </div>
+                <div className="w-full bg-gray-100 rounded-full h-2">
+                  <div className={cn('h-2 rounded-full transition-all', scoreColor(emp.performanceScore))} style={{ width: `${emp.performanceScore}%` }} />
                 </div>
               </div>
-              <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', statusStyle[emp.employmentStatus])}>
-                {emp.employmentStatus.replace('_', ' ')}
-              </span>
+              {emp.skills.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {emp.skills.slice(0, 3).map(s => (
+                    <span key={s} className="text-xs bg-santech-50 text-santech-700 px-2 py-0.5 rounded-full">{s}</span>
+                  ))}
+                  {emp.skills.length > 3 && <span className="text-xs text-gray-400">+{emp.skills.length - 3}</span>}
+                </div>
+              )}
+              <button onClick={() => openEdit(emp)} className="w-full mt-1 py-1.5 text-xs border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors font-medium">
+                Edit Profile
+              </button>
             </div>
-
-            <div className="grid grid-cols-2 gap-2 text-xs text-gray-500">
-              <div><span className="text-gray-400">Dept:</span> <span className="text-gray-700 font-medium">{emp.department}</span></div>
-              <div><span className="text-gray-400">Hired:</span> <span className="text-gray-700">{formatDate(emp.hireDate)}</span></div>
-              <div><span className="text-gray-400">Salary:</span> <span className="text-gray-700 font-medium">{formatCurrency(emp.baseSalary)}</span></div>
-              <div><span className="text-gray-400">Phone:</span> <span className="text-gray-700">{emp.phone}</span></div>
+          ))}
+          {filtered.length === 0 && (
+            <div className="col-span-3 bms-card p-12 text-center text-gray-400">
+              <User className="w-10 h-10 mx-auto mb-2 opacity-30" />
+              <p>No employees found matching your filters.</p>
             </div>
+          )}
+        </div>
+      )}
 
-            {/* Performance bar */}
-            <div>
-              <div className="flex justify-between text-xs mb-1">
-                <span className="text-gray-500">Performance</span>
-                <span className="font-semibold text-gray-700">{emp.performanceScore}%</span>
-              </div>
-              <div className="w-full bg-gray-100 rounded-full h-2">
-                <div className={cn('h-2 rounded-full transition-all', scoreColor(emp.performanceScore))} style={{ width: `${emp.performanceScore}%` }} />
-              </div>
-            </div>
-
-            {emp.skills.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {emp.skills.slice(0, 3).map(s => (
-                  <span key={s} className="text-xs bg-santech-50 text-santech-700 px-2 py-0.5 rounded-full">{s}</span>
+      {/* ── LIST VIEW (Table) ── */}
+      {viewMode === 'list' && (
+        <div className="bms-card overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-100">
+                <tr>
+                  {['Employee', 'Code', 'Department', 'Position', 'Phone', 'Hire Date', 'Salary', 'Performance', 'Status', ''].map(h => (
+                    <th key={h} className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {filtered.length === 0 ? (
+                  <tr><td colSpan={10} className="text-center py-10 text-gray-400 text-sm">No employees found.</td></tr>
+                ) : filtered.map(emp => (
+                  <tr key={emp.id} className="hover:bg-gray-50 transition-colors">
+                    {/* Employee name + avatar */}
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-full bg-santech-600 flex items-center justify-center flex-shrink-0">
+                          <span className="text-white font-bold text-xs">{getInitials(`${emp.firstName} ${emp.lastName}`)}</span>
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-800 text-xs whitespace-nowrap">{emp.firstName} {emp.lastName}</p>
+                          <p className="text-xs text-gray-400">{emp.email}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-xs font-mono text-santech-700 font-semibold">{emp.employeeCode}</td>
+                    <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">{emp.department}</td>
+                    <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">{emp.position}</td>
+                    <td className="px-4 py-3 text-xs font-mono text-gray-500">{emp.phone}</td>
+                    <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{formatDate(emp.hireDate)}</td>
+                    <td className="px-4 py-3 text-xs font-medium text-gray-700 whitespace-nowrap">{formatCurrency(emp.baseSalary)}</td>
+                    {/* Performance bar */}
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-20 bg-gray-100 rounded-full h-1.5">
+                          <div className={cn('h-1.5 rounded-full', scoreColor(emp.performanceScore))} style={{ width: `${emp.performanceScore}%` }} />
+                        </div>
+                        <span className={cn('text-xs font-semibold', emp.performanceScore >= 80 ? 'text-green-600' : emp.performanceScore >= 50 ? 'text-yellow-600' : 'text-red-500')}>
+                          {emp.performanceScore}%
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap', statusStyle[emp.employmentStatus])}>
+                        {emp.employmentStatus.replace('_', ' ')}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <button onClick={() => openEdit(emp)} className="text-xs text-santech-600 hover:underline font-medium">Edit</button>
+                    </td>
+                  </tr>
                 ))}
-                {emp.skills.length > 3 && <span className="text-xs text-gray-400">+{emp.skills.length - 3}</span>}
-              </div>
-            )}
-
-            <button onClick={() => openEdit(emp)} className="w-full mt-1 py-1.5 text-xs border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors font-medium">
-              Edit Profile
-            </button>
+              </tbody>
+            </table>
           </div>
-        ))}
-        {filtered.length === 0 && (
-          <div className="col-span-3 bms-card p-12 text-center text-gray-400">
-            <User className="w-10 h-10 mx-auto mb-2 opacity-30" />
-            <p>No employees found matching your filters.</p>
+          <div className="px-4 py-3 border-t border-gray-100">
+            <p className="text-xs text-gray-400">{filtered.length} employee{filtered.length !== 1 ? 's' : ''} found</p>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Modal */}
       {showModal && (

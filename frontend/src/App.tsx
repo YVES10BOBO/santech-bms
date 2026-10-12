@@ -20,10 +20,12 @@ import ProjectsPage from '@/pages/projects/ProjectsPage'
 import TasksPage from '@/pages/projects/TasksPage'
 import EmployeesPage from '@/pages/team/EmployeesPage'
 import MyTasksPage from '@/pages/team/MyTasksPage'
+import DepartmentsPage from '@/pages/team/DepartmentsPage'
 import SalaryPage from '@/pages/team/SalaryPage'
 import ContractsPage from '@/pages/contracts/ContractsPage'
 import InvoicesPage from '@/pages/finance/InvoicesPage'
 import SettingsPage from '@/pages/settings/SettingsPage'
+import AuditTrailPage from '@/pages/settings/AuditTrailPage'
 import FinancePage from '@/pages/finance/FinancePage'
 import ReportsPage from '@/pages/reports/ReportsPage'
 import NotificationsPage from '@/pages/notifications/NotificationsPage'
@@ -96,6 +98,7 @@ export default function App() {
 
           {/* Team */}
           <Route path="team/employees" element={<EmployeesPage />} />
+          <Route path="team/departments" element={<DepartmentsPage />} />
           <Route path="team/my-tasks" element={<MyTasksPage />} />
           <Route path="team/salary" element={<SalaryPage />} />
 
@@ -120,6 +123,7 @@ export default function App() {
           <Route path="notifications" element={<NotificationsPage />} />
           <Route path="support" element={<SupportPage />} />
           <Route path="settings/products" element={<ProductCatalogPage />} />
+          <Route path="settings/audit" element={<AuditTrailPage />} />
 
           {/* 404 fallback */}
           <Route path="*" element={<Navigate to="/dashboard" replace />} />

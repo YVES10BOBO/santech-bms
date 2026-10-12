@@ -25,10 +25,10 @@ export default function MainLayout() {
         />
 
         {/* Page content */}
-        <main className="flex-1 min-h-0 overflow-y-auto p-6">
+        <main className="flex-1 min-h-0 overflow-y-auto p-4">
           <Outlet />
         </main>
-        <footer className="shrink-0 px-6 py-3 text-center text-xs text-gray-500">
+        <footer className="shrink-0 px-4 py-2 text-center text-xs text-gray-500">
           © 2026 SAN TECH. All rights reserved.
         </footer>
       </div>
