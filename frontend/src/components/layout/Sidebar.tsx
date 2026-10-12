@@ -73,6 +73,7 @@ const navItems: NavItem[] = [
     module: 'contracts',
     children: [
       { label: 'All Contracts', path: '/contracts', module: 'contracts' },
+      { label: 'Client Services', path: '/contracts/services', module: 'contracts' },
     ],
   },
   {

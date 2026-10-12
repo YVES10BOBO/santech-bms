@@ -23,6 +23,7 @@ import MyTasksPage from '@/pages/team/MyTasksPage'
 import DepartmentsPage from '@/pages/team/DepartmentsPage'
 import SalaryPage from '@/pages/team/SalaryPage'
 import ContractsPage from '@/pages/contracts/ContractsPage'
+import ClientServicesPage from '@/pages/contracts/ClientServicesPage'
 import InvoicesPage from '@/pages/finance/InvoicesPage'
 import SettingsPage from '@/pages/settings/SettingsPage'
 import AuditTrailPage from '@/pages/settings/AuditTrailPage'
@@ -104,6 +105,7 @@ export default function App() {
 
           {/* Contracts */}
           <Route path="contracts" element={<ContractsPage />} />
+          <Route path="contracts/services" element={<ClientServicesPage />} />
 
           {/* Finance */}
           {/* Finance P&L — override the existing /finance route to use FinancePage */}
