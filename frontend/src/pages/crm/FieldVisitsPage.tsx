@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { MapPin, Plus, Search, Download, X, ChevronDown } from 'lucide-react'
+import PhoneInput from '@/components/shared/PhoneInput'
 import { cn, getStatusColor, getCategoryLabel, formatDate } from '@/lib/utils'
 import type { ClientCategory, VisitOutcome } from '@/types'
 
@@ -458,8 +459,13 @@ export default function FieldVisitsPage() {
                   <input type="text" name="contactName" value={form.contactName} onChange={handleFormChange} placeholder="e.g. EID IBRAHIM" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Contact Phone <span className="text-red-500">*</span></label>
-                  <input type="text" name="contactPhone" value={form.contactPhone} onChange={handleFormChange} placeholder="e.g. 0788123456" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500" />
+                  <PhoneInput
+                    label="Contact Phone"
+                    required
+                    value={form.contactPhone}
+                    onChange={val => setForm(prev => ({ ...prev, contactPhone: val }))}
+                    defaultCountry="RW"
+                  />
                 </div>
               </div>
 

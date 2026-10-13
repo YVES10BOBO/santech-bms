@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Plus, Search, X, User, LayoutGrid, List } from 'lucide-react'
+import PhoneInput from '@/components/shared/PhoneInput'
 import { cn, formatDate, formatCurrency, getInitials } from '@/lib/utils'
 
 type EmploymentStatus = 'ACTIVE' | 'ON_LEAVE' | 'SUSPENDED' | 'TERMINATED'
@@ -315,8 +316,12 @@ export default function EmployeesPage() {
                   <input name="employeeCode" value={form.employeeCode} onChange={handleChange} placeholder="ST-007" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Phone</label>
-                  <input name="phone" value={form.phone} onChange={handleChange} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500" />
+                  <PhoneInput
+                    label="Phone"
+                    value={form.phone}
+                    onChange={val => setForm(prev => ({ ...prev, phone: val }))}
+                    defaultCountry="RW"
+                  />
                 </div>
               </div>
               <div>
