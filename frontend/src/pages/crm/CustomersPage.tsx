@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Plus, Search, X, Building2, User, Users, Globe, ChevronLeft, ChevronRight, Trash2, CheckCircle2 } from 'lucide-react'
 import { cn, formatDate } from '@/lib/utils'
 
@@ -258,6 +259,7 @@ const sectionHeadingCls = 'text-sm font-semibold text-gray-700 mb-3 pb-1 border-
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function CustomersPage() {
+  const navigate = useNavigate()
   const [clients, setClients]         = useState<Client[]>(mockClients)
   const [search, setSearch]           = useState('')
   const [kindFilter, setKindFilter]   = useState<ClientKind | 'ALL'>('ALL')
@@ -627,6 +629,10 @@ export default function CustomersPage() {
                     <td className="px-4 py-3 text-xs text-gray-400 whitespace-nowrap">{formatDate(c.createdAt)}</td>
                     <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                       <div className="flex gap-1.5">
+                        <button onClick={() => navigate(`/crm/clients/${c.id}`)}
+                          className="text-xs bg-santech-600 text-white px-2 py-1 rounded hover:bg-santech-700 font-medium whitespace-nowrap">
+                          View Profile
+                        </button>
                         <button onClick={() => setViewId(c.id)}
                           className="text-xs bg-santech-50 text-santech-700 px-2 py-1 rounded hover:bg-santech-100 font-medium whitespace-nowrap">
                           View
