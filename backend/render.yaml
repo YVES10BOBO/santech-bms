@@ -2,21 +2,17 @@ services:
   - type: web
     name: santech-bms-api
     env: node
-    buildCommand: npm install && npm run build && npx prisma generate
+    rootDir: backend
+    buildCommand: npm install && npm run build && npx prisma generate && npx prisma migrate deploy
     startCommand: node dist/index.js
     envVars:
       - key: NODE_ENV
         value: production
       - key: DATABASE_URL
-        fromDatabase:
-          name: santech-bms-db
-          property: connectionString
+        sync: false
+      - key: DIRECT_URL
+        sync: false
       - key: JWT_SECRET
         generateValue: true
       - key: CLIENT_URL
         value: https://santech-bms.vercel.app
-
-databases:
-  - name: santech-bms-db
-    databaseName: santech_bms
-    user: santech_admin
