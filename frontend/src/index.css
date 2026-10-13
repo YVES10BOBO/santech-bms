@@ -130,6 +130,33 @@ table tbody tr:hover {
   background-color: #f5f7fd !important;
 }
 
+@keyframes auth-enter {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.auth-rise,
+.auth-rise-delay {
+  animation: auth-enter 560ms ease-out both;
+}
+
+.auth-rise-delay {
+  animation-delay: 120ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-rise,
+  .auth-rise-delay {
+    animation: none;
+  }
+}
+
 @layer utilities {
   .text-gray-400,
   .text-slate-400 { color: #8495ae; }
