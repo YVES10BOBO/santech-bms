@@ -32,6 +32,7 @@ import ReportsPage from '@/pages/reports/ReportsPage'
 import NotificationsPage from '@/pages/notifications/NotificationsPage'
 import SupportPage from '@/pages/support/SupportPage'
 import ProductCatalogPage from '@/pages/settings/ProductCatalogPage'
+import ClientProfilePage from '@/pages/crm/ClientProfilePage'
 
 // Guard: requires authentication
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -88,6 +89,7 @@ export default function App() {
           <Route path="crm/customers" element={<CustomersPage />} />
           <Route path="crm/leads" element={<LeadsPage />} />
           <Route path="crm/field-visits" element={<FieldVisitsPage />} />
+          <Route path="crm/clients/:id" element={<ClientProfilePage />} />
 
           {/* Sales */}
           <Route path="sales/pipeline" element={<PipelinePage />} />
