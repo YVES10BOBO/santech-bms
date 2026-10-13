@@ -231,8 +231,11 @@ interface FormState {
   visitPurpose: string
   visitDate: string
   delegationRepName: string
+  delegationRepTitle: string
   delegationRepPhone: string
   delegationRepEmail: string
+  delegationRepLocation: string
+  delegationRepCountry: string
   // shared
   members: Member[]
   selectedServices: string[]
