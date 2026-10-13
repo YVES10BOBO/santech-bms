@@ -4,7 +4,7 @@ import type { AuthRequest } from '../middleware/auth'
 
 const prisma = new PrismaClient()
 
-export async function getFieldVisits(req: AuthRequest, res: Response) {
+export async function getFieldVisits(req: AuthRequest, res: Response): Promise<void> {
   try {
     const { page = 1, limit = 20, category, outcome, search } = req.query
     const skip = (Number(page) - 1) * Number(limit)
@@ -20,7 +20,6 @@ export async function getFieldVisits(req: AuthRequest, res: Response) {
       ]
     }
 
-    // Sales staff can only see their own visits
     if (req.user?.role === 'SALES_STAFF') {
       where.recordedById = req.user.id
     }
@@ -39,17 +38,17 @@ export async function getFieldVisits(req: AuthRequest, res: Response) {
       prisma.fieldVisit.count({ where })
     ])
 
-    return res.json({
+    res.json({
       success: true,
       data: visits,
       pagination: { page: Number(page), limit: Number(limit), total, totalPages: Math.ceil(total / Number(limit)) }
     })
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Internal server error' })
+    res.status(500).json({ success: false, message: 'Internal server error' })
   }
 }
 
-export async function getFieldVisit(req: AuthRequest, res: Response) {
+export async function getFieldVisit(req: AuthRequest, res: Response): Promise<void> {
   try {
     const visit = await prisma.fieldVisit.findUnique({
       where: { id: req.params.id },
@@ -58,32 +57,35 @@ export async function getFieldVisit(req: AuthRequest, res: Response) {
         client: true
       }
     })
-    if (!visit) return res.status(404).json({ success: false, message: 'Field visit not found' })
-    return res.json({ success: true, data: visit })
+    if (!visit) {
+      res.status(404).json({ success: false, message: 'Field visit not found' })
+      return
+    }
+    res.json({ success: true, data: visit })
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Internal server error' })
+    res.status(500).json({ success: false, message: 'Internal server error' })
   }
 }
 
-export async function createFieldVisit(req: AuthRequest, res: Response) {
+export async function createFieldVisit(req: AuthRequest, res: Response): Promise<void> {
   try {
     const visit = await prisma.fieldVisit.create({
       data: { ...req.body, recordedById: req.user!.id }
     })
-    return res.status(201).json({ success: true, data: visit, message: 'Field visit recorded successfully' })
+    res.status(201).json({ success: true, data: visit, message: 'Field visit recorded successfully' })
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Internal server error' })
+    res.status(500).json({ success: false, message: 'Internal server error' })
   }
 }
 
-export async function updateFieldVisit(req: AuthRequest, res: Response) {
+export async function updateFieldVisit(req: AuthRequest, res: Response): Promise<void> {
   try {
     const visit = await prisma.fieldVisit.update({
       where: { id: req.params.id },
       data: req.body
     })
-    return res.json({ success: true, data: visit, message: 'Field visit updated successfully' })
+    res.json({ success: true, data: visit, message: 'Field visit updated successfully' })
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Internal server error' })
+    res.status(500).json({ success: false, message: 'Internal server error' })
   }
 }

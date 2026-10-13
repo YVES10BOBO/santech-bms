@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express'
 import jwt from 'jsonwebtoken'
 import type { UserRole } from '@prisma/client'
 
+// Extend Express Request to include user
 export interface AuthRequest extends Request {
   user?: {
     id: string
@@ -10,10 +11,11 @@ export interface AuthRequest extends Request {
   }
 }
 
-export function authenticate(req: AuthRequest, res: Response, next: NextFunction) {
+export function authenticate(req: AuthRequest, res: Response, next: NextFunction): void {
   const authHeader = req.headers.authorization
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ success: false, message: 'Authentication required' })
+    res.status(401).json({ success: false, message: 'Authentication required' })
+    return
   }
   const token = authHeader.split(' ')[1]
   try {
@@ -21,17 +23,19 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
     req.user = decoded
     next()
   } catch {
-    return res.status(401).json({ success: false, message: 'Invalid or expired token' })
+    res.status(401).json({ success: false, message: 'Invalid or expired token' })
   }
 }
 
 export function authorize(...roles: UserRole[]) {
-  return (req: AuthRequest, res: Response, next: NextFunction) => {
+  return (req: AuthRequest, res: Response, next: NextFunction): void => {
     if (!req.user) {
-      return res.status(401).json({ success: false, message: 'Authentication required' })
+      res.status(401).json({ success: false, message: 'Authentication required' })
+      return
     }
     if (!roles.includes(req.user.role)) {
-      return res.status(403).json({ success: false, message: 'Access denied. Insufficient permissions.' })
+      res.status(403).json({ success: false, message: 'Access denied. Insufficient permissions.' })
+      return
     }
     next()
   }
