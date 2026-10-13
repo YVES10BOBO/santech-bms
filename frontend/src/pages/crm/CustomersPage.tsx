@@ -57,8 +57,11 @@ interface Client {
   visitPurpose?: string
   visitDate?: string
   delegationRepName?: string
+  delegationRepTitle?: string
   delegationRepPhone?: string
   delegationRepEmail?: string
+  delegationRepLocation?: string
+  delegationRepCountry?: string
   delegationMembers?: Member[]
 }
 
@@ -114,8 +117,11 @@ const mockClients: Client[] = [
     orgRepresented: 'Silicon Valley Tech Alliance',
     visitPurpose: 'Exploring Rwanda tech ecosystem partnerships',
     visitDate: '2026-09-15',
-    delegationRepName: 'Michael Johnson', delegationRepPhone: '+1-310-555-0100',
+    delegationRepName: 'Michael Johnson', delegationRepTitle: 'Head of Partnerships',
+    delegationRepPhone: '+1-310-555-0100',
     delegationRepEmail: 'mjohnson@svta.org',
+    delegationRepLocation: 'Los Angeles, California',
+    delegationRepCountry: 'United States of America',
     delegationMembers: [
       { name: 'Sarah Connor',  phone: '+1-310-555-0101', role: 'CTO' },
       { name: 'David Lee',     phone: '+1-310-555-0102', role: 'Investor' },
@@ -243,7 +249,8 @@ function emptyForm(): FormState {
     companyName: '', tinNumber: '', address: '', repName: '', repPhone: '', repEmail: '', industry: '', website: '',
     teamName: '', orgName: '', teamLocation: '', leaderName: '', leaderPhone: '', leaderEmail: '',
     delegationName: '', origin: '', orgRepresented: '', visitPurpose: '', visitDate: '',
-    delegationRepName: '', delegationRepPhone: '', delegationRepEmail: '',
+    delegationRepName: '', delegationRepTitle: '', delegationRepPhone: '', delegationRepEmail: '',
+    delegationRepLocation: '', delegationRepCountry: '',
     members: [],
     selectedServices: [],
     otherServiceText: '',
@@ -406,7 +413,9 @@ export default function CustomersPage() {
       f.delegationName = c.delegationName ?? ''; f.origin = c.origin ?? ''
       f.orgRepresented = c.orgRepresented ?? ''; f.visitPurpose = c.visitPurpose ?? ''
       f.visitDate = c.visitDate ?? ''; f.delegationRepName = c.delegationRepName ?? ''
+      f.delegationRepTitle = c.delegationRepTitle ?? ''
       f.delegationRepPhone = c.delegationRepPhone ?? ''; f.delegationRepEmail = c.delegationRepEmail ?? ''
+      f.delegationRepLocation = c.delegationRepLocation ?? ''; f.delegationRepCountry = c.delegationRepCountry ?? ''
       f.members = c.delegationMembers ? [...c.delegationMembers] : []
     }
     setForm(f)
@@ -476,7 +485,9 @@ export default function CustomersPage() {
         delegationName: form.delegationName, origin: form.origin,
         orgRepresented: form.orgRepresented, visitPurpose: form.visitPurpose,
         visitDate: form.visitDate, delegationRepName: form.delegationRepName,
+        delegationRepTitle: form.delegationRepTitle,
         delegationRepPhone: form.delegationRepPhone, delegationRepEmail: form.delegationRepEmail,
+        delegationRepLocation: form.delegationRepLocation, delegationRepCountry: form.delegationRepCountry,
         delegationMembers: form.members,
       } as Client
     }
@@ -778,9 +789,13 @@ export default function CustomersPage() {
                       { label: 'Org. Represented',   value: viewClient.orgRepresented },
                       { label: 'Visit Purpose',      value: viewClient.visitPurpose },
                       { label: 'Visit Date',         value: viewClient.visitDate ? formatDate(viewClient.visitDate) : undefined },
+                      { label: '🔵 PRIMARY CONTACT', value: '' },
                       { label: 'Rep. Name',          value: viewClient.delegationRepName },
+                      { label: 'Rep. Title',         value: viewClient.delegationRepTitle },
                       { label: 'Rep. Phone',         value: viewClient.delegationRepPhone },
                       { label: 'Rep. Email',         value: viewClient.delegationRepEmail },
+                      { label: 'Rep. Location',      value: viewClient.delegationRepLocation },
+                      { label: 'Rep. Country',       value: viewClient.delegationRepCountry },
                     ]} />
                   </div>
                   {viewClient.delegationMembers && viewClient.delegationMembers.length > 0 && (
@@ -1090,6 +1105,18 @@ export default function CustomersPage() {
                           <input name="delegationRepEmail" value={form.delegationRepEmail} onChange={handleFormChange} className={inputCls} placeholder="rep@org.com" />
                           {formErrors.delegationRepEmail && <p className="text-xs text-red-500 mt-1">{formErrors.delegationRepEmail}</p>}
                         </div>
+                        <div>
+                          <label className={labelCls}>Representative Title / Role</label>
+                          <input name="delegationRepTitle" value={form.delegationRepTitle} onChange={handleFormChange} className={inputCls} placeholder="e.g. Head of Partnerships" />
+                        </div>
+                        <div>
+                          <label className={labelCls}>Representative Location</label>
+                          <input name="delegationRepLocation" value={form.delegationRepLocation} onChange={handleFormChange} className={inputCls} placeholder="e.g. Los Angeles, California" />
+                        </div>
+                        <div>
+                          <label className={labelCls}>Representative Country</label>
+                          <input name="delegationRepCountry" value={form.delegationRepCountry} onChange={handleFormChange} className={inputCls} placeholder="e.g. United States of America" />
+                        </div>
                       </div>
                       <div>
                         <label className={labelCls}>Notes (optional)</label>
@@ -1204,8 +1231,11 @@ export default function CustomersPage() {
                         <ReviewField label="Visit Purpose" value={form.visitPurpose} />
                         <ReviewField label="Visit Date"    value={form.visitDate} />
                         <ReviewField label="Rep. Name"     value={form.delegationRepName} />
+                        <ReviewField label="Rep. Title"    value={form.delegationRepTitle} />
                         <ReviewField label="Rep. Phone"    value={form.delegationRepPhone} />
                         <ReviewField label="Rep. Email"    value={form.delegationRepEmail} />
+                        <ReviewField label="Rep. Location" value={form.delegationRepLocation} />
+                        <ReviewField label="Rep. Country"  value={form.delegationRepCountry} />
                       </>
                     )}
                   </div>
