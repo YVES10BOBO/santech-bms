@@ -115,6 +115,7 @@ const navItems: NavItem[] = [
     children: [
       { label: 'Employees', path: '/team/employees', module: 'team' },
       { label: 'Departments', path: '/team/departments', module: 'team' },
+      { label: 'Workload', path: '/team/workload', module: 'team' },
       { label: 'My Tasks', path: '/team/my-tasks', module: 'my-tasks' },
       { label: 'Salary', path: '/team/salary', module: 'team' },
     ],
