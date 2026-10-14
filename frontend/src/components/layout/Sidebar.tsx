@@ -22,6 +22,8 @@ import {
   Bell,
   BarChart2,
   Headphones,
+  DoorOpen,
+  MessageSquare,
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -100,12 +102,30 @@ const navItems: NavItem[] = [
     children: [{ label: 'Support Tickets', path: '/support', module: 'support' }],
   },
   {
+    label: 'Reception',
+    icon: DoorOpen,
+    module: 'reception',
+    children: [
+      { label: 'Visitor Log', path: '/reception', module: 'reception' },
+    ],
+  },
+  {
+    label: 'Communication',
+    icon: MessageSquare,
+    module: 'communication',
+    children: [
+      { label: 'Meetings', path: '/communication/meetings', module: 'communication' },
+      { label: 'Communication Log', path: '/communication/log', module: 'communication' },
+    ],
+  },
+  {
     label: 'Projects',
     icon: FolderKanban,
     module: 'projects',
     children: [
       { label: 'All Projects', path: '/projects', module: 'projects' },
       { label: 'Tasks', path: '/projects/tasks', module: 'projects' },
+      { label: 'Milestones', path: '/projects/milestones', module: 'projects' },
     ],
   },
   {

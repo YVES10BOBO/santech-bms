@@ -35,6 +35,10 @@ import ProductCatalogPage from '@/pages/settings/ProductCatalogPage'
 import ClientProfilePage from '@/pages/crm/ClientProfilePage'
 import WorkloadPage from '@/pages/team/WorkloadPage'
 import CampaignsPage from '@/pages/marketing/CampaignsPage'
+import MilestonesPage from '@/pages/projects/MilestonesPage'
+import MeetingsPage from '@/pages/communication/MeetingsPage'
+import CommunicationPage from '@/pages/communication/CommunicationPage'
+import ReceptionPage from '@/pages/reception/ReceptionPage'
 
 // Guard: requires authentication
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -103,6 +107,10 @@ export default function App() {
           {/* Projects */}
           <Route path="projects" element={<ProjectsPage />} />
           <Route path="projects/tasks" element={<TasksPage />} />
+          <Route path="projects/milestones" element={<MilestonesPage />} />
+          <Route path="communication/meetings" element={<MeetingsPage />} />
+          <Route path="communication/log" element={<CommunicationPage />} />
+          <Route path="reception" element={<ReceptionPage />} />
 
           {/* Team */}
           <Route path="team/employees" element={<EmployeesPage />} />
