@@ -67,6 +67,7 @@ const navItems: NavItem[] = [
     module: 'marketing',
     children: [
       { label: 'Campaigns', path: '/marketing/campaigns', module: 'marketing' },
+      { label: 'Training (SANHUB)', path: '/training', module: 'training' },
     ],
   },
   {

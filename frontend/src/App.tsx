@@ -31,6 +31,7 @@ import FinancePage from '@/pages/finance/FinancePage'
 import ReportsPage from '@/pages/reports/ReportsPage'
 import NotificationsPage from '@/pages/notifications/NotificationsPage'
 import SupportPage from '@/pages/support/SupportPage'
+import TrainingPage from '@/pages/training/TrainingPage'
 import ProductCatalogPage from '@/pages/settings/ProductCatalogPage'
 import ClientProfilePage from '@/pages/crm/ClientProfilePage'
 import WorkloadPage from '@/pages/team/WorkloadPage'
@@ -140,6 +141,7 @@ export default function App() {
           <Route path="reports" element={<ReportsPage />} />
           <Route path="notifications" element={<NotificationsPage />} />
           <Route path="support" element={<SupportPage />} />
+          <Route path="training" element={<TrainingPage />} />
           <Route path="settings/products" element={<ProductCatalogPage />} />
           <Route path="settings/audit" element={<AuditTrailPage />} />
 
