@@ -1,5 +1,6 @@
-import { useState } from 'react'
+  import { useState } from 'react'
 import { Search, Filter, Download, Shield, Eye, X } from 'lucide-react'
+import DateRangePicker from '@/components/shared/DateRangePicker'
 import { cn, formatDateTime } from '@/lib/utils'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -216,9 +217,7 @@ export default function AuditTrailPage() {
         <div className="flex flex-wrap gap-3 items-center">
           <div className="flex items-center gap-2 text-sm text-gray-500">
             <span className="text-xs">Date:</span>
-            <input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1) }} className="px-2 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-santech-500" />
-            <span className="text-xs">to</span>
-            <input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1) }} className="px-2 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-santech-500" />
+            <DateRangePicker startDate={dateFrom} endDate={dateTo} onChange={(start, end) => { setDateFrom(start); setDateTo(end); setPage(1) }} />
           </div>
           {hasFilters && (
             <button onClick={resetFilters} className="flex items-center gap-1 px-3 py-1.5 text-xs text-red-500 border border-red-200 rounded-lg hover:bg-red-50 transition-colors">

@@ -1,9 +1,18 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Plus, Search, X, FileText, CheckCircle2, Clock, ArrowRight, Trash2 } from 'lucide-react'
 import { cn, formatDate, formatCurrency } from '@/lib/utils'
+import { useAuthStore } from '@/store/authStore'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
-type QuotationStatus = 'DRAFT' | 'SENT' | 'VIEWED' | 'ACCEPTED' | 'REJECTED' | 'CONVERTED' | 'EXPIRED'
+type QuotationStatus = 'DRAFT' | 'INTERNAL_REVIEW' | 'MANAGER_APPROVAL' | 'CEO_APPROVAL' | 'APPROVED' | 'SENT' | 'VIEWED' | 'NEGOTIATION' | 'ACCEPTED' | 'REJECTED' | 'CONVERTED' | 'EXPIRED'
+
+interface ApprovalEvent {
+  status: QuotationStatus
+  action: 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'SENT' | 'UPDATED'
+  actor: string
+  createdAt: string
+}
 
 interface QuotationItem {
   id: string
@@ -35,6 +44,7 @@ interface Quotation {
   createdAt: string
   sentAt: string
   acceptedAt: string
+  approvalHistory?: ApprovalEvent[]
 }
 
 // ─── Mock data ────────────────────────────────────────────────────────────────
@@ -76,11 +86,14 @@ const mockQuotations: Quotation[] = [
   {
     id: '3', quotationNumber: 'QT-2026-003', clientName: 'NYARUGENGE HOSPITAL', contactName: 'Lt Col William KANYANKORE',
     contactEmail: '', contactPhone: '0788305785',
-    status: 'DRAFT', currency: 'RWF', validUntil: '2026-12-11',
+    status: 'MANAGER_APPROVAL', currency: 'RWF', validUntil: '2026-12-11',
     paymentTerms: 'Milestone-based: 20% each milestone',
     notes: 'Full EVS for hospital staff and visitors. 500+ employees.',
     assignedTo: 'Alice Uwimana', linkedDeal: 'EVS — NYARUGENGE HOSPITAL',
     createdAt: '2026-10-11', sentAt: '', acceptedAt: '',
+    approvalHistory: [
+      { status: 'MANAGER_APPROVAL', action: 'SUBMITTED', actor: 'Alice Uwimana', createdAt: '2026-10-11' },
+    ],
     items: [
       { id: 'i1', description: 'EVS System License (up to 600 employees)', quantity: 1, unitPrice: 10000000, total: 10000000 },
       { id: 'i2', description: 'Visitor Management Module', quantity: 1, unitPrice: 2000000, total: 2000000 },
@@ -125,15 +138,31 @@ const mockQuotations: Quotation[] = [
 // ─── Config ───────────────────────────────────────────────────────────────────
 const STATUS_CONFIG: Record<QuotationStatus, { label: string; color: string; icon: React.ElementType }> = {
   DRAFT:     { label: 'Draft',     color: 'bg-gray-100 text-gray-600',    icon: FileText },
+  INTERNAL_REVIEW: { label: 'Internal Review', color: 'bg-cyan-100 text-cyan-700', icon: Clock },
+  MANAGER_APPROVAL: { label: 'Manager Approval', color: 'bg-amber-100 text-amber-700', icon: Clock },
+  CEO_APPROVAL: { label: 'CEO Approval', color: 'bg-orange-100 text-orange-700', icon: Clock },
+  APPROVED:  { label: 'Approved',  color: 'bg-emerald-100 text-emerald-700', icon: CheckCircle2 },
   SENT:      { label: 'Sent',      color: 'bg-blue-100 text-blue-600',    icon: Clock },
   VIEWED:    { label: 'Viewed',    color: 'bg-indigo-100 text-indigo-600',icon: Clock },
+  NEGOTIATION: { label: 'Negotiation', color: 'bg-orange-100 text-orange-600', icon: Clock },
   ACCEPTED:  { label: 'Accepted',  color: 'bg-green-100 text-green-700',  icon: CheckCircle2 },
   REJECTED:  { label: 'Rejected',  color: 'bg-red-100 text-red-500',      icon: X },
   CONVERTED: { label: 'Converted', color: 'bg-emerald-100 text-emerald-700', icon: CheckCircle2 },
   EXPIRED:   { label: 'Expired',   color: 'bg-orange-100 text-orange-500',icon: Clock },
 }
 
-const WORKFLOW: QuotationStatus[] = ['DRAFT', 'SENT', 'VIEWED', 'ACCEPTED', 'CONVERTED']
+const WORKFLOW: QuotationStatus[] = ['DRAFT', 'INTERNAL_REVIEW', 'MANAGER_APPROVAL', 'CEO_APPROVAL', 'APPROVED', 'SENT', 'VIEWED', 'NEGOTIATION', 'ACCEPTED', 'CONVERTED']
+
+const NEXT_ACTION_LABEL: Partial<Record<QuotationStatus, string>> = {
+  DRAFT: 'Submit for review',
+  INTERNAL_REVIEW: 'Send to manager',
+  MANAGER_APPROVAL: 'Manager approve',
+  CEO_APPROVAL: 'CEO approve',
+  APPROVED: 'Send to client',
+  SENT: 'Mark as viewed',
+  VIEWED: 'Start negotiation',
+  NEGOTIATION: 'Mark accepted',
+}
 
 const EMPLOYEES = ['Alice Uwimana', 'Bob Nkurunziza', 'Eve Ingabire']
 const PRODUCTS = ['EVS', 'SANTRACK', 'REVIXSAN', 'SANBOOK', 'SANHUB', 'Website', 'Mobile App', 'Training', 'Consultancy', 'Maintenance', 'Custom']
@@ -148,6 +177,8 @@ const emptyForm = {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function QuotationsPage() {
+  const { user } = useAuthStore()
+  const navigate = useNavigate()
   const [quotations, setQuotations] = useState<Quotation[]>(mockQuotations)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<QuotationStatus | 'ALL'>('ALL')
@@ -225,7 +256,9 @@ export default function QuotationsPage() {
       paymentTerms: form.paymentTerms, notes: form.notes,
       assignedTo: form.assignedTo, linkedDeal: form.linkedDeal,
       createdAt: new Date().toISOString().split('T')[0],
-      sentAt: '', acceptedAt: '',
+      sentAt: editId ? quotations.find(x => x.id === editId)!.sentAt : '',
+      acceptedAt: editId ? quotations.find(x => x.id === editId)!.acceptedAt : '',
+      approvalHistory: editId ? quotations.find(x => x.id === editId)!.approvalHistory ?? [] : [],
     }
     if (editId) setQuotations(prev => prev.map(x => x.id === editId ? q : x))
     else setQuotations(prev => [q, ...prev])
@@ -238,14 +271,38 @@ export default function QuotationsPage() {
       const idx = WORKFLOW.indexOf(q.status)
       if (idx < 0 || idx >= WORKFLOW.length - 1) return q
       const next = WORKFLOW[idx + 1]
-      return { ...q, status: next, sentAt: next === 'SENT' ? new Date().toISOString().split('T')[0] : q.sentAt, acceptedAt: next === 'ACCEPTED' ? new Date().toISOString().split('T')[0] : q.acceptedAt }
+      const today = new Date().toISOString().split('T')[0]
+      const action: ApprovalEvent['action'] = next === 'INTERNAL_REVIEW' || next === 'MANAGER_APPROVAL'
+        ? 'SUBMITTED'
+        : next === 'CEO_APPROVAL' || next === 'APPROVED' || next === 'ACCEPTED'
+          ? 'APPROVED'
+          : next === 'SENT' ? 'SENT' : 'UPDATED'
+      const actor = user ? `${user.firstName} ${user.lastName}` : 'Current user'
+      return {
+        ...q,
+        status: next,
+        sentAt: next === 'SENT' ? today : q.sentAt,
+        acceptedAt: next === 'ACCEPTED' ? today : q.acceptedAt,
+        approvalHistory: [...(q.approvalHistory ?? []), { status: next, action, actor, createdAt: today }],
+      }
     }))
   }
 
-  const convertToContract = (id: string) => {
-    setQuotations(prev => prev.map(q => q.id === id ? { ...q, status: 'CONVERTED' } : q))
+  const rejectQuotation = (id: string) => {
+    const today = new Date().toISOString().split('T')[0]
+    const actor = user ? `${user.firstName} ${user.lastName}` : 'Current user'
+    setQuotations(prev => prev.map(q => q.id === id ? {
+      ...q,
+      status: 'REJECTED',
+      approvalHistory: [...(q.approvalHistory ?? []), { status: 'REJECTED', action: 'REJECTED', actor, createdAt: today }],
+    } : q))
     setViewQuotation(null)
-    alert('Quotation converted! Go to Contracts to create the contract.')
+  }
+
+  const convertToContract = (quotation: Quotation) => {
+    setQuotations(prev => prev.map(q => q.id === quotation.id ? { ...q, status: 'CONVERTED' } : q))
+    setViewQuotation(null)
+    navigate('/contracts', { state: { quotation } })
   }
 
   // ── Stats ──────────────────────────────────────────────────────────────────
@@ -253,8 +310,8 @@ export default function QuotationsPage() {
   const acceptedValue = quotations.filter(q => q.status === 'ACCEPTED').reduce((s, q) => s + q.totalAmount, 0)
   const stats = [
     { label: 'Total Quotations', value: quotations.length, color: 'text-santech-600' },
-    { label: 'Pending Response', value: quotations.filter(q => ['SENT', 'VIEWED'].includes(q.status)).length, color: 'text-blue-600' },
-    { label: 'Accepted', value: quotations.filter(q => q.status === 'ACCEPTED').length, color: 'text-green-600' },
+    { label: 'Awaiting Approval', value: quotations.filter(q => ['INTERNAL_REVIEW', 'MANAGER_APPROVAL', 'CEO_APPROVAL'].includes(q.status)).length, color: 'text-amber-600' },
+    { label: 'Pending Customer', value: quotations.filter(q => ['SENT', 'VIEWED', 'NEGOTIATION'].includes(q.status)).length, color: 'text-blue-600' },
     { label: 'Accepted Value', value: `RWF ${(acceptedValue / 1_000_000).toFixed(1)}M`, color: 'text-purple-600' },
   ]
 
@@ -345,7 +402,7 @@ export default function QuotationsPage() {
               ) : paginated.map(q => {
                 const cfg = STATUS_CONFIG[q.status]
                 const idx = WORKFLOW.indexOf(q.status)
-                const canAdvance = idx >= 0 && idx < WORKFLOW.length - 1
+                const canAdvance = idx >= 0 && idx < WORKFLOW.length - 1 && q.status !== 'ACCEPTED'
                 const isExpired = q.validUntil && q.validUntil < new Date().toISOString().split('T')[0] && !['ACCEPTED', 'CONVERTED', 'REJECTED'].includes(q.status)
                 return (
                   <tr key={q.id} className="hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => setViewQuotation(q)}>
@@ -373,11 +430,11 @@ export default function QuotationsPage() {
                       <div className="flex gap-1.5 flex-wrap">
                         {canAdvance && (
                           <button onClick={() => advanceStatus(q.id)} className="text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded-lg hover:bg-blue-100 font-medium whitespace-nowrap">
-                            → {STATUS_CONFIG[WORKFLOW[idx + 1]].label}
+                            {NEXT_ACTION_LABEL[q.status] ?? `→ ${STATUS_CONFIG[WORKFLOW[idx + 1]].label}`}
                           </button>
                         )}
                         {q.status === 'ACCEPTED' && (
-                          <button onClick={() => convertToContract(q.id)} className="text-xs bg-green-50 text-green-600 px-2 py-1 rounded-lg hover:bg-green-100 font-medium whitespace-nowrap">
+                          <button onClick={() => convertToContract(q)} className="text-xs bg-green-50 text-green-600 px-2 py-1 rounded-lg hover:bg-green-100 font-medium whitespace-nowrap">
                             → Contract
                           </button>
                         )}
@@ -448,6 +505,24 @@ export default function QuotationsPage() {
                 ))}
               </div>
 
+              {viewQuotation.approvalHistory && viewQuotation.approvalHistory.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Approval History</p>
+                  <ol className="space-y-2 border-l border-gray-200 ml-1.5">
+                    {viewQuotation.approvalHistory.map((event, index) => (
+                      <li key={`${event.createdAt}-${event.status}-${index}`} className="pl-4 relative">
+                        <span className="absolute w-2 h-2 rounded-full bg-santech-500 -left-1 top-1.5" />
+                        <p className="text-sm font-medium text-gray-700">
+                          {event.action === 'SUBMITTED' ? 'Submitted' : event.action === 'APPROVED' ? 'Approved' : event.action === 'REJECTED' ? 'Rejected' : event.action === 'SENT' ? 'Sent to client' : 'Updated'}
+                          {' · '}{STATUS_CONFIG[event.status].label}
+                        </p>
+                        <p className="text-xs text-gray-500">{event.actor} · {formatDate(event.createdAt)}</p>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              )}
+
               {/* Line items */}
               <div>
                 <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Line Items</p>
@@ -505,13 +580,18 @@ export default function QuotationsPage() {
               {/* Actions */}
               <div className="flex gap-2 pt-2">
                 <button onClick={() => openEdit(viewQuotation)} className="flex-1 py-2 border border-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50">Edit</button>
-                {WORKFLOW.indexOf(viewQuotation.status) >= 0 && WORKFLOW.indexOf(viewQuotation.status) < WORKFLOW.length - 1 && (
+                {WORKFLOW.indexOf(viewQuotation.status) >= 0 && WORKFLOW.indexOf(viewQuotation.status) < WORKFLOW.length - 1 && viewQuotation.status !== 'ACCEPTED' && (
                   <button onClick={() => { advanceStatus(viewQuotation.id); setViewQuotation(null) }} className="flex-1 py-2 bg-santech-600 text-white rounded-lg text-sm font-medium hover:bg-santech-700">
-                    → {STATUS_CONFIG[WORKFLOW[WORKFLOW.indexOf(viewQuotation.status) + 1]].label}
+                    {NEXT_ACTION_LABEL[viewQuotation.status] ?? `→ ${STATUS_CONFIG[WORKFLOW[WORKFLOW.indexOf(viewQuotation.status) + 1]].label}`}
+                  </button>
+                )}
+                {['INTERNAL_REVIEW', 'MANAGER_APPROVAL', 'CEO_APPROVAL'].includes(viewQuotation.status) && (
+                  <button onClick={() => rejectQuotation(viewQuotation.id)} className="px-3 py-2 border border-red-200 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50">
+                    Reject
                   </button>
                 )}
                 {viewQuotation.status === 'ACCEPTED' && (
-                  <button onClick={() => convertToContract(viewQuotation.id)} className="flex-1 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700">
+                  <button onClick={() => convertToContract(viewQuotation)} className="flex-1 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700">
                     Convert to Contract
                   </button>
                 )}

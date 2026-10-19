@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { Phone, Mail, MessageCircle, MessageSquare, Users, FileText, Plus, Search, X, Eye } from 'lucide-react'
+import DateRangePicker from '@/components/shared/DateRangePicker'
 import { cn, formatDate, formatDateTime } from '@/lib/utils'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -264,12 +265,7 @@ export default function CommunicationPage() {
           <option value="ALL">All Clients</option>
           {uniqueClients.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
-        <input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1) }}
-          className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500"
-          title="From date" />
-        <input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1) }}
-          className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500"
-          title="To date" />
+        <DateRangePicker startDate={dateFrom} endDate={dateTo} onChange={(start, end) => { setDateFrom(start); setDateTo(end); setPage(1) }} />
       </div>
 
       {/* Table */}

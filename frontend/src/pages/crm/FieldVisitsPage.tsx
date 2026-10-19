@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { MapPin, Plus, Search, Download, X, ChevronDown } from 'lucide-react'
 import PhoneInput from '@/components/shared/PhoneInput'
+import DateRangePicker from '@/components/shared/DateRangePicker'
 import { cn, getStatusColor, getCategoryLabel, formatDate } from '@/lib/utils'
 import type { ClientCategory, VisitOutcome } from '@/types'
 
@@ -257,9 +258,7 @@ export default function FieldVisitsPage() {
         <div className="flex flex-wrap gap-3 items-center">
           <div className="flex items-center gap-2 text-sm text-gray-500">
             <span>Visit Date:</span>
-            <input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1) }} className="px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500" />
-            <span>to</span>
-            <input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1) }} className="px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500" />
+            <DateRangePicker startDate={dateFrom} endDate={dateTo} onChange={(start, end) => { setDateFrom(start); setDateTo(end); setPage(1) }} />
           </div>
           <select value={contractWonFilter} onChange={e => { setContractWonFilter(e.target.value as 'ALL' | 'YES' | 'NO'); setPage(1) }} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500 bg-white">
             <option value="ALL">Contract Won: All</option>

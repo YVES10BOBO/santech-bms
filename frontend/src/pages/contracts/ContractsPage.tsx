@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { Plus, Search, X, FileText, Eye, AlertCircle, CheckCircle2, Clock } from 'lucide-react'
 import { cn, formatDate, formatCurrency } from '@/lib/utils'
 
@@ -21,6 +22,19 @@ interface Contract {
   signedAt: string
   notes: string
   createdAt: string
+  sourceQuotationNumber?: string
+}
+
+interface QuotationTransfer {
+  quotationNumber: string
+  clientName: string
+  linkedDeal: string
+  totalAmount: number
+  currency: string
+  paymentTerms: string
+  assignedTo: string
+  notes: string
+  items: { description: string; quantity: number }[]
 }
 
 const mockContracts: Contract[] = [
@@ -50,10 +64,12 @@ const emptyForm = {
   projectName: '', value: '', currency: 'RWF',
   startDate: '', endDate: '', paymentTerms: '',
   deliverables: '', status: 'DRAFT' as ContractStatus,
-  responsibleManager: '', notes: '',
+  responsibleManager: '', notes: '', sourceQuotationNumber: '',
 }
 
 export default function ContractsPage() {
+  const location = useLocation()
+  const navigate = useNavigate()
   const [contracts, setContracts] = useState<Contract[]>(mockContracts)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<ContractStatus | 'ALL'>('ALL')
@@ -64,6 +80,29 @@ export default function ContractsPage() {
   const [error, setError] = useState('')
   const [rowsPerPage, setRowsPerPage] = useState(5)
   const [page, setPage] = useState(1)
+
+  useEffect(() => {
+    const quotation = (location.state as { quotation?: QuotationTransfer } | null)?.quotation
+    if (!quotation) return
+
+    const deliverables = quotation.items.map(item => `${item.description} x ${item.quantity}`).join('\n')
+    setForm({
+      ...emptyForm,
+      clientName: quotation.clientName,
+      projectName: quotation.linkedDeal || `${quotation.clientName} project`,
+      value: String(quotation.totalAmount),
+      currency: quotation.currency,
+      paymentTerms: quotation.paymentTerms,
+      deliverables,
+      responsibleManager: quotation.assignedTo,
+      notes: quotation.notes,
+      sourceQuotationNumber: quotation.quotationNumber,
+    })
+    setEditId(null)
+    setError('')
+    setShowModal(true)
+    navigate(location.pathname, { replace: true, state: null })
+  }, [location.pathname, location.state, navigate])
 
   const filtered = contracts.filter(c => {
     const s = search.toLowerCase()
@@ -81,7 +120,7 @@ export default function ContractsPage() {
 
   const openAdd = () => { setForm(emptyForm); setEditId(null); setError(''); setShowModal(true) }
   const openEdit = (c: Contract) => {
-    setForm({ contractNumber: c.contractNumber, clientName: c.clientName, category: c.category, projectName: c.projectName, value: String(c.value), currency: c.currency, startDate: c.startDate, endDate: c.endDate, paymentTerms: c.paymentTerms, deliverables: c.deliverables, status: c.status, responsibleManager: c.responsibleManager, notes: c.notes })
+    setForm({ contractNumber: c.contractNumber, clientName: c.clientName, category: c.category, projectName: c.projectName, value: String(c.value), currency: c.currency, startDate: c.startDate, endDate: c.endDate, paymentTerms: c.paymentTerms, deliverables: c.deliverables, status: c.status, responsibleManager: c.responsibleManager, notes: c.notes, sourceQuotationNumber: c.sourceQuotationNumber ?? '' })
     setEditId(c.id); setError(''); setShowModal(true); setViewContract(null)
   }
 
@@ -98,6 +137,7 @@ export default function ContractsPage() {
       status: form.status, responsibleManager: form.responsibleManager,
       signedAt: form.status === 'ACTIVE' ? new Date().toISOString().split('T')[0] : '',
       notes: form.notes, createdAt: new Date().toISOString().split('T')[0],
+      sourceQuotationNumber: form.sourceQuotationNumber,
     }
     if (editId) setContracts(prev => prev.map(x => x.id === editId ? c : x))
     else setContracts(prev => [c, ...prev])
@@ -286,6 +326,12 @@ export default function ContractsPage() {
                   </div>
                 ))}
               </div>
+              {viewContract.sourceQuotationNumber && (
+                <div>
+                  <p className="text-xs text-gray-400 mb-1">Source Quotation</p>
+                  <p className="font-mono text-sm font-semibold text-santech-700">{viewContract.sourceQuotationNumber}</p>
+                </div>
+              )}
               {viewContract.paymentTerms && (
                 <div>
                   <p className="text-xs text-gray-400 mb-1">Payment Terms</p>
@@ -322,7 +368,9 @@ export default function ContractsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b">
-              <h2 className="text-lg font-semibold text-gray-800">{editId ? 'Edit Contract' : 'New Contract'}</h2>
+              <h2 className="text-lg font-semibold text-gray-800">
+                {editId ? 'Edit Contract' : form.sourceQuotationNumber ? 'Create Contract from Quotation' : 'New Contract'}
+              </h2>
               <button onClick={() => setShowModal(false)}><X className="w-5 h-5 text-gray-400" /></button>
             </div>
             <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
@@ -339,6 +387,12 @@ export default function ContractsPage() {
                   </select>
                 </div>
               </div>
+              {form.sourceQuotationNumber && (
+                <div className="flex items-center justify-between rounded-lg bg-green-50 px-3 py-2 text-sm">
+                  <span className="text-green-700">Based on accepted quotation</span>
+                  <span className="font-mono font-semibold text-green-800">{form.sourceQuotationNumber}</span>
+                </div>
+              )}
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Client Name *</label>
                 <input name="clientName" value={form.clientName} onChange={handleChange} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500" />
@@ -349,7 +403,7 @@ export default function ContractsPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Contract Value (RWF) *</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Contract Value ({form.currency}) *</label>
                   <input name="value" type="number" value={form.value} onChange={handleChange} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500" />
                 </div>
                 <div>
