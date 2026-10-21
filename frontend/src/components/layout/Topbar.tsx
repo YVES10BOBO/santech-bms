@@ -14,7 +14,7 @@ export default function Topbar({ onToggleSidebar, onOpenMobileSidebar }: TopbarP
   const [profileOpen, setProfileOpen] = useState(false)
 
   return (
-    <header className="h-12 bg-white border-b-2 border-[#dde3f0] flex items-center px-4 gap-3 flex-shrink-0 z-10 shadow-sm">
+    <header className="h-11 bg-white border-b-2 border-[#dde3f0] flex items-center px-4 gap-3 flex-shrink-0 z-10 shadow-sm">
       {/* Mobile menu button */}
       <button
         onClick={onOpenMobileSidebar}

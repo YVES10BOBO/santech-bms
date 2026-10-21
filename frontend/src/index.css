@@ -122,7 +122,11 @@ h1.text-2xl { margin-bottom: 0 !important; }
 h1.text-2xl + p { margin-top: 0.1rem !important; }
 
 /* Page content outer padding */
-main { padding: 0.6rem !important; }
+main { padding: 0.5rem 0.75rem !important; }
+
+/* Remove top padding gap between navbar and first content */
+main > * { margin-top: 0 !important; }
+main > *:first-child { padding-top: 0 !important; margin-top: 0 !important; }
 
 .sidebar-nav-scroll {
   scrollbar-width: none;
