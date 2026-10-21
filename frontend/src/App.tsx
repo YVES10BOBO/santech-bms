@@ -35,6 +35,7 @@ import TrainingPage from '@/pages/training/TrainingPage'
 import ProductCatalogPage from '@/pages/settings/ProductCatalogPage'
 import ClientProfilePage from '@/pages/crm/ClientProfilePage'
 import WorkloadPage from '@/pages/team/WorkloadPage'
+import AttendancePage from '@/pages/team/AttendancePage'
 import CampaignsPage from '@/pages/marketing/CampaignsPage'
 import MilestonesPage from '@/pages/projects/MilestonesPage'
 import MeetingsPage from '@/pages/communication/MeetingsPage'
@@ -119,6 +120,7 @@ export default function App() {
           <Route path="team/my-tasks" element={<MyTasksPage />} />
           <Route path="team/salary" element={<SalaryPage />} />
           <Route path="team/workload" element={<WorkloadPage />} />
+          <Route path="team/attendance" element={<AttendancePage />} />
 
           {/* Contracts */}
           <Route path="contracts" element={<ContractsPage />} />

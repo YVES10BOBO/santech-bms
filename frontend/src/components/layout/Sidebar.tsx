@@ -139,6 +139,7 @@ const navItems: NavItem[] = [
       { label: 'Workload', path: '/team/workload', module: 'team' },
       { label: 'My Tasks', path: '/team/my-tasks', module: 'my-tasks' },
       { label: 'Salary', path: '/team/salary', module: 'team' },
+      { label: 'Attendance & Leave', path: '/team/attendance', module: 'team' },
     ],
   },
   {
