@@ -20,6 +20,7 @@ interface Milestone {
   pm: string
   description: string
   approvalDate?: string
+  sourceProjectId?: number
 }
 
 const STATUS_COLORS: Record<MilestoneStatus, string> = {
@@ -103,6 +104,69 @@ const mockMilestones: Milestone[] = [
     description: 'Perform cross-browser and cross-device testing of the completed website.',
   },
 ]
+
+const PROJECTS_STORAGE_KEY = 'santech_projects_mock_v1'
+const MILESTONES_STORAGE_KEY = 'santech_milestones_mock_v1'
+
+interface StoredProject {
+  id: number
+  name: string
+  client: string
+  manager: string
+  budget: number
+  startDate: string
+  endDate: string
+  milestones: string[]
+  contractRef: string
+}
+
+function readProjectList(): StoredProject[] {
+  try {
+    const stored = localStorage.getItem(PROJECTS_STORAGE_KEY)
+    return stored ? JSON.parse(stored) as StoredProject[] : []
+  } catch {
+    return []
+  }
+}
+
+function readMilestoneList(): Milestone[] {
+  let saved: Milestone[] = []
+  try {
+    const stored = localStorage.getItem(MILESTONES_STORAGE_KEY)
+    if (stored) saved = JSON.parse(stored) as Milestone[]
+  } catch {
+    saved = []
+  }
+  const current = [...mockMilestones, ...saved]
+  const additional = readProjectList().flatMap(project => {
+    if (!project.contractRef || !project.milestones.length || current.some(milestone => milestone.sourceProjectId === project.id)) return []
+    const names = project.milestones.map(value => value.replace(/\s-\s(Pending|In Progress|Done)$/i, '').trim()).filter(Boolean)
+    const split = names.length ? Math.floor(100 / names.length) : 0
+    return names.map((name, index): Milestone => {
+      const paymentPercent = index === names.length - 1 ? 100 - split * (names.length - 1) : split
+      const statusText = project.milestones[index]?.match(/\s-\s(Pending|In Progress|Done)$/i)?.[1]?.toLowerCase()
+      const status: MilestoneStatus = statusText === 'done' ? 'APPROVED' : statusText === 'in progress' ? 'IN_PROGRESS' : 'NOT_STARTED'
+      return {
+        id: `project-${project.id}-milestone-${index + 1}`,
+        sourceProjectId: project.id,
+        name,
+        project: project.name,
+        client: project.client,
+        contractRef: project.contractRef,
+        milestoneNumber: index + 1,
+        deadline: project.endDate || new Date().toISOString().slice(0, 10),
+        paymentPercent,
+        paymentAmount: Math.round(project.budget * paymentPercent / 100),
+        contractValue: project.budget,
+        status,
+        deliverables: name,
+        pm: project.manager,
+        description: `Imported from project ${project.name}. Update the deadline, payment split, and deliverables to match the contract.`,
+      }
+    })
+  })
+  return [...current, ...additional]
+}
 
 const emptyForm = {
   project: PROJECT_OPTIONS[0].value,

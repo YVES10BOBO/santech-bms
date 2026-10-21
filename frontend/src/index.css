@@ -93,16 +93,29 @@
 }
 
 /* ── Tighten page spacing globally ── */
-/* All pages use space-y-5 or space-y-6 — reduce gaps between sections */
-main > div.space-y-6 { gap: 0; }
-main > div.space-y-5 > * + * { margin-top: 0.75rem !important; }
-main > div.space-y-6 > * + * { margin-top: 0.75rem !important; }
+/* Reduce space-y gaps between all page sections */
+main > div.space-y-6 > * + * { margin-top: 0.5rem !important; }
+main > div.space-y-5 > * + * { margin-top: 0.5rem !important; }
+main > div.space-y-4 > * + * { margin-top: 0.5rem !important; }
 
-/* KPI stat cards — reduce internal padding slightly */
-.kpi-card { padding-top: 0.75rem !important; padding-bottom: 0.75rem !important; }
+/* Reduce grid gaps on KPI card rows */
+.grid.gap-4 { gap: 0.6rem !important; }
+.grid.gap-3 { gap: 0.5rem !important; }
 
-/* Page headers — tighten margin */
+/* KPI stat cards — tighter padding */
+.kpi-card {
+  padding: 0.65rem 1rem !important;
+}
+
+/* bms-card padding tighter */
+.bms-card.p-4 { padding: 0.75rem !important; }
+.bms-card.p-5 { padding: 0.85rem !important; }
+
+/* Page headers — no bottom margin */
 h1.text-2xl { margin-bottom: 0 !important; }
+
+/* Page content padding reduction */
+main { padding: 0.75rem !important; }
 
 .sidebar-nav-scroll {
   scrollbar-width: none;

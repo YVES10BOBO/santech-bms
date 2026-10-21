@@ -113,7 +113,7 @@ export default function DashboardPage() {
   const { user } = useAuthStore()
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       {/* Page header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-800">

@@ -25,7 +25,7 @@ export default function MainLayout() {
         />
 
         {/* Page content */}
-        <main className="flex-1 min-h-0 overflow-y-auto p-4">
+        <main className="flex-1 min-h-0 overflow-y-auto p-3">
           <Outlet />
         </main>
         <footer className="shrink-0 border-t border-[#d8e0ef] bg-[#e8edf8] px-4 py-2 text-center text-xs text-[#596d89]">

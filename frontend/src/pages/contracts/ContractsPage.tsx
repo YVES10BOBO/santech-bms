@@ -1,9 +1,16 @@
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Plus, Search, X, FileText, Eye, AlertCircle, CheckCircle2, Clock } from 'lucide-react'
+import { Plus, Search, X, FileText, Eye, AlertCircle, CheckCircle2, Clock, ThumbsUp, ThumbsDown, FolderPlus, Upload } from 'lucide-react'
 import { cn, formatDate, formatCurrency } from '@/lib/utils'
 
 type ContractStatus = 'DRAFT' | 'REVIEW' | 'APPROVAL' | 'SIGNING' | 'ACTIVE' | 'RENEWAL' | 'COMPLETED' | 'CANCELLED'
+type SignatureStatus = 'PENDING' | 'SIGNED'
+
+interface ContractSignatory {
+  name: string
+  status: SignatureStatus
+  signedAt?: string
+}
 
 interface Contract {
   id: string
@@ -23,6 +30,9 @@ interface Contract {
   notes: string
   createdAt: string
   sourceQuotationNumber?: string
+  signatories?: ContractSignatory[]
+  signedDocumentName?: string
+  approvalNote?: string
 }
 
 interface QuotationTransfer {
@@ -63,8 +73,9 @@ const emptyForm = {
   contractNumber: '', clientName: '', category: 'Self Employed',
   projectName: '', value: '', currency: 'RWF',
   startDate: '', endDate: '', paymentTerms: '',
-  deliverables: '', status: 'DRAFT' as ContractStatus,
+  deliverables: '',
   responsibleManager: '', notes: '', sourceQuotationNumber: '',
+  signatories: '',
 }
 
 export default function ContractsPage() {
@@ -78,6 +89,7 @@ export default function ContractsPage() {
   const [editId, setEditId] = useState<string | null>(null)
   const [viewContract, setViewContract] = useState<Contract | null>(null)
   const [error, setError] = useState('')
+  const [signatureError, setSignatureError] = useState('')
   const [rowsPerPage, setRowsPerPage] = useState(5)
   const [page, setPage] = useState(1)
 
@@ -120,13 +132,18 @@ export default function ContractsPage() {
 
   const openAdd = () => { setForm(emptyForm); setEditId(null); setError(''); setShowModal(true) }
   const openEdit = (c: Contract) => {
-    setForm({ contractNumber: c.contractNumber, clientName: c.clientName, category: c.category, projectName: c.projectName, value: String(c.value), currency: c.currency, startDate: c.startDate, endDate: c.endDate, paymentTerms: c.paymentTerms, deliverables: c.deliverables, status: c.status, responsibleManager: c.responsibleManager, notes: c.notes, sourceQuotationNumber: c.sourceQuotationNumber ?? '' })
+    setForm({ contractNumber: c.contractNumber, clientName: c.clientName, category: c.category, projectName: c.projectName, value: String(c.value), currency: c.currency, startDate: c.startDate, endDate: c.endDate, paymentTerms: c.paymentTerms, deliverables: c.deliverables, responsibleManager: c.responsibleManager, notes: c.notes, sourceQuotationNumber: c.sourceQuotationNumber ?? '', signatories: (c.signatories ?? []).map(signatory => signatory.name).join('\n') })
     setEditId(c.id); setError(''); setShowModal(true); setViewContract(null)
   }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!form.clientName || !form.projectName || !form.value) { setError('Client, project and value are required.'); return }
+    const existing = editId ? contracts.find(contract => contract.id === editId) : undefined
+    const signatories = form.signatories.split('\n').map(name => name.trim()).filter(Boolean).map(name => {
+      const previous = existing?.signatories?.find(signatory => signatory.name === name)
+      return previous ?? { name, status: 'PENDING' as const }
+    })
     const c: Contract = {
       id: editId || String(Date.now()),
       contractNumber: form.contractNumber || `CT-${new Date().getFullYear()}-${String(contracts.length + 1).padStart(3, '0')}`,
@@ -134,10 +151,12 @@ export default function ContractsPage() {
       value: parseFloat(form.value), currency: form.currency,
       startDate: form.startDate, endDate: form.endDate,
       paymentTerms: form.paymentTerms, deliverables: form.deliverables,
-      status: form.status, responsibleManager: form.responsibleManager,
-      signedAt: form.status === 'ACTIVE' ? new Date().toISOString().split('T')[0] : '',
+      status: existing?.status ?? 'DRAFT', responsibleManager: form.responsibleManager,
+      signedAt: existing?.signedAt ?? '',
       notes: form.notes, createdAt: new Date().toISOString().split('T')[0],
       sourceQuotationNumber: form.sourceQuotationNumber,
+      signatories,
+      signedDocumentName: existing?.signedDocumentName,
     }
     if (editId) setContracts(prev => prev.map(x => x.id === editId ? c : x))
     else setContracts(prev => [c, ...prev])
@@ -145,13 +164,56 @@ export default function ContractsPage() {
   }
 
   const advanceStatus = (id: string) => {
-    setContracts(prev => prev.map(c => {
-      if (c.id !== id) return c
-      const idx = WORKFLOW.indexOf(c.status)
-      if (idx < 0 || idx >= WORKFLOW.length - 1) return c
-      const next = WORKFLOW[idx + 1]
-      return { ...c, status: next, signedAt: next === 'ACTIVE' ? new Date().toISOString().split('T')[0] : c.signedAt }
+    const contract = contracts.find(item => item.id === id)
+    if (!contract) return
+    const idx = WORKFLOW.indexOf(contract.status)
+    if (idx < 0 || idx >= WORKFLOW.length - 1) return
+    const next = WORKFLOW[idx + 1]
+    if (next === 'ACTIVE' && (!contract.signatories?.length || contract.signatories.some(signatory => signatory.status !== 'SIGNED') || !contract.signedDocumentName)) {
+      setSignatureError('All signatories must sign and the signed contract document must be attached before activation.')
+      return
+    }
+    setSignatureError('')
+    setContracts(prev => prev.map(item => item.id !== id ? item : {
+      ...item,
+      status: next,
+      signedAt: next === 'ACTIVE' ? new Date().toISOString().split('T')[0] : item.signedAt,
     }))
+  }
+
+  const reviewApproval = (id: string, approved: boolean) => {
+    const note = window.prompt(approved ? 'Optional approval note:' : 'Reason for requesting changes (required):', '')
+    if (note === null || (!approved && !note.trim())) return
+    const update = (contract: Contract): Contract => contract.id === id ? {
+      ...contract,
+      status: approved ? 'SIGNING' : 'REVIEW',
+      approvalNote: note.trim(),
+    } : contract
+    setContracts(prev => prev.map(update))
+    setViewContract(prev => prev ? update(prev) : prev)
+  }
+
+  const markSignatorySigned = (contractId: string, signatoryName: string) => {
+    const signedAt = new Date().toISOString().split('T')[0]
+    const update = (contract: Contract): Contract => contract.id !== contractId ? contract : {
+      ...contract,
+      signatories: contract.signatories?.map(signatory => signatory.name === signatoryName
+        ? { ...signatory, status: 'SIGNED', signedAt }
+        : signatory),
+    }
+    setContracts(prev => prev.map(update))
+    setViewContract(prev => prev ? update(prev) : prev)
+    setSignatureError('')
+  }
+
+  const attachSignedDocument = (contractId: string, file?: File) => {
+    if (!file) return
+    const update = (contract: Contract): Contract => contract.id === contractId
+      ? { ...contract, signedDocumentName: file.name }
+      : contract
+    setContracts(prev => prev.map(update))
+    setViewContract(prev => prev ? update(prev) : prev)
+    setSignatureError('')
   }
 
   const totalValue = contracts.filter(c => c.status === 'ACTIVE').reduce((s, c) => s + c.value, 0)
@@ -305,6 +367,7 @@ export default function ContractsPage() {
               <button onClick={() => setViewContract(null)}><X className="w-5 h-5 text-gray-400" /></button>
             </div>
             <div className="px-6 py-5 space-y-4">
+              {signatureError && <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">{signatureError}</div>}
               <span className={cn('text-xs px-2 py-1 rounded-full font-medium inline-flex items-center gap-1', STATUS_CONFIG[viewContract.status].color)}>
                 {React.createElement(STATUS_CONFIG[viewContract.status].icon, { className: 'w-3 h-3' })}
                 {STATUS_CONFIG[viewContract.status].label}
@@ -350,10 +413,33 @@ export default function ContractsPage() {
                   <p className="text-sm text-gray-600 bg-gray-50 rounded-lg p-3">{viewContract.notes}</p>
                 </div>
               )}
+              {viewContract.status === 'APPROVAL' && (
+                <section className="rounded-xl border border-purple-100 bg-purple-50 p-4 space-y-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-purple-900">Approval decision</h3>
+                    <p className="text-xs text-purple-700 mt-1">Approve to send this contract for signing, or return it for changes.</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => reviewApproval(viewContract.id, true)} className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700"><ThumbsUp className="h-4 w-4" />Approve</button>
+                    <button onClick={() => reviewApproval(viewContract.id, false)} className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-white px-3 py-2 text-sm font-medium text-red-700 border border-red-200 hover:bg-red-50"><ThumbsDown className="h-4 w-4" />Request changes</button>
+                  </div>
+                </section>
+              )}
+              {viewContract.approvalNote && <p className="rounded-lg bg-gray-50 p-3 text-sm text-gray-600"><span className="font-medium">Latest approval note: </span>{viewContract.approvalNote}</p>}
+              {viewContract.status === 'SIGNING' && (
+                <section className="rounded-xl border border-amber-100 p-4 space-y-3">
+                  <div><h3 className="text-sm font-semibold text-gray-800">Contract signing</h3><p className="text-xs text-gray-500 mt-1">Track each signer and attach the completed document. Activation requires all signatures and the document.</p></div>
+                  {viewContract.signatories?.length ? <div className="space-y-2">{viewContract.signatories.map(signer => <div key={signer.name} className="flex items-center justify-between gap-2 rounded-lg bg-gray-50 px-3 py-2"><div><p className="text-sm font-medium text-gray-700">{signer.name}</p><p className="text-xs text-gray-500">{signer.status === 'SIGNED' ? `Signed ${signer.signedAt ? formatDate(signer.signedAt) : ''}` : 'Signature pending'}</p></div>{signer.status === 'PENDING' && <button onClick={() => markSignatorySigned(viewContract.id, signer.name)} className="rounded-md bg-white border px-2 py-1 text-xs text-santech-700 hover:bg-santech-50">Mark signed</button>}</div>)}</div> : <p className="text-sm text-amber-700">Add signatories by editing this contract.</p>}
+                  <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 px-3 py-3 text-sm text-gray-600 hover:bg-gray-50"><Upload className="h-4 w-4" />{viewContract.signedDocumentName || 'Attach signed contract file'}<input type="file" accept=".pdf,.doc,.docx,image/*" className="hidden" onChange={e => attachSignedDocument(viewContract.id, e.target.files?.[0])} /></label>
+                </section>
+              )}
+              {viewContract.status === 'ACTIVE' && (
+                <button onClick={() => navigate('/projects', { state: { contract: { contractRef: viewContract.contractNumber, name: viewContract.projectName, client: viewContract.clientName, manager: viewContract.responsibleManager, budget: viewContract.value, startDate: viewContract.startDate, endDate: viewContract.endDate, description: viewContract.deliverables } } })} className="w-full flex items-center justify-center gap-2 rounded-lg bg-santech-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-santech-700"><FolderPlus className="h-4 w-4" />Create project from contract</button>
+              )}
               <div className="flex gap-2 pt-2">
                 <button onClick={() => openEdit(viewContract)} className="flex-1 py-2 border border-santech-200 text-santech-600 rounded-lg text-sm font-medium hover:bg-santech-50">Edit</button>
-                {WORKFLOW.indexOf(viewContract.status) < WORKFLOW.length - 1 && WORKFLOW.indexOf(viewContract.status) >= 0 && (
-                  <button onClick={() => { advanceStatus(viewContract.id); setViewContract(null) }} className="flex-1 py-2 bg-santech-600 text-white rounded-lg text-sm font-medium hover:bg-santech-700">
+              {viewContract.status !== 'APPROVAL' && WORKFLOW.indexOf(viewContract.status) < WORKFLOW.length - 1 && WORKFLOW.indexOf(viewContract.status) >= 0 && (
+                  <button onClick={() => advanceStatus(viewContract.id)} className="flex-1 py-2 bg-santech-600 text-white rounded-lg text-sm font-medium hover:bg-santech-700">
                     Advance → {STATUS_CONFIG[WORKFLOW[WORKFLOW.indexOf(viewContract.status) + 1]].label}
                   </button>
                 )}
@@ -376,15 +462,9 @@ export default function ContractsPage() {
             <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
               {error && <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-2 rounded-lg">{error}</div>}
               <div className="grid grid-cols-2 gap-4">
-                <div>
+                <div className="col-span-2">
                   <label className="block text-xs font-medium text-gray-700 mb-1">Contract Number</label>
                   <input name="contractNumber" value={form.contractNumber} onChange={handleChange} placeholder="Auto-generated if empty" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Status</label>
-                  <select name="status" value={form.status} onChange={handleChange} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500">
-                    {WORKFLOW.map(s => <option key={s} value={s}>{STATUS_CONFIG[s].label}</option>)}
-                  </select>
                 </div>
               </div>
               {form.sourceQuotationNumber && (
@@ -430,6 +510,10 @@ export default function ContractsPage() {
                 <textarea name="deliverables" value={form.deliverables} onChange={handleChange} rows={2} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500 resize-none" />
               </div>
               <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Signatories</label>
+                <textarea name="signatories" value={form.signatories} onChange={handleChange} rows={2} placeholder="Enter one signer name per line" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500 resize-none" />
+              </div>
+              <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Notes</label>
                 <textarea name="notes" value={form.notes} onChange={handleChange} rows={2} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500 resize-none" />
               </div>
@@ -444,5 +528,3 @@ export default function ContractsPage() {
     </div>
   )
 }
-
-import React from 'react'

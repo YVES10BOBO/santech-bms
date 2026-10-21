@@ -1,4 +1,5 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { Plus, Search, X, Eye, Edit2, CheckCircle2, Clock } from 'lucide-react'
 import { cn, formatDate, formatCurrency } from '@/lib/utils'
 
@@ -141,6 +142,17 @@ const mockProjects: Project[] = [
   },
 ]
 
+const PROJECTS_STORAGE_KEY = 'santech_projects_mock_v1'
+
+function readProjects(): Project[] {
+  try {
+    const stored = localStorage.getItem(PROJECTS_STORAGE_KEY)
+    return stored ? JSON.parse(stored) as Project[] : mockProjects
+  } catch {
+    return mockProjects
+  }
+}
+
 // ─── Badge helpers ─────────────────────────────────────────────────────────────
 const STATUS_COLORS: Record<ProjectStatus, string> = {
   PLANNING: 'bg-gray-100 text-gray-700',
@@ -189,6 +201,8 @@ interface ProjectForm {
   priority: Priority
   status: ProjectStatus
   description: string
+  contractRef: string
+  milestonePlan: string
 }
 
 const MANAGERS = ['Alice Uwimana', 'Bob Nkurunziza', 'Carol Ingabire']
@@ -203,6 +217,8 @@ const emptyForm: ProjectForm = {
   priority: 'MEDIUM',
   status: 'PLANNING',
   description: '',
+  contractRef: '',
+  milestonePlan: '',
 }
 
 const STATUS_OPTIONS: { value: ProjectStatus | 'ALL'; label: string }[] = [
@@ -229,7 +245,9 @@ const ROWS_OPTIONS = [5, 10, 20] as const
 
 // ─── Component ─────────────────────────────────────────────────────────────────
 export default function ProjectsPage() {
-  const [projects, setProjects] = useState<Project[]>(mockProjects)
+  const location = useLocation()
+  const navigate = useNavigate()
+  const [projects, setProjects] = useState<Project[]>(readProjects)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | 'ALL'>('ALL')
   const [priorityFilter, setPriorityFilter] = useState<Priority | 'ALL'>('ALL')
@@ -244,6 +262,20 @@ export default function ProjectsPage() {
 
   // Side panel
   const [viewProject, setViewProject] = useState<Project | null>(null)
+
+  useEffect(() => {
+    localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(projects))
+  }, [projects])
+
+  useEffect(() => {
+    const contract = (location.state as { contract?: { contractRef: string; name: string; client: string; manager: string; budget: number; startDate: string; endDate: string; description: string } } | null)?.contract
+    if (!contract) return
+    const milestonePlan = contract.description.split('\n').map(item => item.trim()).filter(Boolean).map(item => item.replace(/^[-•]\s*/, '')).join('\n')
+    setForm({ ...emptyForm, ...contract, budget: String(contract.budget), status: 'PLANNING', priority: 'MEDIUM', milestonePlan })
+    setFormErrors({})
+    setShowAdd(true)
+    navigate(location.pathname, { replace: true, state: null })
+  }, [location.pathname, location.state, navigate])
 
   // ── Stats ──────────────────────────────────────────────────────────────────
   const totalProjects = projects.length
@@ -313,6 +345,8 @@ export default function ProjectsPage() {
       priority: p.priority,
       status: p.status,
       description: p.description,
+      contractRef: p.contractRef,
+      milestonePlan: p.milestones.map(milestone => milestone.replace(/\s-\s(Pending|In Progress|Done)$/i, '')).join('\n'),
     })
     setFormErrors({})
     setEditProject(p)
@@ -342,6 +376,8 @@ export default function ProjectsPage() {
                 priority: form.priority,
                 status: form.status,
                 description: form.description,
+                contractRef: form.contractRef,
+                milestones: form.milestonePlan.split('\n').map(item => item.trim()).filter(Boolean).map(item => `${item} - Pending`),
               }
             : p,
         ),
@@ -359,8 +395,8 @@ export default function ProjectsPage() {
         startDate: form.startDate,
         endDate: form.endDate,
         description: form.description,
-        milestones: [],
-        contractRef: '',
+        milestones: form.milestonePlan.split('\n').map(item => item.trim()).filter(Boolean).map(item => `${item} - Pending`),
+        contractRef: form.contractRef,
       }
       setProjects(prev => [newProject, ...prev])
     }
@@ -724,6 +760,18 @@ export default function ProjectsPage() {
                 </div>
               </div>
 
+              {/* Contract reference */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Contract Reference</label>
+                <input
+                  name="contractRef"
+                  value={form.contractRef}
+                  onChange={handleChange}
+                  placeholder="Optional contract number"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500"
+                />
+              </div>
+
               {/* Start Date + End Date */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -783,6 +831,20 @@ export default function ProjectsPage() {
                     ))}
                   </select>
                 </div>
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Milestones & Deliverables</label>
+                <textarea
+                  name="milestonePlan"
+                  value={form.milestonePlan}
+                  onChange={handleChange}
+                  rows={4}
+                  placeholder={'One milestone or deliverable per line\nRequirements and analysis\nImplementation\nTesting and handover'}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500 resize-none"
+                />
+                <p className="mt-1 text-xs text-gray-400">Lines from the contract deliverables are prefilled; edit them into project milestones as needed.</p>
               </div>
 
               {/* Description */}
