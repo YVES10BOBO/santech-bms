@@ -41,6 +41,13 @@ import MilestonesPage from '@/pages/projects/MilestonesPage'
 import MeetingsPage from '@/pages/communication/MeetingsPage'
 import CommunicationPage from '@/pages/communication/CommunicationPage'
 import ReceptionPage from '@/pages/reception/ReceptionPage'
+import DocumentsPage from '@/pages/documents/DocumentsPage'
+import TimesheetsPage from '@/pages/projects/TimesheetsPage'
+import ProcurementPage from '@/pages/procurement/ProcurementPage'
+import CompanyProfilePage from '@/pages/settings/CompanyProfilePage'
+import RolesPage from '@/pages/settings/RolesPage'
+import TendersPage from '@/pages/sales/TendersPage'
+import KnowledgeBasePage from '@/pages/support/KnowledgeBasePage'
 
 // Guard: requires authentication
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -102,6 +109,7 @@ export default function App() {
           {/* Sales */}
           <Route path="sales/pipeline" element={<PipelinePage />} />
           <Route path="sales/quotations" element={<QuotationsPage />} />
+          <Route path="sales/tenders" element={<TendersPage />} />
 
           {/* Marketing */}
           <Route path="marketing/campaigns" element={<CampaignsPage />} />
@@ -110,6 +118,7 @@ export default function App() {
           <Route path="projects" element={<ProjectsPage />} />
           <Route path="projects/tasks" element={<TasksPage />} />
           <Route path="projects/milestones" element={<MilestonesPage />} />
+          <Route path="projects/timesheets" element={<TimesheetsPage />} />
           <Route path="communication/meetings" element={<MeetingsPage />} />
           <Route path="communication/log" element={<CommunicationPage />} />
           <Route path="reception" element={<ReceptionPage />} />
@@ -135,8 +144,8 @@ export default function App() {
           {/* Settings */}
           <Route path="settings" element={<SettingsPage />} />
           <Route path="settings/users" element={<SettingsPage />} />
-          <Route path="settings/company" element={<SettingsPage />} />
-          <Route path="settings/roles" element={<SettingsPage />} />
+          <Route path="settings/company" element={<CompanyProfilePage />} />
+          <Route path="settings/roles" element={<RolesPage />} />
           <Route path="settings/config" element={<SettingsPage />} />
 
           {/* New pages */}
@@ -146,6 +155,11 @@ export default function App() {
           <Route path="training" element={<TrainingPage />} />
           <Route path="settings/products" element={<ProductCatalogPage />} />
           <Route path="settings/audit" element={<AuditTrailPage />} />
+
+          {/* Documents & Procurement */}
+          <Route path="documents" element={<DocumentsPage />} />
+          <Route path="procurement" element={<ProcurementPage />} />
+          <Route path="support/knowledge-base" element={<KnowledgeBasePage />} />
 
           {/* 404 fallback */}
           <Route path="*" element={<Navigate to="/dashboard" replace />} />

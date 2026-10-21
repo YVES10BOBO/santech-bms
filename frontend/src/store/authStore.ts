@@ -18,7 +18,7 @@ interface AuthStore {
 // Role-based module access map
 const roleAccess: Record<UserRole, string[]> = {
   SUPER_ADMIN: ['*'],
-  ADMIN: ['dashboard', 'crm', 'sales', 'marketing', 'contracts', 'finance', 'projects', 'team', 'support', 'reports', 'settings', 'notifications', 'reception', 'communication', 'training'],
+  ADMIN: ['dashboard', 'crm', 'sales', 'marketing', 'contracts', 'finance', 'projects', 'team', 'support', 'reports', 'settings', 'notifications', 'reception', 'communication', 'training', 'documents', 'procurement'],
   FINANCE_MANAGER: ['dashboard', 'finance', 'contracts', 'reports', 'notifications'],
   SALES_MANAGER: ['dashboard', 'crm', 'sales', 'marketing', 'reports', 'notifications'],
   MARKETING_MANAGER: ['dashboard', 'crm', 'marketing', 'reports', 'notifications'],

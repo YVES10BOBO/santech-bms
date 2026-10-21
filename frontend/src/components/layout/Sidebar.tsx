@@ -24,6 +24,8 @@ import {
   Headphones,
   DoorOpen,
   MessageSquare,
+  FolderOpen,
+  ShoppingCart,
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -59,6 +61,7 @@ const navItems: NavItem[] = [
     children: [
       { label: 'Deal Pipeline', path: '/sales/pipeline', module: 'sales' },
       { label: 'Quotations', path: '/sales/quotations', module: 'sales' },
+      { label: 'Tenders', path: '/sales/tenders', module: 'sales' },
     ],
   },
   {
@@ -89,6 +92,14 @@ const navItems: NavItem[] = [
     ],
   },
   {
+    label: 'Procurement',
+    icon: ShoppingCart,
+    module: 'procurement',
+    children: [
+      { label: 'Purchases & Stock', path: '/procurement', module: 'procurement' },
+    ],
+  },
+  {
     label: 'Reports',
     icon: BarChart2,
     path: undefined,
@@ -100,7 +111,10 @@ const navItems: NavItem[] = [
     icon: Headphones,
     path: undefined,
     module: 'support',
-    children: [{ label: 'Support Tickets', path: '/support', module: 'support' }],
+    children: [
+      { label: 'Support Tickets', path: '/support', module: 'support' },
+      { label: 'Knowledge Base', path: '/support/knowledge-base', module: 'support' },
+    ],
   },
   {
     label: 'Reception',
@@ -120,6 +134,14 @@ const navItems: NavItem[] = [
     ],
   },
   {
+    label: 'Documents',
+    icon: FolderOpen,
+    module: 'documents',
+    children: [
+      { label: 'All Documents', path: '/documents', module: 'documents' },
+    ],
+  },
+  {
     label: 'Projects',
     icon: FolderKanban,
     module: 'projects',
@@ -127,6 +149,7 @@ const navItems: NavItem[] = [
       { label: 'All Projects', path: '/projects', module: 'projects' },
       { label: 'Tasks', path: '/projects/tasks', module: 'projects' },
       { label: 'Milestones', path: '/projects/milestones', module: 'projects' },
+      { label: 'Timesheets', path: '/projects/timesheets', module: 'projects' },
     ],
   },
   {
