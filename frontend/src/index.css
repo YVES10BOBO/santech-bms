@@ -99,8 +99,16 @@ main > div.space-y-5 > * + * { margin-top: 0.4rem !important; }
 main > div.space-y-4 > * + * { margin-top: 0.4rem !important; }
 main > div.space-y-3 > * + * { margin-top: 0.4rem !important; }
 
+/* ALL space-y inside main — override everything */
+main * + * { --tw-space-y-reverse: 0; }
+main .space-y-6 > :not([hidden]) ~ :not([hidden]) { margin-top: 0.4rem !important; }
+main .space-y-5 > :not([hidden]) ~ :not([hidden]) { margin-top: 0.4rem !important; }
+main .space-y-4 > :not([hidden]) ~ :not([hidden]) { margin-top: 0.4rem !important; }
+main .space-y-3 > :not([hidden]) ~ :not([hidden]) { margin-top: 0.35rem !important; }
+main .space-y-2 > :not([hidden]) ~ :not([hidden]) { margin-top: 0.25rem !important; }
+
 /* Reduce ALL grid gaps globally */
-main .grid { gap: 0.5rem !important; }
+main .grid { gap: 0.4rem !important; }
 
 /* KPI stat cards — compact */
 .kpi-card { padding: 0.6rem 0.85rem !important; }
@@ -111,22 +119,17 @@ main .grid { gap: 0.5rem !important; }
 .bms-card.p-4 { padding: 0.65rem !important; }
 .bms-card.p-5 { padding: 0.7rem !important; }
 
-/* Override all space-y inside main content */
-main .space-y-5 > * + * { margin-top: 0.4rem !important; }
-main .space-y-4 > * + * { margin-top: 0.4rem !important; }
-main .space-y-3 > * + * { margin-top: 0.35rem !important; }
-main .space-y-2 > * + * { margin-top: 0.25rem !important; }
-
 /* Page headers */
 h1.text-2xl { margin-bottom: 0 !important; }
 h1.text-2xl + p { margin-top: 0.1rem !important; }
 
-/* Page content outer padding */
-main { padding: 0.5rem 0.75rem !important; }
-
-/* Remove top padding gap between navbar and first content */
-main > * { margin-top: 0 !important; }
-main > *:first-child { padding-top: 0 !important; margin-top: 0 !important; }
+/* Page content outer padding — comfortable small gap from navbar */
+main {
+  padding-top: 0.75rem !important;
+  padding-bottom: 0.75rem !important;
+  padding-left: 0.85rem !important;
+  padding-right: 0.85rem !important;
+}
 
 .sidebar-nav-scroll {
   scrollbar-width: none;
