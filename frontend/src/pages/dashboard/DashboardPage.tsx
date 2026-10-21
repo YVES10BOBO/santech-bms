@@ -84,7 +84,7 @@ interface KPICardProps {
 
 function KPICard({ title, value, subtitle, icon: Icon, iconColor, iconBg, trend }: KPICardProps) {
   return (
-    <div className="kpi-card p-5 hover:shadow-md transition-shadow">
+    <div className="kpi-card p-3 hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between">
         <div>
           <p className="text-sm text-gray-500 font-medium">{title}</p>

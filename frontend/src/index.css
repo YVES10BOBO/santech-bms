@@ -94,28 +94,35 @@
 
 /* ── Tighten page spacing globally ── */
 /* Reduce space-y gaps between all page sections */
-main > div.space-y-6 > * + * { margin-top: 0.5rem !important; }
-main > div.space-y-5 > * + * { margin-top: 0.5rem !important; }
-main > div.space-y-4 > * + * { margin-top: 0.5rem !important; }
+main > div.space-y-6 > * + * { margin-top: 0.4rem !important; }
+main > div.space-y-5 > * + * { margin-top: 0.4rem !important; }
+main > div.space-y-4 > * + * { margin-top: 0.4rem !important; }
+main > div.space-y-3 > * + * { margin-top: 0.4rem !important; }
 
-/* Reduce grid gaps on KPI card rows */
-.grid.gap-4 { gap: 0.6rem !important; }
-.grid.gap-3 { gap: 0.5rem !important; }
+/* Reduce ALL grid gaps globally */
+main .grid { gap: 0.5rem !important; }
 
-/* KPI stat cards — tighter padding */
-.kpi-card {
-  padding: 0.65rem 1rem !important;
-}
+/* KPI stat cards — compact */
+.kpi-card { padding: 0.6rem 0.85rem !important; }
 
-/* bms-card padding tighter */
-.bms-card.p-4 { padding: 0.75rem !important; }
-.bms-card.p-5 { padding: 0.85rem !important; }
+/* All bms-card padding classes — override Tailwind p-* */
+.bms-card[class*="p-"] { padding: 0.65rem !important; }
+.bms-card.p-3 { padding: 0.6rem !important; }
+.bms-card.p-4 { padding: 0.65rem !important; }
+.bms-card.p-5 { padding: 0.7rem !important; }
 
-/* Page headers — no bottom margin */
+/* Override all space-y inside main content */
+main .space-y-5 > * + * { margin-top: 0.4rem !important; }
+main .space-y-4 > * + * { margin-top: 0.4rem !important; }
+main .space-y-3 > * + * { margin-top: 0.35rem !important; }
+main .space-y-2 > * + * { margin-top: 0.25rem !important; }
+
+/* Page headers */
 h1.text-2xl { margin-bottom: 0 !important; }
+h1.text-2xl + p { margin-top: 0.1rem !important; }
 
-/* Page content padding reduction */
-main { padding: 0.75rem !important; }
+/* Page content outer padding */
+main { padding: 0.6rem !important; }
 
 .sidebar-nav-scroll {
   scrollbar-width: none;
