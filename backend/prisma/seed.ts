@@ -574,13 +574,13 @@ async function main() {
 
   await prisma.auditLog.createMany({
     data: [
-      { userId: superAdmin.id, action: 'LOGIN', entity: 'Auth', entityId: superAdmin.id, description: 'User logged into the system', ipAddress: '192.168.1.10', userAgent: 'Chrome / Windows' },
-      { userId: superAdmin.id, action: 'CREATE', entity: 'User', entityId: alice.id, description: 'Created new user account for Alice Uwimana as Sales Staff', newValue: { email: 'sales@santech.rw', role: 'SALES_STAFF' }, ipAddress: '192.168.1.10', userAgent: 'Chrome / Windows' },
-      { userId: hrAdmin.id, action: 'UPDATE', entity: 'Employee', entityId: empAlice.id, description: 'Updated base salary for Alice Uwimana', oldValue: { baseSalary: 300000 }, newValue: { baseSalary: 350000 }, ipAddress: '192.168.1.11', userAgent: 'Firefox / Windows' },
-      { userId: alice.id, action: 'CREATE', entity: 'FieldVisit', entityId: 'fv-ecobank', description: 'Recorded new field visit to ECOBANK', newValue: { company: 'ECOBANK', product: 'EVS', outcome: 'PROPOSAL' }, ipAddress: '192.168.1.12', userAgent: 'Chrome / Android' },
-      { userId: hrAdmin.id, action: 'APPROVE', entity: 'Task', entityId: 'task-4', description: 'Approved task completion by Bob Nkurunziza', oldValue: { status: 'PENDING_APPROVAL' }, newValue: { status: 'APPROVED' }, ipAddress: '192.168.1.11', userAgent: 'Firefox / Windows' },
-      { userId: superAdmin.id, action: 'CREATE', entity: 'Contract', entityId: contractEaseed.id, description: 'Created contract CT-2026-001 for East African Seed Ltd', newValue: { value: 1500000, status: 'ACTIVE' }, ipAddress: '192.168.1.10', userAgent: 'Chrome / Windows' },
-      { userId: hrAdmin.id, action: 'PAYMENT', entity: 'Invoice', entityId: inv1.id, description: 'Recorded payment of RWF 750,000 for invoice INV-2026-001', newValue: { amount: 750000, method: 'Bank Transfer', reference: 'BNK-2026-1001' }, ipAddress: '192.168.1.11', userAgent: 'Firefox / Windows' },
+      { userId: superAdmin.id, action: 'LOGIN',    entity: 'Auth',       entityId: superAdmin.id,     ipAddress: '192.168.1.10', userAgent: 'Chrome / Windows' },
+      { userId: superAdmin.id, action: 'CREATE',   entity: 'User',       entityId: alice.id,          newValue: { email: 'sales@santech.rw', role: 'SALES_STAFF' }, ipAddress: '192.168.1.10', userAgent: 'Chrome / Windows' },
+      { userId: hrAdmin.id,    action: 'UPDATE',   entity: 'Employee',   entityId: empAlice.id,       oldValue: { baseSalary: 300000 }, newValue: { baseSalary: 350000 }, ipAddress: '192.168.1.11', userAgent: 'Firefox / Windows' },
+      { userId: alice.id,      action: 'CREATE',   entity: 'FieldVisit', entityId: 'fv-ecobank',      newValue: { company: 'ECOBANK', product: 'EVS', outcome: 'PROPOSAL' }, ipAddress: '192.168.1.12', userAgent: 'Chrome / Android' },
+      { userId: hrAdmin.id,    action: 'APPROVE',  entity: 'Task',       entityId: 'task-4',          oldValue: { status: 'PENDING_APPROVAL' }, newValue: { status: 'APPROVED' }, ipAddress: '192.168.1.11', userAgent: 'Firefox / Windows' },
+      { userId: superAdmin.id, action: 'CREATE',   entity: 'Contract',   entityId: contractEaseed.id, newValue: { value: 1500000, status: 'ACTIVE' }, ipAddress: '192.168.1.10', userAgent: 'Chrome / Windows' },
+      { userId: hrAdmin.id,    action: 'PAYMENT',  entity: 'Invoice',    entityId: inv1.id,           newValue: { amount: 750000, method: 'Bank Transfer', reference: 'BNK-2026-1001' }, ipAddress: '192.168.1.11', userAgent: 'Firefox / Windows' },
     ],
     skipDuplicates: true,
   })
