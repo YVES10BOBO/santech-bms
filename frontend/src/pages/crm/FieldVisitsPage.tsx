@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { MapPin, Plus, Search, Download, X, ChevronDown } from 'lucide-react'
 import PhoneInput from '@/components/shared/PhoneInput'
 import DateRangePicker from '@/components/shared/DateRangePicker'
 import { cn, getStatusColor, getCategoryLabel, formatDate } from '@/lib/utils'
 import type { ClientCategory, VisitOutcome } from '@/types'
+import { fieldVisitService } from '@/lib/services/fieldVisitService'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface VisitRecord {
@@ -82,7 +83,21 @@ const emptyForm = {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function FieldVisitsPage() {
-  const [visits, setVisits] = useState<VisitRecord[]>(initialVisits)
+  const [visits, setVisits] = useState<VisitRecord[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
+  const [loadError, setLoadError] = useState('')
+  const [selectedVisit, setSelectedVisit] = useState<VisitRecord | null>(null)
+  const [editingVisit, setEditingVisit] = useState<VisitRecord | null>(null)
+
+  useEffect(() => {
+    let active = true
+    fieldVisitService.getAll({ page: 1, limit: 1000 })
+      .then((result) => { if (active) setVisits(result.data as VisitRecord[]) })
+      .catch(() => { if (active) setLoadError('Unable to load field visits. Please try again.') })
+      .finally(() => { if (active) setIsLoading(false) })
+    return () => { active = false }
+  }, [])
 
   // Filters
   const [search, setSearch] = useState('')
@@ -159,15 +174,14 @@ export default function FieldVisitsPage() {
     setForm(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }))
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!form.companyName.trim()) { setFormError('Company name is required.'); return }
     if (!form.contactPhone.trim()) { setFormError('Contact phone is required.'); return }
     if (!form.whatSantechCanSell.trim()) { setFormError('Please fill in what Santech can sell.'); return }
     if (!form.needsAndObservation.trim()) { setFormError('Needs & Observation is required.'); return }
 
-    const newVisit: VisitRecord = {
-      id: String(Date.now()),
+    const visitData = {
       visitDate: form.visitDate,
       companyName: form.companyName,
       category: form.category,
@@ -181,14 +195,28 @@ export default function FieldVisitsPage() {
       comments: form.comments,
       contractWon: form.contractWon,
       amountPromising: form.amountPromising ? parseFloat(form.amountPromising) : null,
-      recordedBy: { firstName: 'Current', lastName: 'User' },
     }
 
-    setVisits(prev => [newVisit, ...prev])
-    setShowModal(false)
-    setForm(emptyForm)
-    setFormError('')
-    setPage(1)
+    setIsSaving(true)
+    try {
+      if (editingVisit) {
+        const updated = await fieldVisitService.update(editingVisit.id, visitData) as VisitRecord
+        setVisits(prev => prev.map(visit => visit.id === editingVisit.id ? updated : visit))
+      } else {
+        const created = await fieldVisitService.create(visitData) as VisitRecord
+        setVisits(prev => [created, ...prev])
+      }
+      setShowModal(false)
+      setSelectedVisit(null)
+      setEditingVisit(null)
+      setForm(emptyForm)
+      setFormError('')
+      setPage(1)
+    } catch {
+      setFormError('Unable to save this visit. Please check your connection and try again.')
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -206,13 +234,15 @@ export default function FieldVisitsPage() {
             <Download className="w-4 h-4" /> Export
           </button>
           <button
-            onClick={() => { setShowModal(true); setFormError('') }}
+            onClick={() => { setEditingVisit(null); setForm(emptyForm); setShowModal(true); setFormError('') }}
             className="flex items-center gap-2 px-4 py-2 text-sm bg-santech-600 text-white rounded-lg hover:bg-santech-700 transition-colors font-medium"
           >
             <Plus className="w-4 h-4" /> Record Visit
           </button>
         </div>
       </div>
+
+      {loadError && <p role="alert" className="text-sm text-red-600">{loadError}</p>}
 
       {/* ── Stats ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -290,7 +320,9 @@ export default function FieldVisitsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {paginated.length === 0 ? (
+              {isLoading ? (
+                <tr><td colSpan={15} className="text-center py-12 text-gray-400 text-sm">Loading field visits…</td></tr>
+              ) : paginated.length === 0 ? (
                 <tr>
                   <td colSpan={15} className="text-center py-12 text-gray-400 text-sm">
                     No visits found matching your filters.
@@ -349,7 +381,7 @@ export default function FieldVisitsPage() {
                       : <span className="text-gray-300">—</span>}
                   </td>
                   <td className="px-3 py-3">
-                    <button className="text-xs text-santech-600 hover:underline font-medium">View</button>
+                    <button onClick={() => setSelectedVisit(visit)} className="text-xs text-santech-600 hover:underline font-medium">View</button>
                   </td>
                 </tr>
               ))}
@@ -409,10 +441,10 @@ export default function FieldVisitsPage() {
             {/* Modal header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
               <div>
-                <h2 className="text-lg font-semibold text-gray-800">Record Field Visit</h2>
+                <h2 className="text-lg font-semibold text-gray-800">{editingVisit ? 'Edit Field Visit' : 'Record Field Visit'}</h2>
                 <p className="text-xs text-gray-400 mt-0.5">Fill in all details from the client visit</p>
               </div>
-              <button onClick={() => setShowModal(false)} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
+              <button onClick={() => { setShowModal(false); setEditingVisit(null) }} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
                 <X className="w-5 h-5 text-gray-500" />
               </button>
             </div>
@@ -527,14 +559,59 @@ export default function FieldVisitsPage() {
 
               {/* Actions */}
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => { setShowModal(false); setForm(emptyForm); setFormError('') }} className="flex-1 px-4 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors font-medium">
+                <button type="button" onClick={() => { setShowModal(false); setEditingVisit(null); setForm(emptyForm); setFormError('') }} className="flex-1 px-4 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors font-medium">
                   Cancel
                 </button>
-                <button type="submit" className="flex-1 px-4 py-2.5 bg-santech-600 text-white rounded-lg text-sm hover:bg-santech-700 transition-colors font-medium">
-                  Save Visit Record
+                <button type="submit" disabled={isSaving} className="flex-1 px-4 py-2.5 bg-santech-600 text-white rounded-lg text-sm hover:bg-santech-700 disabled:opacity-50 transition-colors font-medium">
+                  {isSaving ? 'Saving…' : editingVisit ? 'Update Visit' : 'Save Visit Record'}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {selectedVisit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-start justify-between px-6 py-4 border-b">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-800">{selectedVisit.companyName}</h2>
+                <p className="text-xs text-gray-500 mt-1">{formatDate(selectedVisit.visitDate)} · {getCategoryLabel(selectedVisit.category)}</p>
+              </div>
+              <button onClick={() => setSelectedVisit(null)} className="p-1.5 rounded-lg hover:bg-gray-100"><X className="w-5 h-5 text-gray-500" /></button>
+            </div>
+            <div className="px-6 py-5 space-y-4 text-sm">
+              <div><p className="text-xs text-gray-400">Contact</p><p className="text-gray-700">{selectedVisit.contactName || '—'} · {selectedVisit.contactPhone}</p></div>
+              <div><p className="text-xs text-gray-400">Location</p><p className="text-gray-700">{selectedVisit.location || '—'}</p></div>
+              <div><p className="text-xs text-gray-400">Needs and observation</p><p className="text-gray-700 whitespace-pre-wrap">{selectedVisit.needsAndObservation}</p></div>
+              <div><p className="text-xs text-gray-400">Products</p><p className="text-gray-700">{selectedVisit.whatSantechCanSell}</p></div>
+              <div><p className="text-xs text-gray-400">Outcome / follow-up</p><p className="text-gray-700">{selectedVisit.outcome.replace(/_/g, ' ')} · {selectedVisit.followUpDate ? formatDate(selectedVisit.followUpDate) : 'No follow-up date'}</p></div>
+              <div><p className="text-xs text-gray-400">Comments</p><p className="text-gray-700 whitespace-pre-wrap">{selectedVisit.comments || '—'}</p></div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button onClick={() => setSelectedVisit(null)} className="px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-600">Close</button>
+                <button onClick={() => {
+                  setEditingVisit(selectedVisit)
+                  setForm({
+                    visitDate: selectedVisit.visitDate,
+                    companyName: selectedVisit.companyName,
+                    category: selectedVisit.category,
+                    contactName: selectedVisit.contactName,
+                    contactPhone: selectedVisit.contactPhone,
+                    location: selectedVisit.location,
+                    whatSantechCanSell: selectedVisit.whatSantechCanSell,
+                    needsAndObservation: selectedVisit.needsAndObservation,
+                    outcome: selectedVisit.outcome,
+                    followUpDate: selectedVisit.followUpDate,
+                    comments: selectedVisit.comments,
+                    contractWon: selectedVisit.contractWon,
+                    amountPromising: selectedVisit.amountPromising == null ? '' : String(selectedVisit.amountPromising),
+                  })
+                  setSelectedVisit(null)
+                  setShowModal(true)
+                }} className="px-4 py-2 bg-santech-600 text-white rounded-lg text-sm">Edit visit</button>
+              </div>
+            </div>
           </div>
         </div>
       )}

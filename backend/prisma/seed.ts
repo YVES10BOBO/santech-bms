@@ -1,6 +1,7 @@
-﻿import { PrismaClient } from '@prisma/client'
+import { PrismaClient } from '@prisma/client'
 import bcrypt from 'bcryptjs'
 import { seedCustomerSamples } from './customerSamples'
+import { seedFieldVisitSamples } from './fieldVisitSamples'
 
 const prisma = new PrismaClient()
 
@@ -306,24 +307,10 @@ async function main() {
   // ── 5. FIELD VISITS ───────────────────────────────────────────────────────
   console.log('Creating field visits...')
 
-  await seedCustomerSamples(prisma)`n`n  const fieldVisits = [
-    { visitDate: new Date('2026-09-17'), companyName: 'East African Seed Ltd', category: 'SELF_EMPLOYED' as const, contactPhone: '789920635', whatSantechCanSell: 'SANTRACK', needsAndObservation: 'Products mentioned in notes, including Imbuto/seed-related products. Handwriting is partly unclear.', outcome: 'FOLLOW_UP' as const, comments: 'Follow up on the product opportunity and requirements.', contractWon: true, recordedById: alice.id, clientId: clientEaseed.id },
-    { visitDate: new Date('2026-09-17'), companyName: 'Victoria Trading LTD', category: 'SELF_EMPLOYED' as const, contactName: 'EID IBRAHIM', contactPhone: '788256245', whatSantechCanSell: 'SANTRACK', needsAndObservation: 'EID IBRAHIM wants SANTRACK if amount is reduced. Had negotiated at 2M. Will sit with team and review budget.', outcome: 'NEGOTIATION' as const, comments: 'We have to make follow-up with them.', amountPromising: 2000000, contractWon: false, recordedById: alice.id },
-    { visitDate: new Date('2026-09-16'), companyName: 'QUINCAILLAIRE KEMEC LTD', category: 'SELF_EMPLOYED' as const, contactPhone: '0783715051', whatSantechCanSell: 'REVIXSAN', needsAndObservation: 'Interested in stock management. REVIXSAN at 250k. Will provide 2 staff trainees.', outcome: 'FOLLOW_UP' as const, followUpDate: new Date('2026-10-15'), comments: 'Call them October 15 after they finish paying taxes.', amountPromising: 250000, contractWon: false, recordedById: alice.id },
-    { visitDate: new Date('2026-09-22'), companyName: 'NYARUGENGE HOSPITAL', category: 'INSTITUTION' as const, contactName: 'Ange Police NSENGIYUMVA', contactPhone: '0785744154', location: 'Nyarugenge, Kigali', whatSantechCanSell: 'EVS', needsAndObservation: 'Talked with Secretary and IT. Requesting appointment with Hospital Director Lt Col William KANYANKORE.', outcome: 'PROPOSAL' as const, comments: 'Sent document proposal for EVS with all features and prices.', contractWon: false, recordedById: alice.id, clientId: clientHospital.id },
-    { visitDate: new Date('2026-09-29'), companyName: 'ECOBANK', category: 'INSTITUTION' as const, contactName: 'KAMIKAZI', contactPhone: '0786740490', location: 'Kigali', whatSantechCanSell: 'EVS + SANHR IMS', needsAndObservation: 'Met marketing team led by KAMIKAZI. She liked the system and requested 2 project proposals with screenshots.', outcome: 'PROPOSAL' as const, comments: 'Send proposal to akamikazi@ecobank.com and dmana@ecobank.com.', contractWon: false, recordedById: alice.id, clientId: clientEcobank.id },
-    { visitDate: new Date('2026-09-16'), companyName: 'N&T PLASTIC INDUSTRIES LTD', category: 'INDUSTRY' as const, contactName: 'MUGISHA', contactPhone: '0780601661', whatSantechCanSell: 'SANTRACK', needsAndObservation: 'Negotiation ongoing at 3M. Need to follow up with MUGISHA — Digital innovation.', outcome: 'NEGOTIATION' as const, comments: 'To call MUGISHA — Digital innovation.', amountPromising: 3000000, contractWon: false, recordedById: alice.id, clientId: clientNtPlastic.id },
-    { visitDate: new Date('2026-09-30'), companyName: 'KABUYE SUGAR WORKS', category: 'INDUSTRY' as const, contactName: 'Claude (Security Manager)', contactPhone: '788531586', location: 'Kabuye', whatSantechCanSell: 'EVS', needsAndObservation: 'Security manager liked the EVS system. Currently doing attendance in books and with fingerprints.', outcome: 'INTERESTED' as const, comments: 'HR & Admin: 788531586, Claude Security Manager: 0785447889.', contractWon: false, recordedById: alice.id, clientId: clientKabuye.id },
-    { visitDate: new Date('2026-10-07'), companyName: 'KEMO & SONS LTD', category: 'DISTRIBUTOR' as const, contactPhone: '788525736', location: 'Kigali', whatSantechCanSell: 'Website + CRM', needsAndObservation: 'Need proposal for distribution channel and website with CRM.', outcome: 'FOLLOW_UP' as const, comments: 'Prepare a proposal for distribution channel & website.', contractWon: false, recordedById: alice.id, clientId: clientKemo.id },
-    { visitDate: new Date('2026-09-25'), companyName: 'Serena Hotel', category: 'SELF_EMPLOYED' as const, contactName: 'Security Manager', contactPhone: '0788200454', location: 'Kigali', whatSantechCanSell: 'EVS', needsAndObservation: 'Top manager interested in EVS but had pending meeting. Told receptionist to give contact of security manager.', outcome: 'INTERESTED' as const, comments: 'Call: 0788200454 / jackson.byakatonda@serenahotels.com.', contractWon: false, recordedById: alice.id, clientId: clientSerena.id },
-    { visitDate: new Date('2026-10-01'), companyName: 'SABBAN ABATTOIR', category: 'SELF_EMPLOYED' as const, contactName: 'HR THEONESTE', contactPhone: '0788846240', location: 'Kigali', whatSantechCanSell: 'EVS', needsAndObservation: '90 employees. Need system for employee attendance, client records, and equipment tracking. Quoted at 12M.', outcome: 'NEGOTIATION' as const, comments: 'Follow up with HR THEONESTE: 0788846240.', amountPromising: 12000000, contractWon: false, recordedById: alice.id, clientId: clientSabban.id },
-  ]
+  await seedCustomerSamples(prisma)
 
-  for (const visit of fieldVisits) {
-    await prisma.fieldVisit.create({ data: visit })
-  }
+  await seedFieldVisitSamples(prisma)
 
-  // ── 6. CONTRACTS ──────────────────────────────────────────────────────────
   console.log('Creating contracts...')
 
   const contractEaseed = await prisma.contract.upsert({

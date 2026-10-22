@@ -9,6 +9,7 @@
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",
     "db:seed:customer-samples": "ts-node prisma/seedCustomerSamplesRunner.ts",
+    "db:seed:field-visit-samples": "ts-node prisma/seedFieldVisitSamplesRunner.ts",
     "db:studio": "prisma studio",
     "db:seed": "ts-node prisma/seed.ts"
   },
