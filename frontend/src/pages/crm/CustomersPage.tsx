@@ -1,7 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import toast from 'react-hot-toast'
 import { Plus, Search, X, Building2, User, Users, Globe, ChevronLeft, ChevronRight, Trash2, CheckCircle2 } from 'lucide-react'
 import { cn, formatDate } from '@/lib/utils'
+import { clientService } from '@/lib/services/clientService'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type ClientKind = 'INDIVIDUAL' | 'BUSINESS' | 'TEAM' | 'DELEGATION'
@@ -83,7 +85,7 @@ const SANTECH_SERVICES: ServiceItem[] = [
 ]
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
-const mockClients: Client[] = [
+export const mockClients: Client[] = [
   {
     id: '1', kind: 'INDIVIDUAL', status: 'ACTIVE', createdAt: '2026-08-10',
     fullName: 'Jean Pierre Habimana', phone: '0788100001', email: 'jp@gmail.com',
@@ -270,7 +272,9 @@ const sectionHeadingCls = 'text-sm font-semibold text-gray-700 mb-3 pb-1 border-
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function CustomersPage() {
   const navigate = useNavigate()
-  const [clients, setClients]         = useState<Client[]>(mockClients)
+  const [clients, setClients]         = useState<Client[]>([])
+  const [isLoading, setIsLoading]     = useState(true)
+  const [isSaving, setIsSaving]       = useState(false)
   const [search, setSearch]           = useState('')
   const [kindFilter, setKindFilter]   = useState<ClientKind | 'ALL'>('ALL')
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL')
@@ -283,6 +287,22 @@ export default function CustomersPage() {
   const [viewId, setViewId]           = useState<string | null>(null)
   const [isEditing, setIsEditing]     = useState(false)
   const [editClientId, setEditClientId] = useState<string | null>(null)
+
+  useEffect(() => {
+    let mounted = true
+    clientService.getAll({ limit: 1000 })
+      .then((response) => {
+        if (mounted) setClients(response.data as Client[])
+      })
+      .catch(() => {
+        if (mounted) toast.error('Could not load clients. Please try again.')
+      })
+      .finally(() => {
+        if (mounted) setIsLoading(false)
+      })
+
+    return () => { mounted = false }
+  }, [])
 
   // ── Computed ───────────────────────────────────────────────────────────────
   const filtered = clients.filter(c => {
@@ -451,7 +471,7 @@ export default function CustomersPage() {
     setFormErrors({})
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     let finalNotes = form.notes
     if (form.selectedServices.includes('OTHER') && form.otherServiceText.trim()) {
       finalNotes = (finalNotes ? finalNotes + '\n' : '') + 'Other service: ' + form.otherServiceText
@@ -495,21 +515,40 @@ export default function CustomersPage() {
       } as Client
     }
 
-    if (isEditing && editClientId) {
-      setClients(prev => prev.map(c => c.id === editClientId ? newClient : c))
-    } else {
-      setClients(prev => [newClient, ...prev])
+    setIsSaving(true)
+    try {
+      const savedClient = isEditing && editClientId
+        ? await clientService.update(editClientId, newClient)
+        : await clientService.create(newClient)
+      const saved = savedClient as Client
+      if (isEditing && editClientId) {
+        setClients(prev => prev.map(c => c.id === editClientId ? saved : c))
+      } else {
+        setClients(prev => [saved, ...prev])
+      }
+      setShowModal(false)
+      setForm(emptyForm())
+      setEditClientId(null)
+      setIsEditing(false)
+      toast.success(isEditing ? 'Client updated.' : 'Client created.')
+    } catch {
+      toast.error('Could not save this client. Please try again.')
+    } finally {
+      setIsSaving(false)
     }
-    setShowModal(false)
-    setForm(emptyForm())
-    setEditClientId(null)
-    setIsEditing(false)
   }
 
-  const toggleClientStatus = (id: string) => {
-    setClients(prev => prev.map(c =>
-      c.id === id ? { ...c, status: c.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE' } : c
-    ))
+  const toggleClientStatus = async (id: string) => {
+    const client = clients.find(c => c.id === id)
+    if (!client) return
+    const updated = { ...client, status: client.status === 'ACTIVE' ? 'INACTIVE' as const : 'ACTIVE' as const }
+    try {
+      const saved = await clientService.update(id, updated) as Client
+      setClients(prev => prev.map(c => c.id === id ? saved : c))
+      toast.success(`Client ${saved.status === 'ACTIVE' ? 'activated' : 'deactivated'}.`)
+    } catch {
+      toast.error('Could not update client status. Please try again.')
+    }
   }
 
   // ── Stats ──────────────────────────────────────────────────────────────────
@@ -599,7 +638,7 @@ export default function CustomersPage() {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {paginated.length === 0 ? (
-                <tr><td colSpan={9} className="text-center py-10 text-gray-400">No clients found.</td></tr>
+                <tr><td colSpan={9} className="text-center py-10 text-gray-400">{isLoading ? 'Loading clients...' : 'No clients found.'}</td></tr>
               ) : paginated.map((c, idx) => {
                 const displayServices = c.services.slice(0, 2)
                 const extraCount = c.services.length - 2
@@ -1317,9 +1356,9 @@ export default function CustomersPage() {
                   Next
                 </button>
               ) : (
-                <button onClick={handleSave}
-                  className="px-5 py-2 bg-santech-600 text-white rounded-lg text-sm font-medium hover:bg-santech-700">
-                  Save Client
+                <button onClick={handleSave} disabled={isSaving}
+                  className="px-5 py-2 bg-santech-600 text-white rounded-lg text-sm font-medium hover:bg-santech-700 disabled:opacity-60">
+                  {isSaving ? 'Saving...' : 'Save Client'}
                 </button>
               )}
             </div>

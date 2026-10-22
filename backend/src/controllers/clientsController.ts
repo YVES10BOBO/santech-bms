@@ -63,6 +63,41 @@ export async function getClient(req: AuthRequest, res: Response): Promise<void> 
   }
 }
 
+export async function addClientInteraction(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const { type, date, title, description, addedBy } = req.body
+    if (!type || !date || !title || !addedBy) {
+      res.status(400).json({ success: false, message: 'Type, date, title, and addedBy are required' })
+      return
+    }
+
+    const client = await prisma.client.findUnique({ where: { id: req.params.id } })
+    if (!client) {
+      res.status(404).json({ success: false, message: 'Client not found' })
+      return
+    }
+
+    const stored = (client.profileData ?? {}) as Record<string, any>
+    const client360 = stored.client360 ?? {}
+    const interaction = {
+      id: `${Date.now()}`,
+      type,
+      date,
+      title: String(title).trim(),
+      description: String(description ?? '').trim(),
+      addedBy: String(addedBy).trim(),
+    }
+    const profileData = {
+      ...stored,
+      client360: { ...client360, timeline: [interaction, ...(client360.timeline ?? [])] },
+    }
+    await prisma.client.update({ where: { id: client.id }, data: { profileData } })
+    res.status(201).json({ success: true, data: interaction })
+  } catch (_error) {
+    res.status(500).json({ success: false, message: 'Internal server error' })
+  }
+}
+
 export async function createClient(req: AuthRequest, res: Response): Promise<void> {
   try {
     const client = await prisma.client.create({ data: req.body })

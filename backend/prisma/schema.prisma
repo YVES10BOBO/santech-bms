@@ -246,6 +246,10 @@ model Client {
   contactPersonName    String?
   contactPersonPhone   String?
   contactPersonEmail   String?
+  profileKind          String?
+  profileData          Json?
+  services             String[]       @default([])
+  isActive             Boolean        @default(true)
   assignedToId         String?
   assignedTo           User?          @relation("AccountManager", fields: [assignedToId], references: [id])
   notes                String?

@@ -1,5 +1,6 @@
-import { PrismaClient } from '@prisma/client'
+﻿import { PrismaClient } from '@prisma/client'
 import bcrypt from 'bcryptjs'
+import { seedCustomerSamples } from './customerSamples'
 
 const prisma = new PrismaClient()
 
@@ -305,7 +306,7 @@ async function main() {
   // ── 5. FIELD VISITS ───────────────────────────────────────────────────────
   console.log('Creating field visits...')
 
-  const fieldVisits = [
+  await seedCustomerSamples(prisma)`n`n  const fieldVisits = [
     { visitDate: new Date('2026-09-17'), companyName: 'East African Seed Ltd', category: 'SELF_EMPLOYED' as const, contactPhone: '789920635', whatSantechCanSell: 'SANTRACK', needsAndObservation: 'Products mentioned in notes, including Imbuto/seed-related products. Handwriting is partly unclear.', outcome: 'FOLLOW_UP' as const, comments: 'Follow up on the product opportunity and requirements.', contractWon: true, recordedById: alice.id, clientId: clientEaseed.id },
     { visitDate: new Date('2026-09-17'), companyName: 'Victoria Trading LTD', category: 'SELF_EMPLOYED' as const, contactName: 'EID IBRAHIM', contactPhone: '788256245', whatSantechCanSell: 'SANTRACK', needsAndObservation: 'EID IBRAHIM wants SANTRACK if amount is reduced. Had negotiated at 2M. Will sit with team and review budget.', outcome: 'NEGOTIATION' as const, comments: 'We have to make follow-up with them.', amountPromising: 2000000, contractWon: false, recordedById: alice.id },
     { visitDate: new Date('2026-09-16'), companyName: 'QUINCAILLAIRE KEMEC LTD', category: 'SELF_EMPLOYED' as const, contactPhone: '0783715051', whatSantechCanSell: 'REVIXSAN', needsAndObservation: 'Interested in stock management. REVIXSAN at 250k. Will provide 2 staff trainees.', outcome: 'FOLLOW_UP' as const, followUpDate: new Date('2026-10-15'), comments: 'Call them October 15 after they finish paying taxes.', amountPromising: 250000, contractWon: false, recordedById: alice.id },
