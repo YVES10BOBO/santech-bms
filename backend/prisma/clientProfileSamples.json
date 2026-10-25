@@ -1,0 +1,828 @@
+[
+  {
+    "id": "1",
+    "kind": "INDIVIDUAL",
+    "crmStatus": "ACTIVE_CLIENT",
+    "createdAt": "2026-08-10",
+    "fullName": "Jean Pierre Habimana",
+    "phone": "0788100001",
+    "email": "jp@gmail.com",
+    "location": "Kigali",
+    "totalInvoiced": 800000,
+    "totalPaid": 400000,
+    "timeline": [
+      {
+        "id": "t1",
+        "type": "FIELD_VISIT",
+        "date": "2026-09-10",
+        "title": "Field visit to Jean Pierre's home office",
+        "description": "Visited client at home office to discuss digital presence needs.",
+        "addedBy": "Alice Uwimana"
+      },
+      {
+        "id": "t2",
+        "type": "LEAD_CREATED",
+        "date": "2026-09-11",
+        "title": "Added as lead after showing interest in website",
+        "description": "Client expressed strong interest in website development services.",
+        "addedBy": "Alice Uwimana"
+      },
+      {
+        "id": "t3",
+        "type": "CALL",
+        "date": "2026-09-12",
+        "title": "Follow-up call, discussed website requirements",
+        "description": "Discussed scope, pages needed, design preferences and timeline.",
+        "addedBy": "Alice Uwimana"
+      },
+      {
+        "id": "t4",
+        "type": "QUOTATION",
+        "date": "2026-09-15",
+        "title": "Quotation QT-2026-010 sent for website development",
+        "description": "Sent quotation for RWF 800,000 covering 5-page responsive website.",
+        "addedBy": "Alice Uwimana"
+      },
+      {
+        "id": "t5",
+        "type": "EMAIL",
+        "date": "2026-09-18",
+        "title": "Client requested changes to quotation scope",
+        "description": "Client emailed requesting addition of e-commerce module to the scope.",
+        "addedBy": "Jean Pierre"
+      },
+      {
+        "id": "t6",
+        "type": "CONTRACT",
+        "date": "2026-09-20",
+        "title": "Contract CT-2026-010 signed for website development",
+        "description": "Both parties signed the contract. 50% upfront payment agreed.",
+        "addedBy": "Admin"
+      },
+      {
+        "id": "t7",
+        "type": "INVOICE",
+        "date": "2026-10-01",
+        "title": "Invoice INV-2026-010 sent — RWF 400,000 (50% upfront)",
+        "description": "First invoice of RWF 400,000 issued for project kickoff payment.",
+        "addedBy": "Admin"
+      },
+      {
+        "id": "t8",
+        "type": "PAYMENT",
+        "date": "2026-10-03",
+        "title": "Payment received RWF 400,000 via Mobile Money",
+        "description": "Client paid RWF 400,000 via MTN Mobile Money. Receipt issued.",
+        "addedBy": "Admin"
+      }
+    ],
+    "services": [
+      {
+        "name": "Website Development",
+        "description": "Custom website design and development",
+        "status": "ACTIVE",
+        "startDate": "2026-09-20",
+        "renewalDate": "2027-09-20"
+      },
+      {
+        "name": "Training & Consultancy",
+        "description": "Staff training and IT consultancy",
+        "status": "PENDING",
+        "startDate": "2026-10-15"
+      }
+    ],
+    "contracts": [
+      {
+        "number": "CT-2026-010",
+        "project": "Personal Website",
+        "value": 800000,
+        "status": "ACTIVE",
+        "date": "2026-09-20"
+      }
+    ],
+    "invoices": [
+      {
+        "number": "INV-2026-010",
+        "amount": 400000,
+        "status": "PAID",
+        "date": "2026-10-01"
+      },
+      {
+        "number": "INV-2026-010b",
+        "amount": 400000,
+        "status": "UNPAID",
+        "date": "2026-11-01"
+      }
+    ],
+    "documents": [
+      {
+        "name": "contract_jean_pierre.pdf",
+        "type": "Contract",
+        "date": "2026-09-20"
+      },
+      {
+        "name": "quotation_QT-2026-010.pdf",
+        "type": "Proposal",
+        "date": "2026-09-15"
+      }
+    ]
+  },
+  {
+    "id": "2",
+    "kind": "BUSINESS",
+    "crmStatus": "RECURRING",
+    "createdAt": "2026-07-15",
+    "companyName": "East African Seed Ltd",
+    "tinNumber": "RW123456789",
+    "address": "Kigali",
+    "repName": "John Mugisha",
+    "repPhone": "0788200001",
+    "repEmail": "john@easeed.rw",
+    "industry": "Agriculture",
+    "totalInvoiced": 1500000,
+    "totalPaid": 1500000,
+    "timeline": [
+      {
+        "id": "t1",
+        "type": "FIELD_VISIT",
+        "date": "2026-09-17",
+        "title": "First visit to East African Seed Ltd",
+        "description": "Initial visit to assess client needs for stock management.",
+        "addedBy": "Alice Uwimana"
+      },
+      {
+        "id": "t2",
+        "type": "LEAD_CREATED",
+        "date": "2026-09-18",
+        "title": "Added as lead — interested in SANTRACK",
+        "description": "Client confirmed strong interest after discovering inventory challenges.",
+        "addedBy": "Alice Uwimana"
+      },
+      {
+        "id": "t3",
+        "type": "MEETING",
+        "date": "2026-09-20",
+        "title": "Presented SANTRACK system demo at their office",
+        "description": "Full product demo conducted. Client loved real-time tracking features.",
+        "addedBy": "Alice Uwimana"
+      },
+      {
+        "id": "t4",
+        "type": "QUOTATION",
+        "date": "2026-09-25",
+        "title": "Quotation QT-2026-001 sent — SANTRACK RWF 1,500,000",
+        "description": "Comprehensive quotation covering setup, training and first year support.",
+        "addedBy": "Alice Uwimana"
+      },
+      {
+        "id": "t5",
+        "type": "CONTRACT",
+        "date": "2026-09-28",
+        "title": "Contract CT-2026-001 signed",
+        "description": "Contract signed. Implementation scheduled for October 2026.",
+        "addedBy": "Admin"
+      },
+      {
+        "id": "t6",
+        "type": "INVOICE",
+        "date": "2026-10-01",
+        "title": "Invoice INV-2026-001 sent — RWF 750,000 (50% upfront)",
+        "description": "First invoice for project kickoff payment.",
+        "addedBy": "Admin"
+      },
+      {
+        "id": "t7",
+        "type": "PAYMENT",
+        "date": "2026-10-02",
+        "title": "Payment received RWF 750,000 via Bank Transfer",
+        "description": "Bank transfer confirmed. Project kickoff scheduled.",
+        "addedBy": "Admin"
+      },
+      {
+        "id": "t8",
+        "type": "INVOICE",
+        "date": "2026-12-01",
+        "title": "Invoice INV-2026-001b sent — RWF 750,000 (50% on delivery)",
+        "description": "Second invoice issued upon successful SANTRACK deployment.",
+        "addedBy": "Admin"
+      },
+      {
+        "id": "t9",
+        "type": "PAYMENT",
+        "date": "2026-12-15",
+        "title": "Final payment received RWF 750,000",
+        "description": "Final payment received. Project fully settled.",
+        "addedBy": "Admin"
+      },
+      {
+        "id": "t10",
+        "type": "STATUS_CHANGE",
+        "date": "2026-12-16",
+        "title": "Status changed from Active Client to Recurring",
+        "description": "Client enrolled in annual maintenance & support plan.",
+        "addedBy": "Admin"
+      }
+    ],
+    "services": [
+      {
+        "name": "SANTRACK",
+        "description": "Stock and inventory tracking system",
+        "status": "ACTIVE",
+        "startDate": "2026-10-01",
+        "renewalDate": "2027-10-01"
+      },
+      {
+        "name": "Maintenance & Support",
+        "description": "Ongoing system maintenance",
+        "status": "ACTIVE",
+        "startDate": "2027-01-01",
+        "renewalDate": "2028-01-01"
+      }
+    ],
+    "contracts": [
+      {
+        "number": "CT-2026-001",
+        "project": "SANTRACK Implementation",
+        "value": 1500000,
+        "status": "COMPLETED",
+        "date": "2026-09-28"
+      }
+    ],
+    "invoices": [
+      {
+        "number": "INV-2026-001",
+        "amount": 750000,
+        "status": "PAID",
+        "date": "2026-10-01"
+      },
+      {
+        "number": "INV-2026-001b",
+        "amount": 750000,
+        "status": "PAID",
+        "date": "2026-12-01"
+      }
+    ],
+    "documents": [
+      {
+        "name": "contract_easeed.pdf",
+        "type": "Contract",
+        "date": "2026-09-28"
+      },
+      {
+        "name": "invoice_001.pdf",
+        "type": "Invoice",
+        "date": "2026-10-01"
+      }
+    ]
+  },
+  {
+    "id": "3",
+    "kind": "BUSINESS",
+    "crmStatus": "ACTIVE_CLIENT",
+    "createdAt": "2026-06-20",
+    "companyName": "ECOBANK Rwanda",
+    "tinNumber": "RW987654321",
+    "address": "Kigali CBD",
+    "repName": "KAMIKAZI",
+    "repPhone": "0786740490",
+    "repEmail": "akamikazi@ecobank.com",
+    "industry": "Banking",
+    "totalInvoiced": 2000000,
+    "totalPaid": 2000000,
+    "timeline": [
+      {
+        "id": "t1",
+        "type": "FIELD_VISIT",
+        "date": "2026-06-01",
+        "title": "Initial visit to ECOBANK Rwanda head office",
+        "description": "Met with IT director to assess access control needs.",
+        "addedBy": "Alice Uwimana"
+      },
+      {
+        "id": "t2",
+        "type": "MEETING",
+        "date": "2026-06-10",
+        "title": "Demo of EVS and Custom Software solutions",
+        "description": "Presented EVS and Custom Software modules. Strong interest confirmed.",
+        "addedBy": "Alice Uwimana"
+      },
+      {
+        "id": "t3",
+        "type": "CONTRACT",
+        "date": "2026-06-25",
+        "title": "Contract CT-2026-003 signed for EVS + Custom Software",
+        "description": "Contract signed for combined EVS and custom banking software.",
+        "addedBy": "Admin"
+      },
+      {
+        "id": "t4",
+        "type": "PAYMENT",
+        "date": "2026-07-01",
+        "title": "Full payment received RWF 2,000,000",
+        "description": "Full project payment cleared by ECOBANK finance team.",
+        "addedBy": "Admin"
+      },
+      {
+        "id": "t5",
+        "type": "NOTE",
+        "date": "2026-09-01",
+        "title": "System fully deployed at all 3 branches",
+        "description": "EVS deployed at Head Office, Remera, and Kimironko branches.",
+        "addedBy": "Admin"
+      }
+    ],
+    "services": [
+      {
+        "name": "EVS (E-Visitors System)",
+        "description": "Gate pass and visitor management",
+        "status": "ACTIVE",
+        "startDate": "2026-07-01",
+        "renewalDate": "2027-07-01"
+      },
+      {
+        "name": "Custom Software",
+        "description": "Tailored banking software solution",
+        "status": "ACTIVE",
+        "startDate": "2026-07-01"
+      }
+    ],
+    "contracts": [
+      {
+        "number": "CT-2026-003",
+        "project": "EVS + Custom Software",
+        "value": 2000000,
+        "status": "COMPLETED",
+        "date": "2026-06-25"
+      }
+    ],
+    "invoices": [
+      {
+        "number": "INV-2026-003",
+        "amount": 2000000,
+        "status": "PAID",
+        "date": "2026-07-01"
+      }
+    ],
+    "documents": [
+      {
+        "name": "contract_ecobank.pdf",
+        "type": "Contract",
+        "date": "2026-06-25"
+      },
+      {
+        "name": "invoice_ecobank.pdf",
+        "type": "Invoice",
+        "date": "2026-07-01"
+      }
+    ]
+  },
+  {
+    "id": "4",
+    "kind": "TEAM",
+    "crmStatus": "ACTIVE_CLIENT",
+    "createdAt": "2026-09-01",
+    "teamName": "Santech Dev Team",
+    "orgName": "Santech Innovate",
+    "teamLocation": "Kigali",
+    "leaderName": "Bob Nkurunziza",
+    "leaderPhone": "0788100002",
+    "leaderEmail": "bob@santech.rw",
+    "members": [
+      {
+        "name": "Alice Uwimana",
+        "phone": "0788100003",
+        "role": "Sales Lead"
+      },
+      {
+        "name": "Eve Ingabire",
+        "phone": "0788100004",
+        "role": "Marketing"
+      }
+    ],
+    "totalInvoiced": 500000,
+    "totalPaid": 500000,
+    "timeline": [
+      {
+        "id": "t1",
+        "type": "LEAD_CREATED",
+        "date": "2026-09-01",
+        "title": "Santech Dev Team registered as client",
+        "description": "Internal team registered for SANHUB and training access.",
+        "addedBy": "Admin"
+      },
+      {
+        "id": "t2",
+        "type": "CONTRACT",
+        "date": "2026-09-05",
+        "title": "Internal service agreement signed",
+        "description": "Service agreement signed for SANHUB access and training sessions.",
+        "addedBy": "Admin"
+      },
+      {
+        "id": "t3",
+        "type": "PAYMENT",
+        "date": "2026-09-10",
+        "title": "Internal cost allocation RWF 500,000",
+        "description": "Budget allocation processed for SANHUB subscription and training.",
+        "addedBy": "Admin"
+      },
+      {
+        "id": "t4",
+        "type": "NOTE",
+        "date": "2026-09-15",
+        "title": "Team completed first training session",
+        "description": "All 3 members completed SANHUB onboarding training. Progress noted.",
+        "addedBy": "Admin"
+      }
+    ],
+    "services": [
+      {
+        "name": "SANHUB",
+        "description": "Training and learning hub",
+        "status": "ACTIVE",
+        "startDate": "2026-09-01",
+        "renewalDate": "2027-09-01"
+      },
+      {
+        "name": "Training & Consultancy",
+        "description": "Staff training sessions",
+        "status": "ACTIVE",
+        "startDate": "2026-09-01"
+      }
+    ],
+    "contracts": [
+      {
+        "number": "CT-2026-004",
+        "project": "SANHUB + Training",
+        "value": 500000,
+        "status": "ACTIVE",
+        "date": "2026-09-05"
+      }
+    ],
+    "invoices": [
+      {
+        "number": "INV-2026-004",
+        "amount": 500000,
+        "status": "PAID",
+        "date": "2026-09-10"
+      }
+    ],
+    "documents": [
+      {
+        "name": "service_agreement_santech_team.pdf",
+        "type": "Contract",
+        "date": "2026-09-05"
+      }
+    ]
+  },
+  {
+    "id": "5",
+    "kind": "DELEGATION",
+    "crmStatus": "LEAD",
+    "createdAt": "2026-09-15",
+    "delegationName": "LA Tech Delegation",
+    "origin": "Los Angeles, USA",
+    "orgRepresented": "Silicon Valley Tech Alliance",
+    "visitPurpose": "Exploring Rwanda tech ecosystem partnerships",
+    "visitDate": "2026-09-15",
+    "delegationRepName": "Michael Johnson",
+    "delegationRepPhone": "+1-310-555-0100",
+    "delegationRepEmail": "mjohnson@svta.org",
+    "delegationMembers": [
+      {
+        "name": "Sarah Connor",
+        "phone": "+1-310-555-0101",
+        "role": "CTO"
+      },
+      {
+        "name": "David Lee",
+        "phone": "+1-310-555-0102",
+        "role": "Investor"
+      },
+      {
+        "name": "Maria Garcia",
+        "phone": "+1-310-555-0103",
+        "role": "Partnerships Director"
+      }
+    ],
+    "totalInvoiced": 0,
+    "totalPaid": 0,
+    "timeline": [
+      {
+        "id": "t1",
+        "type": "FIELD_VISIT",
+        "date": "2026-09-14",
+        "title": "Delegation arrived at Santech office",
+        "description": "Welcomed delegation team. Office tour conducted.",
+        "addedBy": "Admin"
+      },
+      {
+        "id": "t2",
+        "type": "MEETING",
+        "date": "2026-09-15",
+        "title": "Full presentation of Santech products and services",
+        "description": "Comprehensive presentation covering all Santech solutions and case studies.",
+        "addedBy": "Admin"
+      },
+      {
+        "id": "t3",
+        "type": "NOTE",
+        "date": "2026-09-15",
+        "title": "Delegation interested in AI Solution and IoT",
+        "description": "Delegation very interested in AI Solution and IoT. Will discuss with their board.",
+        "addedBy": "Admin"
+      },
+      {
+        "id": "t4",
+        "type": "EMAIL",
+        "date": "2026-09-20",
+        "title": "Sent follow-up email with full product catalog and pricing",
+        "description": "Product catalog and pricing sheet sent to Michael Johnson.",
+        "addedBy": "Admin"
+      },
+      {
+        "id": "t5",
+        "type": "CALL",
+        "date": "2026-10-01",
+        "title": "Follow-up call — still under board review",
+        "description": "Michael confirmed board review ongoing. Expected decision by end of October.",
+        "addedBy": "Alice Uwimana"
+      }
+    ],
+    "services": [
+      {
+        "name": "AI Solution",
+        "description": "Artificial intelligence integration",
+        "status": "PENDING"
+      },
+      {
+        "name": "IoT Solution",
+        "description": "Internet of Things systems",
+        "status": "PENDING"
+      },
+      {
+        "name": "Custom Software",
+        "description": "Tailored software solution",
+        "status": "PENDING"
+      }
+    ],
+    "contracts": [],
+    "invoices": [],
+    "documents": [
+      {
+        "name": "santech_product_catalog.pdf",
+        "type": "Proposal",
+        "date": "2026-09-20"
+      }
+    ]
+  },
+  {
+    "id": "6",
+    "kind": "INDIVIDUAL",
+    "crmStatus": "ACTIVE_CLIENT",
+    "createdAt": "2026-09-20",
+    "fullName": "Claudine Uwase",
+    "phone": "0785300001",
+    "email": "claudine@gmail.com",
+    "location": "Musanze",
+    "idNumber": "1199870012345678",
+    "totalInvoiced": 350000,
+    "totalPaid": 350000,
+    "timeline": [
+      {
+        "id": "t1",
+        "type": "LEAD_CREATED",
+        "date": "2026-09-20",
+        "title": "Claudine Uwase added as lead",
+        "description": "Inquired about personal website for her boutique.",
+        "addedBy": "Alice Uwimana"
+      },
+      {
+        "id": "t2",
+        "type": "CALL",
+        "date": "2026-09-22",
+        "title": "Discovery call — discussed website requirements",
+        "description": "Agreed on 3-page responsive website with photo gallery.",
+        "addedBy": "Alice Uwimana"
+      },
+      {
+        "id": "t3",
+        "type": "CONTRACT",
+        "date": "2026-09-25",
+        "title": "Contract CT-2026-006 signed",
+        "description": "Website development contract signed.",
+        "addedBy": "Admin"
+      },
+      {
+        "id": "t4",
+        "type": "PAYMENT",
+        "date": "2026-09-28",
+        "title": "Full payment RWF 350,000 received",
+        "description": "Client paid in full upfront via Mobile Money.",
+        "addedBy": "Admin"
+      }
+    ],
+    "services": [
+      {
+        "name": "Website Development",
+        "description": "Custom website design and development",
+        "status": "ACTIVE",
+        "startDate": "2026-09-25",
+        "renewalDate": "2027-09-25"
+      }
+    ],
+    "contracts": [
+      {
+        "number": "CT-2026-006",
+        "project": "Boutique Website",
+        "value": 350000,
+        "status": "COMPLETED",
+        "date": "2026-09-25"
+      }
+    ],
+    "invoices": [
+      {
+        "number": "INV-2026-006",
+        "amount": 350000,
+        "status": "PAID",
+        "date": "2026-09-28"
+      }
+    ],
+    "documents": [
+      {
+        "name": "contract_claudine.pdf",
+        "type": "Contract",
+        "date": "2026-09-25"
+      }
+    ]
+  },
+  {
+    "id": "7",
+    "kind": "BUSINESS",
+    "crmStatus": "ACTIVE_CLIENT",
+    "createdAt": "2026-08-05",
+    "companyName": "NYARUGENGE HOSPITAL",
+    "tinNumber": "RW112233445",
+    "address": "Nyarugenge, Kigali",
+    "repName": "Lt Col William KANYANKORE",
+    "repPhone": "0788305785",
+    "repEmail": "director@nyarugenge.rw",
+    "industry": "Healthcare",
+    "totalInvoiced": 1200000,
+    "totalPaid": 600000,
+    "timeline": [
+      {
+        "id": "t1",
+        "type": "FIELD_VISIT",
+        "date": "2026-07-20",
+        "title": "Site visit to Nyarugenge Hospital",
+        "description": "Assessed visitor management and entry control requirements.",
+        "addedBy": "Alice Uwimana"
+      },
+      {
+        "id": "t2",
+        "type": "MEETING",
+        "date": "2026-07-28",
+        "title": "EVS demo for hospital management team",
+        "description": "Demonstrated EVS to director and IT team. Very impressed.",
+        "addedBy": "Alice Uwimana"
+      },
+      {
+        "id": "t3",
+        "type": "CONTRACT",
+        "date": "2026-08-05",
+        "title": "Contract CT-2026-007 signed for EVS",
+        "description": "EVS implementation contract signed for main entrance and ICU.",
+        "addedBy": "Admin"
+      },
+      {
+        "id": "t4",
+        "type": "INVOICE",
+        "date": "2026-08-10",
+        "title": "Invoice INV-2026-007 sent — RWF 600,000 (50% upfront)",
+        "description": "First invoice issued for project start.",
+        "addedBy": "Admin"
+      },
+      {
+        "id": "t5",
+        "type": "PAYMENT",
+        "date": "2026-08-15",
+        "title": "Payment received RWF 600,000",
+        "description": "First payment received. Implementation team deployed.",
+        "addedBy": "Admin"
+      }
+    ],
+    "services": [
+      {
+        "name": "EVS (E-Visitors System)",
+        "description": "Gate pass and visitor management",
+        "status": "ACTIVE",
+        "startDate": "2026-08-05",
+        "renewalDate": "2027-08-05"
+      }
+    ],
+    "contracts": [
+      {
+        "number": "CT-2026-007",
+        "project": "Hospital EVS Implementation",
+        "value": 1200000,
+        "status": "ACTIVE",
+        "date": "2026-08-05"
+      }
+    ],
+    "invoices": [
+      {
+        "number": "INV-2026-007",
+        "amount": 600000,
+        "status": "PAID",
+        "date": "2026-08-10"
+      },
+      {
+        "number": "INV-2026-007b",
+        "amount": 600000,
+        "status": "UNPAID",
+        "date": "2026-10-01"
+      }
+    ],
+    "documents": [
+      {
+        "name": "contract_nyarugenge_hospital.pdf",
+        "type": "Contract",
+        "date": "2026-08-05"
+      }
+    ]
+  },
+  {
+    "id": "8",
+    "kind": "TEAM",
+    "crmStatus": "INACTIVE",
+    "createdAt": "2026-09-25",
+    "teamName": "Ministry of ICT Innovation Team",
+    "orgName": "Ministry of ICT Rwanda",
+    "teamLocation": "Kigali",
+    "leaderName": "Eng. Patrick Nkusi",
+    "leaderPhone": "0788400001",
+    "leaderEmail": "p.nkusi@minict.gov.rw",
+    "members": [
+      {
+        "name": "Agnes Mutoni",
+        "phone": "0788400002",
+        "role": "Policy Analyst"
+      },
+      {
+        "name": "Eric Habimana",
+        "phone": "0788400003",
+        "role": "Tech Lead"
+      }
+    ],
+    "totalInvoiced": 0,
+    "totalPaid": 0,
+    "timeline": [
+      {
+        "id": "t1",
+        "type": "MEETING",
+        "date": "2026-09-25",
+        "title": "Initial meeting with Ministry of ICT team",
+        "description": "Discussed potential AI and Custom Software solutions for ministry.",
+        "addedBy": "Alice Uwimana"
+      },
+      {
+        "id": "t2",
+        "type": "QUOTATION",
+        "date": "2026-10-01",
+        "title": "Quotation QT-2026-008 sent for AI + Custom Software",
+        "description": "Quotation sent covering AI integration and custom policy management system.",
+        "addedBy": "Alice Uwimana"
+      },
+      {
+        "id": "t3",
+        "type": "NOTE",
+        "date": "2026-10-15",
+        "title": "Procurement process initiated by ministry",
+        "description": "Ministry procurement office handling formal tender process.",
+        "addedBy": "Admin"
+      }
+    ],
+    "services": [
+      {
+        "name": "Custom Software",
+        "description": "Tailored software solution",
+        "status": "PENDING"
+      },
+      {
+        "name": "AI Solution",
+        "description": "Artificial intelligence integration",
+        "status": "PENDING"
+      }
+    ],
+    "contracts": [],
+    "invoices": [],
+    "documents": [
+      {
+        "name": "quotation_minict.pdf",
+        "type": "Proposal",
+        "date": "2026-10-01"
+      }
+    ]
+  }
+]
