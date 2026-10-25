@@ -1,15 +1,9 @@
 import { Router } from 'express'
-import { authenticate, authorize } from '../middleware/auth'
-import { getTasks, getMyTasks, createTask, markTaskComplete, approveTask, rejectTask } from '../controllers/tasksController'
+import { authenticate } from '../middleware/auth'
 
 const router = Router()
 router.use(authenticate)
-
-router.get('/', getTasks)
-router.get('/my-tasks', getMyTasks)
-router.post('/', authorize('SUPER_ADMIN', 'ADMIN', 'PROJECT_MANAGER'), createTask)
-router.put('/:id/complete', markTaskComplete)
-router.put('/:id/approve', authorize('SUPER_ADMIN', 'ADMIN', 'PROJECT_MANAGER'), approveTask)
-router.put('/:id/reject', authorize('SUPER_ADMIN', 'ADMIN', 'PROJECT_MANAGER'), rejectTask)
-
+router.get('/', (_req, res) => {
+  res.json({ success: true, data: [], message: 'Task module coming soon' })
+})
 export default router

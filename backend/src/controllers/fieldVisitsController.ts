@@ -6,29 +6,17 @@ const prisma = new PrismaClient()
 
 export async function getFieldVisits(req: AuthRequest, res: Response): Promise<void> {
   try {
-    const { page = 1, limit = 20, category, outcome, search, product, contractWon, dateFrom, dateTo } = req.query
+    const { page = 1, limit = 20, category, outcome, search } = req.query
     const skip = (Number(page) - 1) * Number(limit)
 
     const where: Record<string, unknown> = {}
     if (category) where.category = category
     if (outcome) where.outcome = outcome
-    if (product) where.whatSantechCanSell = { contains: String(product), mode: 'insensitive' }
-    if (contractWon === 'true' || contractWon === 'false') where.contractWon = contractWon === 'true'
-    if (dateFrom || dateTo) {
-      where.visitDate = {
-        ...(dateFrom ? { gte: new Date(`${String(dateFrom)}T00:00:00.000Z`) } : {}),
-        ...(dateTo ? { lte: new Date(`${String(dateTo)}T23:59:59.999Z`) } : {}),
-      }
-    }
     if (search) {
       where.OR = [
         { companyName: { contains: String(search), mode: 'insensitive' } },
         { whatSantechCanSell: { contains: String(search), mode: 'insensitive' } },
         { contactName: { contains: String(search), mode: 'insensitive' } },
-        { contactPhone: { contains: String(search) } },
-        { location: { contains: String(search), mode: 'insensitive' } },
-        { needsAndObservation: { contains: String(search), mode: 'insensitive' } },
-        { comments: { contains: String(search), mode: 'insensitive' } },
       ]
     }
 
@@ -82,8 +70,7 @@ export async function getFieldVisit(req: AuthRequest, res: Response): Promise<vo
 export async function createFieldVisit(req: AuthRequest, res: Response): Promise<void> {
   try {
     const visit = await prisma.fieldVisit.create({
-      data: { ...req.body, recordedById: req.user!.id },
-      include: { recordedBy: { select: { id: true, firstName: true, lastName: true } } },
+      data: { ...req.body, recordedById: req.user!.id }
     })
     res.status(201).json({ success: true, data: visit, message: 'Field visit recorded successfully' })
   } catch (error) {
@@ -95,8 +82,7 @@ export async function updateFieldVisit(req: AuthRequest, res: Response): Promise
   try {
     const visit = await prisma.fieldVisit.update({
       where: { id: req.params.id },
-      data: req.body,
-      include: { recordedBy: { select: { id: true, firstName: true, lastName: true } } },
+      data: req.body
     })
     res.json({ success: true, data: visit, message: 'Field visit updated successfully' })
   } catch (error) {

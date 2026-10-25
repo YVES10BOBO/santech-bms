@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from 'react'
+import React, { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Edit2, Plus, MapPin, UserPlus, Phone, Users, Mail,
@@ -7,7 +7,6 @@ import {
   Download, Calendar, Building2, User, Globe, X
 } from 'lucide-react'
 import { cn, formatDate, formatCurrency } from '@/lib/utils'
-import { clientService } from '@/lib/services/clientService'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type ClientKind = 'INDIVIDUAL' | 'BUSINESS' | 'TEAM' | 'DELEGATION'
@@ -579,27 +578,14 @@ export default function ClientProfilePage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [showAddInteraction, setShowAddInteraction] = useState(false)
-  const [profile, setProfile] = useState<ClientProfile | undefined>()
-  const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState('')
-
-  useEffect(() => {
-    let active = true
-    setProfile(undefined)
-    setLoadError('')
-    if (!id) return
-    setLoading(true)
-    clientService.getOne(id)
-      .then((client) => { if (active) setProfile(client as ClientProfile) })
-      .catch(() => { if (active) setLoadError('Unable to load this client profile. Please try again.') })
-      .finally(() => { if (active) setLoading(false) })
-    return () => { active = false }
-  }, [id])
+  const [profile, setProfile] = useState<ClientProfile | undefined>(
+    () => mockProfiles.find(p => p.id === id)
+  )
 
   if (!profile) {
     return (
       <div className="flex flex-col items-center justify-center min-h-64 gap-4">
-        <p className="text-gray-500 text-lg">{loading ? 'Loading client profile…' : loadError || 'Client not found.'}</p>
+        <p className="text-gray-500 text-lg">Client not found.</p>
         <button onClick={() => navigate('/crm/customers')}
           className="flex items-center gap-2 text-sm text-santech-600 hover:text-santech-700 font-medium">
           <ArrowLeft className="w-4 h-4" /> Back to Clients
@@ -613,14 +599,9 @@ export default function ClientProfilePage() {
     ? Math.round((profile.totalPaid / profile.totalInvoiced) * 100)
     : 0
 
-  const handleAddInteraction = async (event: TimelineEvent) => {
-    try {
-      await clientService.addInteraction(profile.id, event)
+  const handleAddInteraction = (event: TimelineEvent) => {
     setProfile(prev => prev ? { ...prev, timeline: [event, ...prev.timeline] } : prev)
     setShowAddInteraction(false)
-    } catch {
-      setLoadError('Unable to save this interaction. Please try again.')
-    }
   }
 
   const sortedTimeline = [...profile.timeline].sort(
@@ -667,8 +648,6 @@ export default function ClientProfilePage() {
           </div>
         </div>
       </div>
-
-      {loadError && <p role="alert" className="text-sm text-red-600">{loadError}</p>}
 
       {/* ── Quick Stats ───────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

@@ -583,8 +583,8 @@ The Prisma schema covers all modules:
 
 ### 🔄 In Progress
 - [ ] Connect frontend to real backend API (replace mock data)
-- [ ] Run database migrations on Neon ✅ Done
-- [ ] Seed production database ← Run: npx ts-node prisma/seed.ts
+- [ ] Run database migrations on Neon
+- [ ] Seed production database
 
 ### 📋 Remaining Features
 - [ ] Milestone management page

@@ -1,5 +1,0 @@
-ALTER TABLE "clients"
-ADD COLUMN "profileKind" TEXT,
-ADD COLUMN "profileData" JSONB,
-ADD COLUMN "services" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
-ADD COLUMN "isActive" BOOLEAN NOT NULL DEFAULT true;
