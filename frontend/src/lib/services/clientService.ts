@@ -6,12 +6,14 @@ export interface ClientFilters {
   category?: string
   status?: string
   search?: string
+  kind?: string
+  active?: boolean
 }
 
 export const clientService = {
   getAll: async (filters: ClientFilters = {}) => {
     const params = new URLSearchParams()
-    Object.entries(filters).forEach(([k, v]) => { if (v) params.append(k, String(v)) })
+    Object.entries(filters).forEach(([k, v]) => { if (v !== undefined && v !== null && v !== '') params.append(k, String(v)) })
     const { data } = await api.get(`/clients?${params.toString()}`)
     return data
   },

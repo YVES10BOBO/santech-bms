@@ -34,6 +34,13 @@ enum ClientCategory {
   DISTRIBUTOR
 }
 
+enum ClientKind {
+  INDIVIDUAL
+  BUSINESS
+  TEAM
+  DELEGATION
+}
+
 enum ClientStatus {
   PROSPECT
   LEAD
@@ -232,14 +239,14 @@ model SalaryRecord {
 
 model Client {
   id                   String         @id @default(cuid())
-  companyName          String
+  companyName          String?
   category             ClientCategory
   status               ClientStatus   @default(PROSPECT)
   clientType           ClientType     @default(ACQUISITION)
   registrationNumber   String?
   address              String?
   location             String?
-  phone                String
+  phone                String?
   email                String?
   website              String?
   industry             String?
@@ -253,7 +260,32 @@ model Client {
   createdAt            DateTime       @default(now())
   updatedAt            DateTime       @updatedAt
 
+  kind                  ClientKind?
+  active                Boolean     @default(true)
+  services              String[]    @default([])
+  fileAttachment        String?
+  fullName              String?
+  idNumber              String?
+  tinNumber             String?
+  teamName              String?
+  orgName               String?
+  leaderName            String?
+  leaderPhone           String?
+  leaderEmail           String?
+  delegationName        String?
+  origin                String?
+  orgRepresented        String?
+  visitPurpose          String?
+  visitDate             DateTime?
+  delegationRepName     String?
+  delegationRepTitle    String?
+  delegationRepPhone    String?
+  delegationRepEmail    String?
+  delegationRepLocation String?
+  delegationRepCountry  String?
+
   // Relations
+  members      ClientMember[]
   fieldVisits  FieldVisit[]
   opportunities Opportunity[]
   contracts    Contract[]
@@ -261,6 +293,19 @@ model Client {
   projects     Project[]
 
   @@map("clients")
+}
+
+model ClientMember {
+  id         String   @id @default(cuid())
+  clientId   String
+  client     Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  name       String
+  phone      String
+  role       String
+  memberType String   @default("TEAM")
+  createdAt  DateTime @default(now())
+
+  @@map("client_members")
 }
 
 // ===========================

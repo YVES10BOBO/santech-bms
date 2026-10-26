@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Search, X, Building2, User, Users, Globe, ChevronLeft, ChevronRight, Trash2, CheckCircle2 } from 'lucide-react'
 import { cn, formatDate } from '@/lib/utils'
+import { clientService } from '@/lib/services/clientService'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type ClientKind = 'INDIVIDUAL' | 'BUSINESS' | 'TEAM' | 'DELEGATION'
@@ -80,79 +81,6 @@ const SANTECH_SERVICES: ServiceItem[] = [
   { id: 'TRAINING',    name: 'Training & Consultancy',    description: 'Staff training and IT consultancy' },
   { id: 'MAINTENANCE', name: 'Maintenance & Support',     description: 'Ongoing system maintenance' },
   { id: 'OTHER',       name: 'Other',                     description: 'Please describe the service you need' },
-]
-
-// ─── Mock Data ────────────────────────────────────────────────────────────────
-const mockClients: Client[] = [
-  {
-    id: '1', kind: 'INDIVIDUAL', status: 'ACTIVE', createdAt: '2026-08-10',
-    fullName: 'Jean Pierre Habimana', phone: '0788100001', email: 'jp@gmail.com',
-    location: 'Kigali', services: ['WEBSITE', 'TRAINING'],
-  },
-  {
-    id: '2', kind: 'BUSINESS', status: 'ACTIVE', createdAt: '2026-07-15',
-    companyName: 'East African Seed Ltd', tinNumber: 'RW123456789', address: 'Kigali',
-    repName: 'John Mugisha', repPhone: '0788200001', repEmail: 'john@easeed.rw',
-    industry: 'Agriculture', services: ['SANTRACK', 'MAINTENANCE'],
-  },
-  {
-    id: '3', kind: 'BUSINESS', status: 'ACTIVE', createdAt: '2026-06-20',
-    companyName: 'ECOBANK Rwanda', tinNumber: 'RW987654321', address: 'Kigali CBD',
-    repName: 'KAMIKAZI', repPhone: '0786740490', repEmail: 'akamikazi@ecobank.com',
-    industry: 'Banking', services: ['EVS', 'CUSTOM_SW'],
-  },
-  {
-    id: '4', kind: 'TEAM', status: 'ACTIVE', createdAt: '2026-09-01',
-    teamName: 'Santech Dev Team', orgName: 'Santech Innovate', teamLocation: 'Kigali',
-    leaderName: 'Bob Nkurunziza', leaderPhone: '0788100002', leaderEmail: 'bob@santech.rw',
-    members: [
-      { name: 'Alice Uwimana', phone: '0788100003', role: 'Sales Lead' },
-      { name: 'Eve Ingabire',  phone: '0788100004', role: 'Marketing' },
-    ],
-    services: ['SANHUB', 'TRAINING'],
-  },
-  {
-    id: '5', kind: 'DELEGATION', status: 'ACTIVE', createdAt: '2026-09-15',
-    delegationName: 'LA Tech Delegation', origin: 'Los Angeles, USA',
-    orgRepresented: 'Silicon Valley Tech Alliance',
-    visitPurpose: 'Exploring Rwanda tech ecosystem partnerships',
-    visitDate: '2026-09-15',
-    delegationRepName: 'Michael Johnson', delegationRepTitle: 'Head of Partnerships',
-    delegationRepPhone: '+1-310-555-0100',
-    delegationRepEmail: 'mjohnson@svta.org',
-    delegationRepLocation: 'Los Angeles, California',
-    delegationRepCountry: 'United States of America',
-    delegationMembers: [
-      { name: 'Sarah Connor',  phone: '+1-310-555-0101', role: 'CTO' },
-      { name: 'David Lee',     phone: '+1-310-555-0102', role: 'Investor' },
-      { name: 'Maria Garcia',  phone: '+1-310-555-0103', role: 'Partnerships Director' },
-    ],
-    services: ['AI_SOL', 'IOT_SOL', 'CUSTOM_SW'],
-  },
-  {
-    id: '6', kind: 'INDIVIDUAL', status: 'ACTIVE', createdAt: '2026-09-20',
-    fullName: 'Claudine Uwase', phone: '0785300001', email: 'claudine@gmail.com',
-    location: 'Musanze', idNumber: '1199870012345678', services: ['WEBSITE'],
-  },
-  {
-    id: '7', kind: 'BUSINESS', status: 'ACTIVE', createdAt: '2026-08-05',
-    companyName: 'NYARUGENGE HOSPITAL', tinNumber: 'RW112233445',
-    address: 'Nyarugenge, Kigali',
-    repName: 'Lt Col William KANYANKORE', repPhone: '0788305785',
-    repEmail: 'director@nyarugenge.rw', industry: 'Healthcare', services: ['EVS'],
-  },
-  {
-    id: '8', kind: 'TEAM', status: 'INACTIVE', createdAt: '2026-09-25',
-    teamName: 'Ministry of ICT Innovation Team', orgName: 'Ministry of ICT Rwanda',
-    teamLocation: 'Kigali',
-    leaderName: 'Eng. Patrick Nkusi', leaderPhone: '0788400001',
-    leaderEmail: 'p.nkusi@minict.gov.rw',
-    members: [
-      { name: 'Agnes Mutoni',   phone: '0788400002', role: 'Policy Analyst' },
-      { name: 'Eric Habimana',  phone: '0788400003', role: 'Tech Lead' },
-    ],
-    services: ['CUSTOM_SW', 'AI_SOL'],
-  },
 ]
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -270,7 +198,9 @@ const sectionHeadingCls = 'text-sm font-semibold text-gray-700 mb-3 pb-1 border-
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function CustomersPage() {
   const navigate = useNavigate()
-  const [clients, setClients]         = useState<Client[]>(mockClients)
+  const [clients, setClients]         = useState<Client[]>([])
+  const [loading, setLoading]         = useState(false)
+  const [error, setError]             = useState<string | null>(null)
   const [search, setSearch]           = useState('')
   const [kindFilter, setKindFilter]   = useState<ClientKind | 'ALL'>('ALL')
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL')
@@ -283,6 +213,74 @@ export default function CustomersPage() {
   const [viewId, setViewId]           = useState<string | null>(null)
   const [isEditing, setIsEditing]     = useState(false)
   const [editClientId, setEditClientId] = useState<string | null>(null)
+
+  // ── Load clients from backend ──────────────────────────────────────────────
+  const loadClients = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const response = await clientService.getAll({ limit: 1000 })
+      const raw: Record<string, unknown>[] = response.data ?? []
+      const mapped: Client[] = raw.map((c) => ({
+        id: String(c.id),
+        kind: (c.kind as ClientKind) ?? 'BUSINESS',
+        status: c.active ? 'ACTIVE' : 'INACTIVE',
+        createdAt: c.createdAt ? String(c.createdAt).slice(0, 10) : '',
+        services: (c.services as string[]) ?? [],
+        fileAttachment: c.fileAttachment as string | undefined,
+        notes: c.notes as string | undefined,
+        // INDIVIDUAL
+        fullName: c.fullName as string | undefined,
+        phone: (c.phone as string | undefined) ?? '',
+        email: c.email as string | undefined,
+        location: (c.location as string | undefined) ?? '',
+        idNumber: c.idNumber as string | undefined,
+        // BUSINESS
+        companyName: (c.companyName as string | undefined) ?? '',
+        tinNumber: c.tinNumber as string | undefined,
+        address: (c.address as string | undefined) ?? '',
+        repName: (c.contactPersonName as string | undefined) ?? '',
+        repPhone: (c.contactPersonPhone as string | undefined) ?? '',
+        repEmail: (c.contactPersonEmail as string | undefined) ?? '',
+        industry: c.industry as string | undefined,
+        website: c.website as string | undefined,
+        // TEAM
+        teamName: c.teamName as string | undefined,
+        orgName: c.orgName as string | undefined,
+        teamLocation: (c.location as string | undefined) ?? '',
+        leaderName: c.leaderName as string | undefined,
+        leaderPhone: c.leaderPhone as string | undefined,
+        leaderEmail: c.leaderEmail as string | undefined,
+        members: ((c.members as Record<string, unknown>[] | undefined) ?? [])
+          .filter((m) => m.memberType === 'TEAM')
+          .map((m) => ({ name: String(m.name), phone: String(m.phone), role: String(m.role) })),
+        // DELEGATION
+        delegationName: c.delegationName as string | undefined,
+        origin: c.origin as string | undefined,
+        orgRepresented: c.orgRepresented as string | undefined,
+        visitPurpose: c.visitPurpose as string | undefined,
+        visitDate: c.visitDate ? String(c.visitDate).slice(0, 10) : undefined,
+        delegationRepName: c.delegationRepName as string | undefined,
+        delegationRepTitle: c.delegationRepTitle as string | undefined,
+        delegationRepPhone: c.delegationRepPhone as string | undefined,
+        delegationRepEmail: c.delegationRepEmail as string | undefined,
+        delegationRepLocation: c.delegationRepLocation as string | undefined,
+        delegationRepCountry: c.delegationRepCountry as string | undefined,
+        delegationMembers: ((c.members as Record<string, unknown>[] | undefined) ?? [])
+          .filter((m) => m.memberType === 'DELEGATION')
+          .map((m) => ({ name: String(m.name), phone: String(m.phone), role: String(m.role) })),
+      }))
+      setClients(mapped)
+    } catch {
+      setError('Failed to load clients')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadClients()
+  }, [])
 
   // ── Computed ───────────────────────────────────────────────────────────────
   const filtered = clients.filter(c => {
@@ -451,54 +449,86 @@ export default function CustomersPage() {
     setFormErrors({})
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     let finalNotes = form.notes
     if (form.selectedServices.includes('OTHER') && form.otherServiceText.trim()) {
       finalNotes = (finalNotes ? finalNotes + '\n' : '') + 'Other service: ' + form.otherServiceText
     }
 
-    const base: Partial<Client> = {
-      status: form.status,
-      createdAt: new Date().toISOString().split('T')[0],
+    // Build backend payload
+    const memberType = form.kind === 'DELEGATION' ? 'DELEGATION' : 'TEAM'
+    const payload: Record<string, unknown> = {
+      kind: form.kind,
+      active: form.status === 'ACTIVE',
       services: form.selectedServices,
-      fileAttachment: form.fileAttachment || undefined,
-      notes: finalNotes || undefined,
+      fileAttachment: form.fileAttachment || null,
+      notes: finalNotes || null,
+      category: 'SELF_EMPLOYED',
+      members: form.members.map((m) => ({
+        name: m.name,
+        phone: m.phone,
+        role: m.role,
+        memberType,
+      })),
     }
 
-    let newClient: Client
     if (form.kind === 'INDIVIDUAL') {
-      newClient = { ...base, id: editClientId ?? String(Date.now()), kind: 'INDIVIDUAL',
-        fullName: form.fullName, phone: form.phone, email: form.email,
-        location: form.location, idNumber: form.idNumber || undefined,
-      } as Client
+      payload.fullName = form.fullName
+      payload.phone = form.phone
+      payload.email = form.email
+      payload.location = form.location
+      payload.idNumber = form.idNumber || null
+      payload.contactPersonName = form.fullName
     } else if (form.kind === 'BUSINESS') {
-      newClient = { ...base, id: editClientId ?? String(Date.now()), kind: 'BUSINESS',
-        companyName: form.companyName, tinNumber: form.tinNumber, address: form.address,
-        repName: form.repName, repPhone: form.repPhone, repEmail: form.repEmail,
-        industry: form.industry || undefined, website: form.website || undefined,
-      } as Client
+      payload.companyName = form.companyName
+      payload.tinNumber = form.tinNumber
+      payload.address = form.address
+      payload.location = form.address
+      payload.contactPersonName = form.repName
+      payload.contactPersonPhone = form.repPhone
+      payload.contactPersonEmail = form.repEmail
+      payload.industry = form.industry || null
+      payload.website = form.website || null
     } else if (form.kind === 'TEAM') {
-      newClient = { ...base, id: editClientId ?? String(Date.now()), kind: 'TEAM',
-        teamName: form.teamName, orgName: form.orgName, teamLocation: form.teamLocation,
-        leaderName: form.leaderName, leaderPhone: form.leaderPhone, leaderEmail: form.leaderEmail,
-        members: form.members,
-      } as Client
+      payload.teamName = form.teamName
+      payload.orgName = form.orgName
+      payload.companyName = form.orgName
+      payload.location = form.teamLocation
+      payload.leaderName = form.leaderName
+      payload.leaderPhone = form.leaderPhone
+      payload.leaderEmail = form.leaderEmail
+      payload.phone = form.leaderPhone
+      payload.email = form.leaderEmail
+      payload.contactPersonName = form.leaderName
     } else {
-      newClient = { ...base, id: editClientId ?? String(Date.now()), kind: 'DELEGATION',
-        delegationName: form.delegationName, origin: form.origin,
-        orgRepresented: form.orgRepresented, visitPurpose: form.visitPurpose,
-        visitDate: form.visitDate, delegationRepName: form.delegationRepName,
-        delegationRepTitle: form.delegationRepTitle,
-        delegationRepPhone: form.delegationRepPhone, delegationRepEmail: form.delegationRepEmail,
-        delegationRepLocation: form.delegationRepLocation, delegationRepCountry: form.delegationRepCountry,
-        delegationMembers: form.members,
-      } as Client
+      // DELEGATION
+      payload.delegationName = form.delegationName
+      payload.origin = form.origin
+      payload.orgRepresented = form.orgRepresented
+      payload.visitPurpose = form.visitPurpose
+      payload.visitDate = form.visitDate || null
+      payload.delegationRepName = form.delegationRepName
+      payload.delegationRepTitle = form.delegationRepTitle || null
+      payload.delegationRepPhone = form.delegationRepPhone
+      payload.delegationRepEmail = form.delegationRepEmail
+      payload.delegationRepLocation = form.delegationRepLocation || null
+      payload.delegationRepCountry = form.delegationRepCountry || null
+      payload.phone = form.delegationRepPhone
+      payload.email = form.delegationRepEmail
+      payload.location = form.origin
+      payload.contactPersonName = form.delegationRepName
     }
 
-    if (isEditing && editClientId) {
-      setClients(prev => prev.map(c => c.id === editClientId ? newClient : c))
-    } else {
-      setClients(prev => [newClient, ...prev])
+    try {
+      if (isEditing && editClientId) {
+        await clientService.update(editClientId, payload)
+      } else {
+        await clientService.create(payload)
+      }
+      await loadClients()
+    } catch {
+      // keep modal open on error
+      return
     }
     setShowModal(false)
     setForm(emptyForm())
@@ -506,10 +536,16 @@ export default function CustomersPage() {
     setIsEditing(false)
   }
 
-  const toggleClientStatus = (id: string) => {
-    setClients(prev => prev.map(c =>
-      c.id === id ? { ...c, status: c.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE' } : c
-    ))
+  const toggleClientStatus = async (id: string) => {
+    const current = clients.find((c) => c.id === id)
+    if (!current) return
+    const currentActive = current.status === 'ACTIVE'
+    try {
+      await clientService.update(id, { active: !currentActive })
+      await loadClients()
+    } catch {
+      // silently fail
+    }
   }
 
   // ── Stats ──────────────────────────────────────────────────────────────────
@@ -534,6 +570,11 @@ export default function CustomersPage() {
           <Plus className="w-4 h-4" /> Add Client
         </button>
       </div>
+
+      {/* Error */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-lg">{error}</div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -599,7 +640,7 @@ export default function CustomersPage() {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {paginated.length === 0 ? (
-                <tr><td colSpan={9} className="text-center py-10 text-gray-400">No clients found.</td></tr>
+                <tr><td colSpan={9} className="text-center py-10 text-gray-400">{loading ? 'Loading...' : 'No clients found.'}</td></tr>
               ) : paginated.map((c, idx) => {
                 const displayServices = c.services.slice(0, 2)
                 const extraCount = c.services.length - 2

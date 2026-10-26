@@ -188,7 +188,7 @@ async function main() {
 
   const clientEaseed = await prisma.client.upsert({
     where: { id: 'client-easeed' },
-    update: {},
+    update: { kind: 'BUSINESS', active: true, services: ['SANTRACK', 'TRAINING'], tinNumber: '100000001' },
     create: {
       id: 'client-easeed', companyName: 'East African Seed Ltd',
       category: 'SELF_EMPLOYED', status: 'CONTRACTOR', clientType: 'CONTRACTOR',
@@ -196,12 +196,13 @@ async function main() {
       contactPersonName: 'John Mugisha', contactPersonPhone: '0788200001',
       contactPersonEmail: 'john@easeed.rw', assignedToId: alice.id,
       source: 'Field Visit', notes: 'Signed contract for SANTRACK',
+      kind: 'BUSINESS', active: true, services: ['SANTRACK', 'TRAINING'], tinNumber: '100000001',
     }
   })
 
   const clientEcobank = await prisma.client.upsert({
     where: { id: 'client-ecobank' },
-    update: {},
+    update: { kind: 'BUSINESS', active: true, services: ['EVS', 'WEBSITE', 'TRAINING'], tinNumber: '100000002' },
     create: {
       id: 'client-ecobank', companyName: 'ECOBANK Rwanda',
       category: 'INSTITUTION', status: 'QUALIFIED', clientType: 'ACQUISITION',
@@ -209,12 +210,13 @@ async function main() {
       contactPersonName: 'KAMIKAZI', contactPersonPhone: '0786740490',
       contactPersonEmail: 'akamikazi@ecobank.com', assignedToId: alice.id,
       source: 'Field Visit', notes: 'Requested 2 project proposals for EVS and SANHR IMS',
+      kind: 'BUSINESS', active: true, services: ['EVS', 'WEBSITE', 'TRAINING'], tinNumber: '100000002',
     }
   })
 
   const clientSabban = await prisma.client.upsert({
     where: { id: 'client-sabban' },
-    update: {},
+    update: { kind: 'BUSINESS', active: true, services: ['EVS', 'TRAINING'], tinNumber: '100000003' },
     create: {
       id: 'client-sabban', companyName: 'SABBAN ABATTOIR',
       category: 'SELF_EMPLOYED', status: 'QUALIFIED', clientType: 'ACQUISITION',
@@ -222,12 +224,13 @@ async function main() {
       contactPersonName: 'HR THEONESTE', contactPersonPhone: '0788846240',
       assignedToId: alice.id, source: 'Field Visit',
       notes: '90 employees. Quoted 12M for EVS system. Board approved.',
+      kind: 'BUSINESS', active: true, services: ['EVS', 'TRAINING'], tinNumber: '100000003',
     }
   })
 
   const clientHospital = await prisma.client.upsert({
     where: { id: 'client-hospital' },
-    update: {},
+    update: { kind: 'BUSINESS', active: true, services: ['EVS', 'WEBSITE', 'TRAINING'], tinNumber: '100000004' },
     create: {
       id: 'client-hospital', companyName: 'NYARUGENGE HOSPITAL',
       category: 'INSTITUTION', status: 'LEAD', clientType: 'ACQUISITION',
@@ -235,12 +238,13 @@ async function main() {
       contactPersonName: 'Ange Police NSENGIYUMVA', contactPersonPhone: '0785744154',
       assignedToId: alice.id, source: 'Field Visit',
       notes: 'Sent EVS proposal. Waiting for director appointment.',
+      kind: 'BUSINESS', active: true, services: ['EVS', 'WEBSITE', 'TRAINING'], tinNumber: '100000004',
     }
   })
 
   const clientNtPlastic = await prisma.client.upsert({
     where: { id: 'client-ntplastic' },
-    update: {},
+    update: { kind: 'BUSINESS', active: true, services: ['SANTRACK', 'WEBSITE'], tinNumber: '100000005' },
     create: {
       id: 'client-ntplastic', companyName: 'N&T PLASTIC INDUSTRIES LTD',
       category: 'INDUSTRY', status: 'LEAD', clientType: 'ACQUISITION',
@@ -248,12 +252,13 @@ async function main() {
       contactPersonName: 'MUGISHA', contactPersonPhone: '0780601661',
       assignedToId: alice.id, source: 'Field Visit',
       notes: 'Negotiation at 3M for SANTRACK',
+      kind: 'BUSINESS', active: true, services: ['SANTRACK', 'WEBSITE'], tinNumber: '100000005',
     }
   })
 
   const clientSerena = await prisma.client.upsert({
     where: { id: 'client-serena' },
-    update: {},
+    update: { kind: 'BUSINESS', active: true, services: ['EVS', 'WEBSITE'], tinNumber: '100000006' },
     create: {
       id: 'client-serena', companyName: 'Serena Hotel',
       category: 'SELF_EMPLOYED', status: 'LEAD', clientType: 'ACQUISITION',
@@ -262,12 +267,13 @@ async function main() {
       contactPersonEmail: 'jackson.byakatonda@serenahotels.com',
       assignedToId: alice.id, source: 'Field Visit',
       notes: 'Top manager interested in EVS',
+      kind: 'BUSINESS', active: true, services: ['EVS', 'WEBSITE'], tinNumber: '100000006',
     }
   })
 
   const clientKabuye = await prisma.client.upsert({
     where: { id: 'client-kabuye' },
-    update: {},
+    update: { kind: 'BUSINESS', active: true, services: ['EVS', 'TRAINING'], tinNumber: '100000007' },
     create: {
       id: 'client-kabuye', companyName: 'KABUYE SUGAR WORKS',
       category: 'INDUSTRY', status: 'LEAD', clientType: 'ACQUISITION',
@@ -275,32 +281,170 @@ async function main() {
       contactPersonName: 'Claude', contactPersonPhone: '788531586',
       assignedToId: alice.id, source: 'Field Visit',
       notes: 'Security manager liked EVS system',
+      kind: 'BUSINESS', active: true, services: ['EVS', 'TRAINING'], tinNumber: '100000007',
     }
   })
 
   const clientKemo = await prisma.client.upsert({
     where: { id: 'client-kemo' },
-    update: {},
+    update: { kind: 'BUSINESS', active: true, services: ['WEBSITE', 'TRAINING'], tinNumber: '100000008' },
     create: {
       id: 'client-kemo', companyName: 'KEMO & SONS LTD',
       category: 'DISTRIBUTOR', status: 'PROSPECT', clientType: 'ACQUISITION',
       phone: '788525736', location: 'Kigali', industry: 'Distribution',
       assignedToId: alice.id, source: 'Field Visit',
       notes: 'Need proposal for distribution channel and website',
+      kind: 'BUSINESS', active: true, services: ['WEBSITE', 'TRAINING'], tinNumber: '100000008',
     }
   })
 
   const clientRwandaMtn = await prisma.client.upsert({
     where: { id: 'client-rwandamtn' },
-    update: {},
+    update: { kind: 'BUSINESS', active: true, services: ['WEBSITE', 'SANHUB', 'TRAINING'], tinNumber: '100000009' },
     create: {
       id: 'client-rwandamtn', companyName: 'Rwanda Mountain Ride',
       category: 'SELF_EMPLOYED', status: 'CONTRACTOR', clientType: 'CONTRACTOR',
       phone: '0790114566', location: 'Kigali', industry: 'Tourism',
       assignedToId: alice.id, source: 'Field Visit',
       notes: 'Website completed and live.',
+      kind: 'BUSINESS', active: true, services: ['WEBSITE', 'SANHUB', 'TRAINING'], tinNumber: '100000009',
     }
   })
+
+  // ── DEMO CLIENT DATA (replace with real clients later) ──
+
+  // INDIVIDUAL 1
+  const clientIndJeanpierre = await prisma.client.upsert({
+    where: { id: 'client-ind-jeanpierre' },
+    update: { active: true, kind: 'INDIVIDUAL', services: ['WEBSITE', 'TRAINING'] },
+    create: {
+      id: 'client-ind-jeanpierre',
+      kind: 'INDIVIDUAL',
+      fullName: 'Jean Pierre Habimana',
+      companyName: null,
+      phone: '0788100001',
+      email: 'jp@gmail.com',
+      location: 'Kigali',
+      status: 'LEAD',
+      services: ['WEBSITE', 'TRAINING'],
+      active: true,
+      category: 'SELF_EMPLOYED',
+      contactPersonName: 'Jean Pierre Habimana',
+      notes: 'Demo individual client',
+    }
+  })
+
+  // INDIVIDUAL 2
+  const clientIndClaudine = await prisma.client.upsert({
+    where: { id: 'client-ind-claudine' },
+    update: { active: true, kind: 'INDIVIDUAL', services: ['WEBSITE'] },
+    create: {
+      id: 'client-ind-claudine',
+      kind: 'INDIVIDUAL',
+      fullName: 'Claudine Uwase',
+      companyName: null,
+      phone: '0785300001',
+      email: 'claudine@gmail.com',
+      idNumber: '1199870012345678',
+      location: 'Kigali',
+      status: 'PROSPECT',
+      services: ['WEBSITE'],
+      active: true,
+      category: 'SELF_EMPLOYED',
+      contactPersonName: 'Claudine Uwase',
+      notes: 'Demo individual client',
+    }
+  })
+
+  // TEAM
+  try {
+    await prisma.client.upsert({
+      where: { id: 'client-team-santech' },
+      update: {},
+      create: {
+        id: 'client-team-santech',
+        kind: 'TEAM',
+        teamName: 'Santech Dev Team',
+        orgName: 'Santech Innovate',
+        leaderName: 'Bob Nkurunziza',
+        leaderPhone: '0788100002',
+        leaderEmail: 'bob@santech.rw',
+        companyName: 'Santech Innovate',
+        phone: '0788100002',
+        email: 'bob@santech.rw',
+        location: 'Kigali',
+        status: 'CONTRACTOR',
+        services: ['SANHUB', 'TRAINING'],
+        active: true,
+        category: 'SELF_EMPLOYED',
+        contactPersonName: 'Bob Nkurunziza',
+        notes: 'Demo team client',
+        members: {
+          create: [
+            { name: 'Alice Uwimana', phone: '0788100003', role: 'Sales Lead', memberType: 'TEAM' },
+            { name: 'Eve Ingabire',  phone: '0788100004', role: 'Marketing',  memberType: 'TEAM' },
+          ]
+        }
+      }
+    })
+  } catch (e) {
+    // If client already exists (members upsert limitation), upsert client then add members separately
+    const existing = await prisma.client.findUnique({ where: { id: 'client-team-santech' } })
+    if (!existing) throw e
+    const existingMembers = await prisma.clientMember.count({ where: { clientId: 'client-team-santech' } })
+    if (existingMembers === 0) {
+      await prisma.clientMember.createMany({
+        data: [
+          { clientId: 'client-team-santech', name: 'Alice Uwimana', phone: '0788100003', role: 'Sales Lead', memberType: 'TEAM' },
+          { clientId: 'client-team-santech', name: 'Eve Ingabire',  phone: '0788100004', role: 'Marketing',  memberType: 'TEAM' },
+        ]
+      })
+    }
+  }
+
+  // DELEGATION
+  try {
+    await prisma.client.upsert({
+      where: { id: 'client-deleg-latech' },
+      update: {},
+      create: {
+        id: 'client-deleg-latech',
+        kind: 'DELEGATION',
+        delegationName: 'LA Tech Delegation',
+        origin: 'Los Angeles, USA',
+        delegationRepName: 'Michael Johnson',
+        delegationRepTitle: 'Head of Partnerships',
+        visitDate: new Date('2026-09-15'),
+        companyName: null,
+        phone: '+1-310-555-0100',
+        email: 'mjohnson@latech.example.com',
+        location: 'Los Angeles, USA',
+        status: 'PROSPECT',
+        services: ['SANHUB'],
+        active: true,
+        category: 'SELF_EMPLOYED',
+        contactPersonName: 'Michael Johnson',
+        notes: 'Demo delegation client',
+        members: {
+          create: [
+            { name: 'Sarah Connor', phone: '+1-310-555-0101', role: 'CTO', memberType: 'DELEGATION' },
+          ]
+        }
+      }
+    })
+  } catch (e) {
+    // If client already exists (members upsert limitation), handle gracefully
+    const existing = await prisma.client.findUnique({ where: { id: 'client-deleg-latech' } })
+    if (!existing) throw e
+    const existingMembers = await prisma.clientMember.count({ where: { clientId: 'client-deleg-latech' } })
+    if (existingMembers === 0) {
+      await prisma.clientMember.createMany({
+        data: [
+          { clientId: 'client-deleg-latech', name: 'Sarah Connor', phone: '+1-310-555-0101', role: 'CTO', memberType: 'DELEGATION' },
+        ]
+      })
+    }
+  }
 
   // ── 5. FIELD VISITS ───────────────────────────────────────────────────────
   console.log('Creating field visits...')
