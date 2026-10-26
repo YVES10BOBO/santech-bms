@@ -54,16 +54,18 @@
     background-repeat: repeat;
     background-size: 60px auto;
     background-attachment: fixed;
-    /* Increased from 0.08 → 0.13 so pattern is visible when you look at the background */
-    opacity: 0.13;
+    /* Pattern is visible when you look into the background, but subtle enough not to distract */
+    opacity: 0.11;
     pointer-events: none;
     z-index: 0;
   }
 
-  /* Main content area: semi-transparent warm white wash so the imigongo
-     pattern shows softly through the page background while cards stay solid white */
+  /* The layer between the imigongo pattern and the cards.
+     Uses the brand light-blue (#e8edf8 = --imigongo-light) at low opacity so:
+     - the imigongo pattern shows through when you look carefully at the background
+     - cards sit clearly on top (they are solid white, z-index above this layer)  */
   main {
-    background-color: rgba(240, 244, 252, 0.72) !important;
+    background-color: rgba(232, 237, 248, 0.60) !important;
   }
 
   #root {
