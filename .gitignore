@@ -3,3 +3,17 @@
 **/.env
 **/.env.*
 !**/.env.example
+
+# Compiled output — never commit dist
+backend/dist/
+frontend/dist/
+
+# Prisma generated client
+backend/node_modules/
+
+# Temp / debug files
+backend-err.txt
+backend-out.txt
+
+# Agent planning files
+.agents/
