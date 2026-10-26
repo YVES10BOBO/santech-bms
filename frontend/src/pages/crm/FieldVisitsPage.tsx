@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { MapPin, Plus, Search, Download, X, ChevronDown } from 'lucide-react'
 import PhoneInput from '@/components/shared/PhoneInput'
 import DateRangePicker from '@/components/shared/DateRangePicker'
 import { cn, getStatusColor, getCategoryLabel, formatDate } from '@/lib/utils'
 import type { ClientCategory, VisitOutcome } from '@/types'
+import { fieldVisitService } from '@/lib/services/fieldVisitService'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface VisitRecord {
@@ -23,20 +24,6 @@ interface VisitRecord {
   amountPromising: number | null
   recordedBy: { firstName: string; lastName: string }
 }
-
-// ─── Mock Data ────────────────────────────────────────────────────────────────
-const initialVisits: VisitRecord[] = [
-  { id: '1', visitDate: '2026-09-17', companyName: 'East African Seed Ltd', category: 'SELF_EMPLOYED', contactName: '', contactPhone: '789920635', location: '', whatSantechCanSell: 'SANTRACK', needsAndObservation: 'Products mentioned in notes, including Imbuto/seed-related products; handwriting is partly unclear.', outcome: 'FOLLOW_UP', followUpDate: '', comments: 'Follow up on the product opportunity and requirements.', contractWon: false, amountPromising: null, recordedBy: { firstName: 'Sales', lastName: 'Staff' } },
-  { id: '2', visitDate: '2026-09-17', companyName: 'Victoria Trading LTD', category: 'SELF_EMPLOYED', contactName: 'EID IBRAHIM', contactPhone: '788256245', location: '', whatSantechCanSell: 'SANTRACK', needsAndObservation: 'EID IBRAHIM wants SANTRACK if amount is reduced. Had negotiated at 2M. Will sit with team and review budget.', outcome: 'NEGOTIATION', followUpDate: '', comments: 'We have to make follow-up with them.', contractWon: false, amountPromising: 2000000, recordedBy: { firstName: 'Sales', lastName: 'Staff' } },
-  { id: '3', visitDate: '2026-09-16', companyName: 'QUINCAILLAIRE KEMEC LTD', category: 'SELF_EMPLOYED', contactName: '', contactPhone: '0783715051', location: '', whatSantechCanSell: 'REVIXSAN', needsAndObservation: 'Interested in stock management. REVIXSAN at 250k. Will provide 2 staff/trainees.', outcome: 'FOLLOW_UP', followUpDate: '2026-10-15', comments: 'Call them October 15 after they finish paying taxes.', contractWon: false, amountPromising: 250000, recordedBy: { firstName: 'Sales', lastName: 'Staff' } },
-  { id: '4', visitDate: '2026-09-22', companyName: 'NYARUGENGE HOSPITAL', category: 'INSTITUTION', contactName: 'Ange Police NSENGIYUMVA', contactPhone: '0785744154', location: 'Nyarugenge, Kigali', whatSantechCanSell: 'EVS', needsAndObservation: 'Talked with Secretary and IT. Requesting appointment with Hospital Director Lt Col William KANYANKORE.', outcome: 'PROPOSAL', followUpDate: '', comments: 'Sent document proposal for EVS with all features and prices.', contractWon: false, amountPromising: null, recordedBy: { firstName: 'Sales', lastName: 'Staff' } },
-  { id: '5', visitDate: '2026-09-29', companyName: 'ECOBANK', category: 'INSTITUTION', contactName: 'KAMIKAZI', contactPhone: '0786740490', location: 'Kigali', whatSantechCanSell: 'EVS + SANHR IMS', needsAndObservation: 'Met marketing team led by KAMIKAZI. She liked the system and requested 2 project proposals with screenshots.', outcome: 'PROPOSAL', followUpDate: '', comments: 'Send proposal to akamikazi@ecobank.com and dmana@ecobank.com.', contractWon: false, amountPromising: null, recordedBy: { firstName: 'Sales', lastName: 'Staff' } },
-  { id: '6', visitDate: '2026-09-16', companyName: 'N&T PLASTIC INDUSTRIES LTD', category: 'INDUSTRY', contactName: 'MUGISHA', contactPhone: '0780601661', location: '', whatSantechCanSell: 'SANTRACK', needsAndObservation: 'Negotiation ongoing at 3M. Need to follow up with MUGISHA — Digital innovation.', outcome: 'NEGOTIATION', followUpDate: '', comments: 'To call MUGISHA — Digital innovation.', contractWon: false, amountPromising: 3000000, recordedBy: { firstName: 'Sales', lastName: 'Staff' } },
-  { id: '7', visitDate: '2026-09-30', companyName: 'KABUYE SUGAR WORKS', category: 'INDUSTRY', contactName: 'Claude (Security Manager)', contactPhone: '788531586', location: 'Kabuye', whatSantechCanSell: 'EVS', needsAndObservation: 'Security manager liked the EVS system. Currently doing attendance in books and with fingerprints.', outcome: 'INTERESTED', followUpDate: '', comments: 'HR & Admin: 788531586, Claude Security Manager: 0785447889.', contractWon: false, amountPromising: null, recordedBy: { firstName: 'Sales', lastName: 'Staff' } },
-  { id: '8', visitDate: '2026-10-07', companyName: 'KEMO & SONS LTD', category: 'DISTRIBUTOR', contactName: '', contactPhone: '788525736', location: 'Kigali', whatSantechCanSell: 'Website + CRM', needsAndObservation: 'Need proposal for distribution channel and website with CRM.', outcome: 'FOLLOW_UP', followUpDate: '', comments: 'Prepare a proposal for distribution channel & website.', contractWon: false, amountPromising: null, recordedBy: { firstName: 'Sales', lastName: 'Staff' } },
-  { id: '9', visitDate: '2026-09-25', companyName: 'Serena Hotel', category: 'SELF_EMPLOYED', contactName: 'Security Manager', contactPhone: '0788200454', location: 'Kigali', whatSantechCanSell: 'EVS', needsAndObservation: 'Top manager interested in EVS but had pending meeting. Gave contact of security manager.', outcome: 'INTERESTED', followUpDate: '', comments: 'Call: 0788200454 / jackson.byakatonda@serenahotels.com.', contractWon: false, amountPromising: null, recordedBy: { firstName: 'Sales', lastName: 'Staff' } },
-  { id: '10', visitDate: '2026-10-01', companyName: 'SABBAN ABATTOIR', category: 'SELF_EMPLOYED', contactName: 'HR THEONESTE', contactPhone: '0788846240', location: 'Kigali', whatSantechCanSell: 'EVS', needsAndObservation: '90 employees. Need system for employee attendance, client records, and equipment tracking. Quoted at 12M.', outcome: 'NEGOTIATION', followUpDate: '', comments: 'Follow up with HR THEONESTE: 0788846240.', contractWon: false, amountPromising: 12000000, recordedBy: { firstName: 'Sales', lastName: 'Staff' } },
-]
 
 // ─── Options ─────────────────────────────────────────────────────────────────
 const CATEGORIES: { value: ClientCategory | 'ALL'; label: string }[] = [
@@ -82,7 +69,9 @@ const emptyForm = {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function FieldVisitsPage() {
-  const [visits, setVisits] = useState<VisitRecord[]>(initialVisits)
+  const [visits, setVisits] = useState<VisitRecord[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   // Filters
   const [search, setSearch] = useState('')
@@ -101,6 +90,45 @@ export default function FieldVisitsPage() {
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState(emptyForm)
   const [formError, setFormError] = useState('')
+
+  // ── Load visits from API ───────────────────────────────────────────────────
+  const loadVisits = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fieldVisitService.getAll({ limit: 1000 })
+      const mapped: VisitRecord[] = (res.data as Record<string, unknown>[]).map((v) => ({
+        id: v.id as string,
+        companyName: v.companyName as string,
+        category: v.category as ClientCategory,
+        contactName: v.contactName as string,
+        contactPhone: v.contactPhone as string,
+        location: v.location as string,
+        whatSantechCanSell: v.whatSantechCanSell as string,
+        needsAndObservation: v.needsAndObservation as string,
+        outcome: v.outcome as VisitOutcome,
+        comments: v.comments as string,
+        contractWon: v.contractWon as boolean,
+        amountPromising: v.amountPromising != null ? Number(v.amountPromising) : null,
+        recordedBy: {
+          firstName: (v.recordedBy as { firstName?: string } | null | undefined)?.firstName ?? '',
+          lastName: (v.recordedBy as { lastName?: string } | null | undefined)?.lastName ?? '',
+        },
+        visitDate: v.visitDate ? String(v.visitDate).slice(0, 10) : '',
+        followUpDate: v.followUpDate ? String(v.followUpDate).slice(0, 10) : '',
+      }))
+      setVisits(mapped)
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to load visits'
+      setError(message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadVisits()
+  }, [])
 
   // ── Filtering logic ────────────────────────────────────────────────────────
   const filtered = visits.filter((v) => {
@@ -159,36 +187,40 @@ export default function FieldVisitsPage() {
     setForm(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }))
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!form.companyName.trim()) { setFormError('Company name is required.'); return }
     if (!form.contactPhone.trim()) { setFormError('Contact phone is required.'); return }
     if (!form.whatSantechCanSell.trim()) { setFormError('Please fill in what Santech can sell.'); return }
     if (!form.needsAndObservation.trim()) { setFormError('Needs & Observation is required.'); return }
 
-    const newVisit: VisitRecord = {
-      id: String(Date.now()),
-      visitDate: form.visitDate,
-      companyName: form.companyName,
-      category: form.category,
-      contactName: form.contactName,
-      contactPhone: form.contactPhone,
-      location: form.location,
-      whatSantechCanSell: form.whatSantechCanSell,
-      needsAndObservation: form.needsAndObservation,
-      outcome: form.outcome,
-      followUpDate: form.followUpDate,
-      comments: form.comments,
-      contractWon: form.contractWon,
-      amountPromising: form.amountPromising ? parseFloat(form.amountPromising) : null,
-      recordedBy: { firstName: 'Current', lastName: 'User' },
-    }
+    try {
+      const payload = {
+        visitDate: form.visitDate,
+        companyName: form.companyName,
+        category: form.category,
+        contactName: form.contactName,
+        contactPhone: form.contactPhone,
+        location: form.location,
+        whatSantechCanSell: form.whatSantechCanSell,
+        needsAndObservation: form.needsAndObservation,
+        outcome: form.outcome,
+        followUpDate: form.followUpDate || null,
+        comments: form.comments,
+        contractWon: form.contractWon,
+        amountPromising: form.amountPromising === '' || form.amountPromising == null ? null : Number(form.amountPromising),
+      }
 
-    setVisits(prev => [newVisit, ...prev])
-    setShowModal(false)
-    setForm(emptyForm)
-    setFormError('')
-    setPage(1)
+      await fieldVisitService.create({ ...payload })
+      await loadVisits()
+      setShowModal(false)
+      setForm(emptyForm)
+      setFormError('')
+      setPage(1)
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to save visit'
+      setFormError(message)
+    }
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -228,6 +260,14 @@ export default function FieldVisitsPage() {
           </div>
         ))}
       </div>
+
+      {/* ── Error banner ── */}
+      {error && (
+        <div className="bms-card p-4 bg-red-50 border border-red-200 text-red-600 text-sm flex items-center gap-2">
+          <X className="w-4 h-4 flex-shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
 
       {/* ── Filters ── */}
       <div className="bms-card p-4 space-y-3">
@@ -290,7 +330,13 @@ export default function FieldVisitsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {paginated.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={15} className="text-center py-12 text-gray-400 text-sm">
+                    Loading visits...
+                  </td>
+                </tr>
+              ) : paginated.length === 0 ? (
                 <tr>
                   <td colSpan={15} className="text-center py-12 text-gray-400 text-sm">
                     No visits found matching your filters.
