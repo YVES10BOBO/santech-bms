@@ -1,8 +1,9 @@
 import api from '../api'
+import type { DashboardKPIs } from '@/types'
 
 export const dashboardService = {
-  getKPIs: async () => {
+  getKPIs: async (): Promise<{ data: DashboardKPIs }> => {
     const { data } = await api.get('/dashboard/kpis')
-    return data.data
+    return data
   },
 }

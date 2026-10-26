@@ -317,6 +317,8 @@ export interface DashboardKPIs {
   totalExpenses: number;
   netIncome: number;
   outstandingReceivables: number;
+  pendingTasks: number;
+  fieldVisitsThisMonth: number;
 }
 
 // --- API Response ---

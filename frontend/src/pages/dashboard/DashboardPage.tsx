@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import {
   Users, TrendingUp, FolderKanban, DollarSign,
   AlertCircle, CheckCircle2, Clock, ArrowUpRight,
@@ -9,25 +10,11 @@ import {
 } from 'recharts'
 import { cn, formatCurrency } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
+import type { DashboardKPIs } from '@/types'
+import { dashboardService } from '@/lib/services/dashboardService'
+import { fieldVisitService } from '@/lib/services/fieldVisitService'
 
-// --- Mock data (will be replaced by API calls) ---
-const kpiData = {
-  totalCustomers: 144,
-  activeCustomers: 38,
-  newCustomersThisMonth: 12,
-  totalLeads: 89,
-  conversionRate: 26.4,
-  activeProjects: 7,
-  completedProjects: 14,
-  delayedProjects: 2,
-  pendingInvoices: 11,
-  overduePayments: 3,
-  totalRevenue: 24_500_000,
-  totalExpenses: 8_200_000,
-  netIncome: 16_300_000,
-  outstandingReceivables: 5_800_000,
-}
-
+// TODO: wire to aggregation endpoints (follow-up slice — not in scope now)
 const revenueData = [
   { month: 'Apr', revenue: 3200000, expenses: 1100000 },
   { month: 'May', revenue: 2800000, expenses: 980000 },
@@ -38,6 +25,7 @@ const revenueData = [
   { month: 'Oct', revenue: 4900000, expenses: 1420000 },
 ]
 
+// TODO: wire to aggregation endpoints (follow-up slice — not in scope now)
 const pipelineData = [
   { stage: 'New Lead', count: 32, color: '#94a3b8' },
   { stage: 'Contacted', count: 24, color: '#60a5fa' },
@@ -47,20 +35,13 @@ const pipelineData = [
   { stage: 'Won', count: 3, color: '#34d399' },
 ]
 
+// TODO: wire to aggregation endpoints (follow-up slice — not in scope now)
 const serviceRevenueData = [
   { name: 'EVS', value: 8500000, color: '#3b82f6' },
   { name: 'SANTRACK', value: 5200000, color: '#10b981' },
   { name: 'Websites', value: 4100000, color: '#f59e0b' },
   { name: 'REVIXSAN', value: 3800000, color: '#8b5cf6' },
   { name: 'Training', value: 2900000, color: '#ec4899' },
-]
-
-const recentVisits = [
-  { company: 'GAMICO LTD', product: 'EVS', date: '28 Sep 2026', status: 'FOLLOW_UP', contact: 'Abel' },
-  { company: 'Serena Hotel', product: 'EVS', date: '25 Sep 2026', status: 'INTERESTED', contact: 'Security Manager' },
-  { company: 'Ecobank', product: 'EVS + SANHR', date: '29 Sep 2026', status: 'PROPOSAL', contact: 'Kamikazi' },
-  { company: 'SABBAN Abattoir', product: 'EVS', date: '30 Sep 2026', status: 'NEGOTIATION', contact: 'HR Theoneste' },
-  { company: 'Kabuye Sugar Works', product: 'EVS', date: '30 Sep 2026', status: 'FOLLOW_UP', contact: 'Claude' },
 ]
 
 const statusColors: Record<string, string> = {
@@ -70,6 +51,14 @@ const statusColors: Record<string, string> = {
   NEGOTIATION: 'bg-orange-100 text-orange-700',
   WON: 'bg-green-100 text-green-700',
   LOST: 'bg-red-100 text-red-700',
+}
+
+interface RecentVisitRow {
+  company: string
+  product: string
+  date: string
+  status: string
+  contact: string
 }
 
 interface KPICardProps {
@@ -112,6 +101,32 @@ const formatRWF = (value: number) => `RWF ${(value / 1_000_000).toFixed(1)}M`
 export default function DashboardPage() {
   const { user } = useAuthStore()
 
+  const [kpiData, setKpiData] = useState<DashboardKPIs | null>(null)
+
+  useEffect(() => {
+    dashboardService.getKPIs()
+      .then(res => setKpiData(res.data))
+      .catch(err => console.error('Dashboard KPI fetch failed:', err))
+  }, [])
+
+  const [recentVisits, setRecentVisits] = useState<RecentVisitRow[]>([])
+
+  useEffect(() => {
+    fieldVisitService.getAll({ limit: 5 })
+      .then(res => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const rows: RecentVisitRow[] = res.data.map((v: any) => ({
+          company: v.companyName,
+          product: v.whatSantechCanSell,
+          date: v.visitDate ? String(v.visitDate).slice(0, 10) : '',
+          status: v.outcome,
+          contact: v.contactName ?? '',
+        }))
+        setRecentVisits(rows)
+      })
+      .catch((err: unknown) => console.error('Recent visits fetch failed:', err))
+  }, [])
+
   return (
     <div className="space-y-3">
       {/* Page header */}
@@ -128,8 +143,8 @@ export default function DashboardPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KPICard
           title="Total Customers"
-          value={kpiData.totalCustomers}
-          subtitle={`${kpiData.activeCustomers} active`}
+          value={kpiData?.totalCustomers ?? 0}
+          subtitle={`${kpiData?.activeCustomers ?? 0} active`}
           icon={Users}
           iconBg="bg-blue-50"
           iconColor="text-blue-600"
@@ -137,7 +152,7 @@ export default function DashboardPage() {
         />
         <KPICard
           title="New This Month"
-          value={kpiData.newCustomersThisMonth}
+          value={kpiData?.newCustomersThisMonth ?? 0}
           subtitle="client acquisitions"
           icon={Target}
           iconBg="bg-purple-50"
@@ -146,8 +161,8 @@ export default function DashboardPage() {
         />
         <KPICard
           title="Active Leads"
-          value={kpiData.totalLeads}
-          subtitle={`${kpiData.conversionRate}% conversion rate`}
+          value={kpiData?.totalLeads ?? 0}
+          subtitle={`${kpiData?.conversionRate ?? 0}% conversion rate`}
           icon={TrendingUp}
           iconBg="bg-amber-50"
           iconColor="text-amber-600"
@@ -155,8 +170,8 @@ export default function DashboardPage() {
         />
         <KPICard
           title="Active Projects"
-          value={kpiData.activeProjects}
-          subtitle={`${kpiData.completedProjects} completed`}
+          value={kpiData?.activeProjects ?? 0}
+          subtitle={`${kpiData?.completedProjects ?? 0} completed`}
           icon={FolderKanban}
           iconBg="bg-emerald-50"
           iconColor="text-emerald-600"
@@ -167,7 +182,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KPICard
           title="Total Revenue"
-          value={formatRWF(kpiData.totalRevenue)}
+          value={formatRWF(kpiData?.totalRevenue ?? 0)}
           subtitle="this fiscal year"
           icon={DollarSign}
           iconBg="bg-green-50"
@@ -176,8 +191,8 @@ export default function DashboardPage() {
         />
         <KPICard
           title="Net Income"
-          value={formatRWF(kpiData.netIncome)}
-          subtitle={`${((kpiData.netIncome / kpiData.totalRevenue) * 100).toFixed(0)}% profit margin`}
+          value={formatRWF(kpiData?.netIncome ?? 0)}
+          subtitle={`${kpiData?.totalRevenue ? ((( kpiData.netIncome) / kpiData.totalRevenue) * 100).toFixed(0) : 0}% profit margin`}
           icon={BarChart3}
           iconBg="bg-teal-50"
           iconColor="text-teal-600"
@@ -185,15 +200,15 @@ export default function DashboardPage() {
         />
         <KPICard
           title="Pending Invoices"
-          value={kpiData.pendingInvoices}
-          subtitle={formatCurrency(kpiData.outstandingReceivables)}
+          value={kpiData?.pendingInvoices ?? 0}
+          subtitle={formatCurrency(kpiData?.outstandingReceivables ?? 0)}
           icon={Clock}
           iconBg="bg-orange-50"
           iconColor="text-orange-600"
         />
         <KPICard
           title="Overdue Payments"
-          value={kpiData.overduePayments}
+          value={kpiData?.overduePayments ?? 0}
           subtitle="require follow-up"
           icon={AlertCircle}
           iconBg="bg-red-50"
@@ -330,9 +345,9 @@ export default function DashboardPage() {
           <h3 className="font-semibold text-gray-800 mb-4">Project Status</h3>
           <div className="space-y-3">
             {[
-              { label: 'Active', count: kpiData.activeProjects, color: 'bg-blue-500', icon: Briefcase },
-              { label: 'Completed', count: kpiData.completedProjects, color: 'bg-green-500', icon: CheckCircle2 },
-              { label: 'Delayed', count: kpiData.delayedProjects, color: 'bg-red-500', icon: AlertCircle },
+              { label: 'Active', count: kpiData?.activeProjects ?? 0, color: 'bg-blue-500', icon: Briefcase },
+              { label: 'Completed', count: kpiData?.completedProjects ?? 0, color: 'bg-green-500', icon: CheckCircle2 },
+              { label: 'Delayed', count: kpiData?.delayedProjects ?? 0, color: 'bg-red-500', icon: AlertCircle },
             ].map((item) => (
               <div key={item.label} className="flex items-center gap-3">
                 <div className={cn('w-2 h-8 rounded-full', item.color)} />
@@ -351,9 +366,9 @@ export default function DashboardPage() {
           <p className="text-santech-200 text-xs mb-5">October 2026 — Year to date</p>
           <div className="grid grid-cols-3 gap-4">
             {[
-              { label: 'Revenue', value: formatRWF(kpiData.totalRevenue), sub: 'total income' },
-              { label: 'Expenses', value: formatRWF(kpiData.totalExpenses), sub: 'total costs' },
-              { label: 'Net Income', value: formatRWF(kpiData.netIncome), sub: 'profit' },
+              { label: 'Revenue', value: formatRWF(kpiData?.totalRevenue ?? 0), sub: 'total income' },
+              { label: 'Expenses', value: formatRWF(kpiData?.totalExpenses ?? 0), sub: 'total costs' },
+              { label: 'Net Income', value: formatRWF(kpiData?.netIncome ?? 0), sub: 'profit' },
             ].map((item) => (
               <div key={item.label} className="text-center">
                 <p className="text-2xl font-bold">{item.value}</p>
@@ -365,7 +380,7 @@ export default function DashboardPage() {
           <div className="mt-4 pt-4 border-t border-santech-500">
             <div className="flex items-center justify-between text-sm">
               <span className="text-santech-200">Outstanding Receivables</span>
-              <span className="font-semibold">{formatCurrency(kpiData.outstandingReceivables)}</span>
+              <span className="font-semibold">{formatCurrency(kpiData?.outstandingReceivables ?? 0)}</span>
             </div>
           </div>
         </div>
