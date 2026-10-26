@@ -40,7 +40,8 @@
     @apply text-foreground;
     font-family: "Exo", "Open Sans", sans-serif;
     font-feature-settings: "rlig" 1, "calt" 1;
-    background-color: #f0f2f5;
+    /* Warm off-white — not pure white, gives the pattern something to show through */
+    background-color: #eef1f8;
     background-image: none;
     position: relative;
   }
@@ -53,9 +54,16 @@
     background-repeat: repeat;
     background-size: 60px auto;
     background-attachment: fixed;
-    opacity: 0.08;
+    /* Increased from 0.08 → 0.13 so pattern is visible when you look at the background */
+    opacity: 0.13;
     pointer-events: none;
     z-index: 0;
+  }
+
+  /* Main content area: semi-transparent warm white wash so the imigongo
+     pattern shows softly through the page background while cards stay solid white */
+  main {
+    background-color: rgba(240, 244, 252, 0.72) !important;
   }
 
   #root {
@@ -129,6 +137,7 @@ main {
   padding-bottom: 0.75rem !important;
   padding-left: 0.85rem !important;
   padding-right: 0.85rem !important;
+  /* background set in @layer base above */
 }
 
 .sidebar-nav-scroll {
