@@ -75,6 +75,7 @@ export async function getMe(req: AuthRequest, res: Response): Promise<void> {
         id: true, firstName: true, lastName: true,
         email: true, phone: true, role: true,
         avatar: true, isActive: true,
+        createdAt: true, updatedAt: true,
         employee: { select: { department: true, position: true, performanceScore: true } }
       }
     })
@@ -84,7 +85,14 @@ export async function getMe(req: AuthRequest, res: Response): Promise<void> {
       return
     }
 
-    res.json({ success: true, data: user })
+    res.json({
+      success: true,
+      data: {
+        ...user,
+        department: user.employee?.department,
+        position: user.employee?.position,
+      }
+    })
   } catch (error) {
     res.status(500).json({ success: false, message: 'Internal server error' })
   }

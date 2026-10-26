@@ -2,6 +2,9 @@
   "name": "santech-bms-backend",
   "version": "0.1.0",
   "private": true,
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
+  },
   "scripts": {
     "dev": "nodemon src/index.ts",
     "build": "tsc",
