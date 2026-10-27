@@ -1,6 +1,7 @@
-import React, { useState } from 'react'
-import { Plus, Search, X, CheckCircle2, FileText, Eye } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { Plus, Search, X, CheckCircle2, FileText, Eye, Loader2 } from 'lucide-react'
 import { cn, formatDate, formatCurrency } from '@/lib/utils'
+import { milestoneService } from '@/lib/services/milestoneService'
 
 type MilestoneStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'PENDING_APPROVAL' | 'COMPLETED' | 'APPROVED' | 'OVERDUE' | 'INVOICED'
 
@@ -196,6 +197,7 @@ function DaysLeftCell({ deadline }: { deadline: string }) {
 
 export default function MilestonesPage() {
   const [milestones, setMilestones] = useState<Milestone[]>(mockMilestones)
+  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<MilestoneStatus | 'ALL'>('ALL')
   const [projectFilter, setProjectFilter] = useState('ALL')
@@ -215,6 +217,37 @@ export default function MilestonesPage() {
 
   // Success toast
   const [toast, setToast] = useState('')
+
+  // Load milestones from backend
+  useEffect(() => {
+    milestoneService.getAll()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then((res: any) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const mapped: Milestone[] = (res.data ?? []).map((m: any) => ({
+          id: m.id,
+          name: m.name,
+          project: m.project?.name ?? '',
+          client: m.project?.client?.companyName ?? '',
+          contractRef: m.project?.contract?.contractNumber ?? '',
+          milestoneNumber: m.milestoneNumber ?? 1,
+          deadline: m.deadline ? String(m.deadline).slice(0, 10) : '',
+          paymentPercent: Number(m.paymentPercent ?? 0),
+          paymentAmount: Number(m.paymentAmount ?? 0),
+          contractValue: Number(m.project?.contractValue ?? 0),
+          status: m.status as MilestoneStatus,
+          deliverables: m.deliverables ?? '',
+          pm: m.project?.projectManager
+            ? `${m.project.projectManager.firstName} ${m.project.projectManager.lastName}`
+            : '',
+          description: m.description ?? '',
+          approvalDate: m.approvalDate ? String(m.approvalDate).slice(0, 10) : undefined,
+        }))
+        if (mapped.length > 0) setMilestones(mapped)
+      })
+      .catch(() => { /* keep mock data */ })
+      .finally(() => setLoading(false))
+  }, [])
 
   const showToast = (msg: string) => {
     setToast(msg)

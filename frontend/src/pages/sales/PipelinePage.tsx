@@ -1,6 +1,7 @@
-import { useState } from 'react'
-import { Plus, X, ChevronDown, Building2, Phone, User, DollarSign, Calendar, TrendingUp, Search } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Plus, X, ChevronDown, Building2, Phone, User, DollarSign, Calendar, TrendingUp, Search, Loader2 } from 'lucide-react'
 import { cn, formatCurrency, formatDate } from '@/lib/utils'
+import { opportunityService } from '@/lib/services/opportunityService'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type Stage =
@@ -50,20 +51,6 @@ const PROBABILITY: Record<Stage, number> = {
   WON: 100, LOST: 0,
 }
 
-// ─── Mock data (from field visits Excel) ─────────────────────────────────────
-const initialDeals: Deal[] = [
-  { id: '1', name: 'EVS System — SABBAN ABATTOIR', company: 'SABBAN ABATTOIR', category: 'Self Employed', contactName: 'HR THEONESTE', contactPhone: '0788846240', stage: 'NEGOTIATION', estimatedValue: 12000000, probability: 80, expectedCloseDate: '2026-11-01', assignedTo: 'Alice Uwimana', product: 'EVS', notes: '90 employees. System for attendance, client records and equipment tracking.', nextAction: 'Call HR THEONESTE to confirm board decision', followUpDate: '2026-10-15', createdAt: '2026-10-01' },
-  { id: '2', name: 'EVS + SANHR IMS — ECOBANK', company: 'ECOBANK', category: 'Institution', contactName: 'KAMIKAZI', contactPhone: '0786740490', stage: 'PROPOSAL', estimatedValue: 8000000, probability: 60, expectedCloseDate: '2026-11-15', assignedTo: 'Alice Uwimana', product: 'EVS + SANHR IMS', notes: 'Requested 2 project proposals with screenshots. Send to akamikazi@ecobank.com', nextAction: 'Send completed proposal document', followUpDate: '2026-10-14', createdAt: '2026-09-29' },
-  { id: '3', name: 'SANTRACK — N&T PLASTIC INDUSTRIES', company: 'N&T PLASTIC INDUSTRIES LTD', category: 'Industry', contactName: 'MUGISHA', contactPhone: '0780601661', stage: 'NEGOTIATION', estimatedValue: 3000000, probability: 75, expectedCloseDate: '2026-10-30', assignedTo: 'Alice Uwimana', product: 'SANTRACK', notes: 'Negotiating at 3M. Digital innovation contact.', nextAction: 'Call MUGISHA to confirm final price', followUpDate: '2026-10-12', createdAt: '2026-09-16' },
-  { id: '4', name: 'EVS — NYARUGENGE HOSPITAL', company: 'NYARUGENGE HOSPITAL', category: 'Institution', contactName: 'Ange Police NSENGIYUMVA', contactPhone: '0785744154', stage: 'PROPOSAL', estimatedValue: 15000000, probability: 55, expectedCloseDate: '2026-12-01', assignedTo: 'Alice Uwimana', product: 'EVS', notes: 'Sent full EVS proposal with features and prices. Waiting for director approval.', nextAction: 'Call Secretary for appointment update', followUpDate: '2026-10-16', createdAt: '2026-09-22' },
-  { id: '5', name: 'REVIXSAN — QUINCAILLAIRE KEMEC LTD', company: 'QUINCAILLAIRE KEMEC LTD', category: 'Self Employed', contactName: '', contactPhone: '0783715051', stage: 'QUALIFIED', estimatedValue: 250000, probability: 40, expectedCloseDate: '2026-10-20', assignedTo: 'Alice Uwimana', product: 'REVIXSAN', notes: '250k. Will provide 2 staff trainees. Call after Oct 15 when they finish taxes.', nextAction: 'Call on October 15', followUpDate: '2026-10-15', createdAt: '2026-09-16' },
-  { id: '6', name: 'EVS — Serena Hotel', company: 'Serena Hotel', category: 'Self Employed', contactName: 'Security Manager', contactPhone: '0788200454', stage: 'CONTACTED', estimatedValue: 10000000, probability: 25, expectedCloseDate: '2026-11-30', assignedTo: 'Alice Uwimana', product: 'EVS', notes: 'Top manager interested. Need to meet security manager.', nextAction: 'Call security manager to schedule demo', followUpDate: '2026-10-13', createdAt: '2026-09-25' },
-  { id: '7', name: 'SANTRACK — KABUYE SUGAR WORKS', company: 'KABUYE SUGAR WORKS', category: 'Industry', contactName: 'Claude', contactPhone: '788531586', stage: 'QUALIFIED', estimatedValue: 5000000, probability: 45, expectedCloseDate: '2026-11-15', assignedTo: 'Alice Uwimana', product: 'EVS', notes: 'Security manager liked EVS. Currently use books + fingerprints for attendance.', nextAction: 'Schedule full system demo', followUpDate: '2026-10-18', createdAt: '2026-09-30' },
-  { id: '8', name: 'Website + CRM — KEMO & SONS LTD', company: 'KEMO & SONS LTD', category: 'Distributor', contactName: '', contactPhone: '788525736', stage: 'NEW_LEAD', estimatedValue: 2000000, probability: 10, expectedCloseDate: '2026-12-15', assignedTo: 'Alice Uwimana', product: 'Website + CRM', notes: 'Need proposal for distribution channel and website.', nextAction: 'Prepare distribution channel proposal', followUpDate: '2026-10-20', createdAt: '2026-10-07' },
-  { id: '9', name: 'SANTRACK — Victoria Trading LTD', company: 'Victoria Trading LTD', category: 'Self Employed', contactName: 'EID IBRAHIM', contactPhone: '788256245', stage: 'NEGOTIATION', estimatedValue: 2000000, probability: 70, expectedCloseDate: '2026-10-25', assignedTo: 'Alice Uwimana', product: 'SANTRACK', notes: 'Want SANTRACK if price is reduced. Previously negotiated at 2M.', nextAction: 'Final price negotiation call', followUpDate: '2026-10-12', createdAt: '2026-09-17' },
-  { id: '10', name: 'EVS — GAMICO LTD', company: 'GAMICO LTD', category: 'Industry', contactName: 'ABEL', contactPhone: '0785024796', stage: 'REQUIREMENT_ANALYSIS', estimatedValue: 7000000, probability: 50, expectedCloseDate: '2026-11-20', assignedTo: 'Alice Uwimana', product: 'EVS', notes: 'ABEL will arrange meeting with HR, IT and Security Manager.', nextAction: 'Present system to HR, IT and Security team', followUpDate: '2026-10-14', createdAt: '2026-09-28' },
-]
-
 const EMPLOYEES = ['Alice Uwimana', 'Bob Nkurunziza', 'Eve Ingabire']
 const PRODUCTS = ['EVS', 'SANTRACK', 'REVIXSAN', 'SANBOOK', 'SANHUB', 'Website', 'Mobile App', 'CRM', 'Other']
 
@@ -76,7 +63,8 @@ const emptyForm = {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function PipelinePage() {
-  const [deals, setDeals] = useState<Deal[]>(initialDeals)
+  const [deals, setDeals] = useState<Deal[]>([])
+  const [loading, setLoading] = useState(true)
   const [view, setView] = useState<'kanban' | 'list'>('kanban')
   const [search, setSearch] = useState('')
   const [productFilter, setProductFilter] = useState('ALL')
@@ -87,6 +75,41 @@ export default function PipelinePage() {
   const [editId, setEditId] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [dragId, setDragId] = useState<string | null>(null)
+
+  // ── Load from backend ───────────────────────────────────────────────────────
+  useEffect(() => {
+    opportunityService.getAll({ limit: '100' })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then((res: any) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const mapped: Deal[] = (res.data ?? []).map((o: any) => ({
+          id: o.id,
+          name: o.name,
+          company: o.client?.companyName ?? '',
+          category: o.client?.category ?? '',
+          contactName: o.client?.contactPersonName ?? '',
+          contactPhone: o.client?.phone ?? '',
+          stage: o.stage as Stage,
+          estimatedValue: Number(o.estimatedValue),
+          probability: Number(o.probability),
+          expectedCloseDate: o.expectedCloseDate ? String(o.expectedCloseDate).slice(0, 10) : '',
+          assignedTo: o.assignedTo ? `${o.assignedTo.firstName} ${o.assignedTo.lastName}` : '',
+          product: (() => {
+            // Try to extract product from opportunity name (e.g. "EVS System — SABBAN" → "EVS")
+            const nameParts = o.name?.split('—')[0]?.trim() ?? ''
+            const product = PRODUCTS.find(p => nameParts.toUpperCase().includes(p.toUpperCase()))
+            return product ?? nameParts.split(' ')[0] ?? 'EVS'
+          })(),
+          notes: o.notes ?? '',
+          nextAction: o.nextAction ?? '',
+          followUpDate: o.followUpDate ? String(o.followUpDate).slice(0, 10) : '',
+          createdAt: String(o.createdAt).slice(0, 10),
+        }))
+        setDeals(mapped)
+      })
+      .catch((err: unknown) => console.error('Pipeline load failed:', err))
+      .finally(() => setLoading(false))
+  }, [])
 
   // ── Filtering ──────────────────────────────────────────────────────────────
   const filtered = deals.filter(d => {
@@ -158,6 +181,15 @@ export default function PipelinePage() {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-santech-600" />
+        <span className="ml-3 text-gray-500">Loading pipeline data...</span>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-5">
 

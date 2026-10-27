@@ -1,6 +1,9 @@
-import React, { useState } from 'react'
-import { Search, LayoutGrid, List, X, Plus, AlertTriangle, CheckCircle, Clock, Zap } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { Search, LayoutGrid, List, X, Plus, AlertTriangle, CheckCircle, Clock, Zap, Loader2 } from 'lucide-react'
 import { cn, formatDate, formatCurrency, getInitials } from '@/lib/utils'
+import { employeeService } from '@/lib/services/employeeService'
+import { taskService } from '@/lib/services/taskService'
+import toast from 'react-hot-toast'
 
 type WorkloadStatus = 'AVAILABLE' | 'BUSY' | 'OVERLOADED'
 type Priority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'
@@ -35,44 +38,17 @@ interface AssignTaskForm {
   periodEnd: string
 }
 
-const mockEmployees: EmployeeWorkload[] = [
-  {
-    id: '1', firstName: 'Alice', lastName: 'Uwimana',
-    position: 'Sales Executive', department: 'Sales & Marketing',
-    totalTasks: 8, taskBreakdown: { assigned: 3, inProgress: 3, pendingApproval: 1, overdue: 1 },
-    activeProjects: 2, performanceScore: 82, status: 'BUSY', avatarColor: 'bg-purple-500',
-  },
-  {
-    id: '2', firstName: 'Bob', lastName: 'Nkurunziza',
-    position: 'Software Developer', department: 'IT',
-    totalTasks: 11, taskBreakdown: { assigned: 4, inProgress: 5, pendingApproval: 1, overdue: 1 },
-    activeProjects: 4, performanceScore: 91, status: 'OVERLOADED', avatarColor: 'bg-blue-600',
-  },
-  {
-    id: '3', firstName: 'Claire', lastName: 'Mukamana',
-    position: 'HR Manager', department: 'HR',
-    totalTasks: 3, taskBreakdown: { assigned: 2, inProgress: 1, pendingApproval: 0, overdue: 0 },
-    activeProjects: 1, performanceScore: 78, status: 'AVAILABLE', avatarColor: 'bg-emerald-500',
-  },
-  {
-    id: '4', firstName: 'David', lastName: 'Habimana',
-    position: 'Accountant', department: 'Finance',
-    totalTasks: 2, taskBreakdown: { assigned: 1, inProgress: 1, pendingApproval: 0, overdue: 0 },
-    activeProjects: 0, performanceScore: 65, status: 'AVAILABLE', avatarColor: 'bg-orange-500',
-  },
-  {
-    id: '5', firstName: 'Eve', lastName: 'Ingabire',
-    position: 'Marketing Officer', department: 'Sales & Marketing',
-    totalTasks: 6, taskBreakdown: { assigned: 2, inProgress: 3, pendingApproval: 0, overdue: 1 },
-    activeProjects: 1, performanceScore: 74, status: 'BUSY', avatarColor: 'bg-pink-500',
-  },
-  {
-    id: '6', firstName: 'Frank', lastName: 'Bizimana',
-    position: 'System Administrator', department: 'IT',
-    totalTasks: 9, taskBreakdown: { assigned: 3, inProgress: 4, pendingApproval: 1, overdue: 1 },
-    activeProjects: 3, performanceScore: 88, status: 'OVERLOADED', avatarColor: 'bg-red-500',
-  },
+const AVATAR_COLORS = [
+  'bg-purple-500', 'bg-blue-600', 'bg-emerald-500',
+  'bg-orange-500', 'bg-pink-500', 'bg-red-500',
+  'bg-teal-500', 'bg-indigo-500', 'bg-yellow-600',
 ]
+
+function deriveWorkloadStatus(totalTasks: number): WorkloadStatus {
+  if (totalTasks >= 9) return 'OVERLOADED'
+  if (totalTasks >= 5) return 'BUSY'
+  return 'AVAILABLE'
+}
 
 const DEPARTMENTS = ['All', 'Sales & Marketing', 'IT', 'HR', 'Finance', 'Operations']
 const WORKLOAD_STATUSES: Array<{ value: WorkloadStatus | 'All'; label: string }> = [

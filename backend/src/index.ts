@@ -55,6 +55,27 @@ app.use('/api/projects', projectsRouter)
 app.use('/api/finance', financeRouter)
 app.use('/api/dashboard', dashboardRouter)
 
+// Opportunities and Contracts are served under /api/finance (see routes/finance.ts)
+
+// Audit logs — inline route (no separate router needed)
+import { PrismaClient } from '@prisma/client'
+import { authenticate as authMiddleware } from './middleware/auth'
+const prisma = new PrismaClient()
+app.get('/api/audit-logs', authMiddleware, async (req: express.Request, res: express.Response) => {
+  try {
+    const limit = Math.min(Number(req.query.limit ?? 100), 500)
+    const logs = await prisma.auditLog.findMany({
+      take: limit,
+      orderBy: { createdAt: 'desc' },
+      include: { user: { select: { id: true, firstName: true, lastName: true, role: true } } }
+    })
+    res.json({ success: true, data: logs, pagination: { total: logs.length } })
+  } catch {
+    res.status(500).json({ success: false, message: 'Internal server error' })
+  }
+})
+
+
 // 404 handler
 app.use((_req, res) => {
   res.status(404).json({ success: false, message: 'Route not found' })

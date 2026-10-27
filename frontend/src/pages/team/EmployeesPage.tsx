@@ -1,7 +1,9 @@
-import { useState } from 'react'
-import { Plus, Search, X, User, LayoutGrid, List } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Plus, Search, X, User, LayoutGrid, List, Loader2 } from 'lucide-react'
 import PhoneInput from '@/components/shared/PhoneInput'
 import { cn, formatDate, formatCurrency, getInitials } from '@/lib/utils'
+import { employeeService } from '@/lib/services/employeeService'
+import toast from 'react-hot-toast'
 
 type EmploymentStatus = 'ACTIVE' | 'ON_LEAVE' | 'SUSPENDED' | 'TERMINATED'
 
@@ -20,15 +22,6 @@ interface Employee {
   performanceScore: number
   skills: string[]
 }
-
-const mockEmployees: Employee[] = [
-  { id: '1', employeeCode: 'ST-001', firstName: 'Alice', lastName: 'Uwimana', email: 'alice@santech.rw', phone: '0788100001', department: 'Sales & Marketing', position: 'Sales Executive', hireDate: '2024-03-01', employmentStatus: 'ACTIVE', baseSalary: 350000, performanceScore: 82, skills: ['CRM', 'Field Sales'] },
-  { id: '2', employeeCode: 'ST-002', firstName: 'Bob', lastName: 'Nkurunziza', email: 'bob@santech.rw', phone: '0788100002', department: 'IT', position: 'Software Developer', hireDate: '2024-01-15', employmentStatus: 'ACTIVE', baseSalary: 600000, performanceScore: 91, skills: ['React', 'Node.js', 'PostgreSQL'] },
-  { id: '3', employeeCode: 'ST-003', firstName: 'Claire', lastName: 'Mukamana', email: 'claire@santech.rw', phone: '0788100003', department: 'HR', position: 'HR Manager', hireDate: '2023-09-01', employmentStatus: 'ACTIVE', baseSalary: 500000, performanceScore: 78, skills: ['HR Management', 'Payroll'] },
-  { id: '4', employeeCode: 'ST-004', firstName: 'David', lastName: 'Habimana', email: 'david@santech.rw', phone: '0788100004', department: 'Finance', position: 'Accountant', hireDate: '2024-06-01', employmentStatus: 'ON_LEAVE', baseSalary: 450000, performanceScore: 65, skills: ['Accounting', 'QuickBooks'] },
-  { id: '5', employeeCode: 'ST-005', firstName: 'Eve', lastName: 'Ingabire', email: 'eve@santech.rw', phone: '0788100005', department: 'Sales & Marketing', position: 'Marketing Officer', hireDate: '2025-01-10', employmentStatus: 'ACTIVE', baseSalary: 320000, performanceScore: 74, skills: ['Digital Marketing', 'Social Media'] },
-  { id: '6', employeeCode: 'ST-006', firstName: 'Frank', lastName: 'Bizimana', email: 'frank@santech.rw', phone: '0788100006', department: 'IT', position: 'System Administrator', hireDate: '2023-11-01', employmentStatus: 'ACTIVE', baseSalary: 480000, performanceScore: 88, skills: ['Linux', 'Networking', 'Security'] },
-]
 
 const DEPARTMENTS = ['All', 'Sales & Marketing', 'IT', 'HR', 'Finance']
 const STATUS_OPTIONS: { value: EmploymentStatus | 'All'; label: string }[] = [
@@ -57,7 +50,15 @@ const emptyForm = {
 }
 
 export default function EmployeesPage() {
-  const [employees, setEmployees] = useState<Employee[]>(mockEmployees)
+  const [employees, setEmployees] = useState<Employee[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    employeeService.getAll()
+      .then(res => setEmployees(res.data ?? []))
+      .catch(() => toast.error('Failed to load employees'))
+      .finally(() => setLoading(false))
+  }, [])
   const [search, setSearch] = useState('')
   const [deptFilter, setDeptFilter] = useState('All')
   const [statusFilter, setStatusFilter] = useState<EmploymentStatus | 'All'>('All')
@@ -85,32 +86,45 @@ export default function EmployeesPage() {
     setForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!form.employeeCode || !form.firstName || !form.lastName || !form.position || !form.hireDate || !form.baseSalary) {
       setError('Please fill in all required fields.'); return
     }
-    const emp: Employee = {
-      id: editId || String(Date.now()),
-      employeeCode: form.employeeCode, firstName: form.firstName, lastName: form.lastName,
-      email: form.email, phone: form.phone, department: form.department,
-      position: form.position, hireDate: form.hireDate,
-      employmentStatus: form.employmentStatus,
+    const payload = {
+      ...form,
       baseSalary: parseFloat(form.baseSalary),
       performanceScore: parseFloat(form.performanceScore) || 0,
       skills: form.skills.split(',').map(s => s.trim()).filter(Boolean),
     }
-    if (editId) setEmployees(prev => prev.map(e => e.id === editId ? emp : e))
-    else setEmployees(prev => [emp, ...prev])
-    setShowModal(false)
+    try {
+      if (editId) {
+        const updated = await employeeService.update(editId, payload)
+        setEmployees(prev => prev.map(e => e.id === editId ? { ...e, ...updated, ...payload } : e))
+        toast.success('Employee updated')
+      } else {
+        const created = await employeeService.create(payload)
+        setEmployees(prev => [created, ...prev])
+        toast.success('Employee added')
+      }
+      setShowModal(false)
+    } catch {
+      toast.error('Failed to save employee')
+    }
   }
 
   const stats = [
     { label: 'Total Employees', value: employees.length, color: 'text-santech-600' },
     { label: 'Active', value: employees.filter(e => e.employmentStatus === 'ACTIVE').length, color: 'text-green-600' },
     { label: 'On Leave', value: employees.filter(e => e.employmentStatus === 'ON_LEAVE').length, color: 'text-yellow-600' },
-    { label: 'Avg Performance', value: `${Math.round(employees.reduce((a, e) => a + e.performanceScore, 0) / employees.length)}%`, color: 'text-purple-600' },
+    { label: 'Avg Performance', value: employees.length ? `${Math.round(employees.reduce((a, e) => a + e.performanceScore, 0) / employees.length)}%` : '0%', color: 'text-purple-600' },
   ]
+
+  if (loading) return (
+    <div className="flex items-center justify-center h-64">
+      <Loader2 className="w-8 h-8 animate-spin text-santech-600" />
+    </div>
+  )
 
   return (
     <div className="space-y-5">
@@ -122,6 +136,7 @@ export default function EmployeesPage() {
         </div>
         <div className="flex items-center gap-2">
           {/* View toggle — like Google Drive */}
+
           <div className="flex items-center bg-white border border-gray-200 rounded-lg p-1 gap-0.5">
             <button
               onClick={() => setViewMode('list')}

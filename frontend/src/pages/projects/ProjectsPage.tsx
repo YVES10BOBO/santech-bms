@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Plus, Search, X, Eye, Edit2, CheckCircle2, Clock } from 'lucide-react'
+import { Plus, Search, X, Eye, Edit2, Loader2 } from 'lucide-react'
 import { cn, formatDate, formatCurrency } from '@/lib/utils'
+import { projectService } from '@/lib/services/projectService'
+import toast from 'react-hot-toast'
 
 type ProjectStatus =
   | 'PLANNING'
@@ -16,141 +18,19 @@ type ProjectStatus =
 type Priority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'
 
 interface Project {
-  id: number
+  id: string
   name: string
-  client: string
+  client: { companyName: string } | null
   status: ProjectStatus
   priority: Priority
-  manager: string
+  projectManager: { firstName: string; lastName: string } | null
   budget: number
   progress: number
   startDate: string
   endDate: string
   description: string
-  milestones: string[]
-  contractRef: string
-}
-
-// ─── Mock data ────────────────────────────────────────────────────────────────
-const mockProjects: Project[] = [
-  {
-    id: 1,
-    name: 'SANTRACK Implementation',
-    client: 'East African Seed Ltd',
-    status: 'IN_PROGRESS',
-    priority: 'HIGH',
-    manager: 'Alice Uwimana',
-    budget: 1500000,
-    progress: 70,
-    startDate: '2026-08-01',
-    endDate: '2026-12-31',
-    description: 'Full SANTRACK ERP implementation for inventory and sales tracking.',
-    milestones: [
-      'Requirements gathering - Done',
-      'System setup - Done',
-      'User training - Pending',
-      'Go-live - Pending',
-    ],
-    contractRef: 'CT-2026-003',
-  },
-  {
-    id: 2,
-    name: 'EVS System 90 Employees',
-    client: 'SABBAN ABATTOIR',
-    status: 'PLANNING',
-    priority: 'URGENT',
-    manager: 'Bob Nkurunziza',
-    budget: 12000000,
-    progress: 0,
-    startDate: '2026-11-01',
-    endDate: '2027-04-30',
-    description: 'Enterprise EVS access control for 90 employees.',
-    milestones: [
-      'Site survey - Pending',
-      'Hardware procurement - Pending',
-      'Installation - Pending',
-    ],
-    contractRef: 'CT-2026-004',
-  },
-  {
-    id: 3,
-    name: 'Company Website',
-    client: 'Rwanda Mountain Ride',
-    status: 'COMPLETED',
-    priority: 'MEDIUM',
-    manager: 'Alice Uwimana',
-    budget: 800000,
-    progress: 100,
-    startDate: '2026-07-01',
-    endDate: '2026-09-30',
-    description: 'Corporate website design and development.',
-    milestones: ['Design approved - Done', 'Development - Done', 'Launch - Done'],
-    contractRef: 'CT-2026-002',
-  },
-  {
-    id: 4,
-    name: 'SANTRACK Stock Management',
-    client: 'N&T PLASTIC INDUSTRIES',
-    status: 'IN_PROGRESS',
-    priority: 'HIGH',
-    manager: 'Carol Ingabire',
-    budget: 3000000,
-    progress: 30,
-    startDate: '2026-09-15',
-    endDate: '2027-02-28',
-    description: 'Stock and inventory module deployment.',
-    milestones: [
-      'Discovery - Done',
-      'Configuration - In Progress',
-      'Training - Pending',
-    ],
-    contractRef: 'CT-2026-005',
-  },
-  {
-    id: 5,
-    name: 'EVS Hospital Access Control',
-    client: 'NYARUGENGE HOSPITAL',
-    status: 'NOT_STARTED',
-    priority: 'HIGH',
-    manager: 'Bob Nkurunziza',
-    budget: 15000000,
-    progress: 0,
-    startDate: '2026-12-01',
-    endDate: '2027-06-30',
-    description: 'Biometric access control for all hospital zones.',
-    milestones: [
-      'Contract signing - Pending',
-      'Site survey - Pending',
-      'Hardware - Pending',
-    ],
-    contractRef: 'CT-2026-006',
-  },
-  {
-    id: 6,
-    name: 'Custom Driver Management System',
-    client: 'Capital Transport Agency',
-    status: 'PLANNING',
-    priority: 'MEDIUM',
-    manager: 'Carol Ingabire',
-    budget: 5000000,
-    progress: 0,
-    startDate: '2026-11-15',
-    endDate: '2027-05-31',
-    description: 'Custom web app for driver licensing and trip management.',
-    milestones: ['Requirements - Pending', 'Design - Pending'],
-    contractRef: 'CT-2026-007',
-  },
-]
-
-const PROJECTS_STORAGE_KEY = 'santech_projects_mock_v1'
-
-function readProjects(): Project[] {
-  try {
-    const stored = localStorage.getItem(PROJECTS_STORAGE_KEY)
-    return stored ? JSON.parse(stored) as Project[] : mockProjects
-  } catch {
-    return mockProjects
-  }
+  milestones: { name: string; isCompleted: boolean }[]
+  contractId?: string | null
 }
 
 // ─── Badge helpers ─────────────────────────────────────────────────────────────
@@ -247,12 +127,20 @@ const ROWS_OPTIONS = [5, 10, 20] as const
 export default function ProjectsPage() {
   const location = useLocation()
   const navigate = useNavigate()
-  const [projects, setProjects] = useState<Project[]>(readProjects)
+  const [projects, setProjects] = useState<Project[]>([])
+  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | 'ALL'>('ALL')
   const [priorityFilter, setPriorityFilter] = useState<Priority | 'ALL'>('ALL')
   const [rowsPerPage, setRowsPerPage] = useState<number | 'All'>(10)
   const [page, setPage] = useState(1)
+
+  useEffect(() => {
+    projectService.getAll()
+      .then(res => setProjects(res.data ?? []))
+      .catch(() => toast.error('Failed to load projects'))
+      .finally(() => setLoading(false))
+  }, [])
 
   // Modal state
   const [showAdd, setShowAdd] = useState(false)

@@ -1,9 +1,15 @@
 import { Router } from 'express'
 import { authenticate, authorize } from '../middleware/auth'
+import {
+  getEmployees, getEmployee, createEmployee, updateEmployee
+} from '../controllers/employeesController'
 
 const router = Router()
 router.use(authenticate)
-router.get('/', authorize('SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER'), (_req, res) => {
-  res.json({ success: true, data: [], message: 'Employee module coming soon' })
-})
+
+router.get('/', getEmployees)
+router.get('/:id', getEmployee)
+router.post('/', authorize('SUPER_ADMIN', 'ADMIN'), createEmployee)
+router.put('/:id', authorize('SUPER_ADMIN', 'ADMIN'), updateEmployee)
+
 export default router

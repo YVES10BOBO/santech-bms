@@ -1,6 +1,7 @@
-import { useState } from 'react'
-import { Plus, Search, X, TrendingUp, CheckCircle } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Plus, Search, X, TrendingUp, CheckCircle, Loader2 } from 'lucide-react'
 import { cn, formatCurrency } from '@/lib/utils'
+import { employeeService } from '@/lib/services/employeeService'
 
 interface SalaryRecord {
   id: string
@@ -36,6 +37,7 @@ const scoreBg = (score: number) =>
 
 export default function SalaryPage() {
   const [records, setRecords] = useState<SalaryRecord[]>(mockSalaries)
+  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [deptFilter, setDeptFilter] = useState('All')
   const [paidFilter, setPaidFilter] = useState<'ALL' | 'PAID' | 'UNPAID'>('ALL')
@@ -48,6 +50,54 @@ export default function SalaryPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [bonusForm, setBonusForm] = useState({ type: 'bonus', amount: '', reason: '' })
   const [promoForm, setPromoForm] = useState({ newPosition: '', salaryRaise: '', reason: '' })
+
+  // Load salary data from backend (employees have salary records)
+  useEffect(() => {
+    employeeService.getAll({ limit: '100' })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then((res: any) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const emps: any[] = res.data ?? []
+        const mapped: SalaryRecord[] = emps.flatMap((emp: any) => {
+          if (!emp.salaryRecords?.length) {
+            // No salary record — create one from employee base salary
+            return [{
+              id: emp.id,
+              employeeName: emp.user ? `${emp.user.firstName} ${emp.user.lastName}` : '',
+              department: emp.department ?? '',
+              position: emp.position ?? '',
+              month: monthFilter,
+              year: yearFilter,
+              baseSalary: Number(emp.baseSalary ?? 0),
+              bonuses: 0,
+              deductions: 0,
+              netSalary: Number(emp.baseSalary ?? 0),
+              performanceScore: Number(emp.performanceScore ?? 0),
+              isPaid: false,
+              paidAt: '',
+            }]
+          }
+          return emp.salaryRecords.map((sr: any) => ({
+            id: sr.id,
+            employeeName: emp.user ? `${emp.user.firstName} ${emp.user.lastName}` : '',
+            department: emp.department ?? '',
+            position: emp.position ?? '',
+            month: sr.month,
+            year: sr.year,
+            baseSalary: Number(sr.baseSalary),
+            bonuses: Number(sr.bonuses ?? 0),
+            deductions: Number(sr.deductions ?? 0),
+            netSalary: Number(sr.netSalary),
+            performanceScore: Number(emp.performanceScore ?? 0),
+            isPaid: sr.isPaid ?? false,
+            paidAt: sr.paidAt ? String(sr.paidAt).slice(0, 10) : '',
+          }))
+        })
+        if (mapped.length > 0) setRecords(mapped)
+      })
+      .catch(() => { /* keep mock data */ })
+      .finally(() => setLoading(false))
+  }, [monthFilter, yearFilter])
 
   const filtered = records.filter(r => {
     const matchSearch = !search || r.employeeName.toLowerCase().includes(search.toLowerCase())

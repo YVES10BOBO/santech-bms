@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Plus, Search, X, FileText, Eye, AlertCircle, CheckCircle2, Clock, ThumbsUp, ThumbsDown, FolderPlus, Upload } from 'lucide-react'
+import { Plus, Search, X, FileText, Eye, AlertCircle, CheckCircle2, Clock, ThumbsUp, ThumbsDown, FolderPlus, Upload, Loader2 } from 'lucide-react'
 import { cn, formatDate, formatCurrency } from '@/lib/utils'
+import { contractService } from '@/lib/services/contractService'
 
 type ContractStatus = 'DRAFT' | 'REVIEW' | 'APPROVAL' | 'SIGNING' | 'ACTIVE' | 'RENEWAL' | 'COMPLETED' | 'CANCELLED'
 type SignatureStatus = 'PENDING' | 'SIGNED'
@@ -47,14 +48,6 @@ interface QuotationTransfer {
   items: { description: string; quantity: number }[]
 }
 
-const mockContracts: Contract[] = [
-  { id: '1', contractNumber: 'CT-2026-001', clientName: 'East African Seed Ltd', category: 'Self Employed', projectName: 'SANTRACK Implementation', value: 1500000, currency: 'RWF', startDate: '2026-10-01', endDate: '2026-12-31', paymentTerms: '50% upfront, 50% on delivery', deliverables: 'SANTRACK system installation, staff training, 3 months support', status: 'ACTIVE', responsibleManager: 'Alice Uwimana', signedAt: '2026-09-28', notes: 'First signed contract from field visits.', createdAt: '2026-09-25' },
-  { id: '2', contractNumber: 'CT-2026-002', clientName: 'SABBAN ABATTOIR', category: 'Self Employed', projectName: 'EVS System — 90 Employees', value: 12000000, currency: 'RWF', startDate: '2026-11-01', endDate: '2027-04-30', paymentTerms: '30% on signing, 40% on installation, 30% on handover', deliverables: 'EVS for 90 employees: gate pass, attendance, equipment tracking, visitor management', status: 'SIGNING', responsibleManager: 'Alice Uwimana', signedAt: '', notes: 'HR THEONESTE confirmed. Board approved 12M quote.', createdAt: '2026-10-10' },
-  { id: '3', contractNumber: 'CT-2026-003', clientName: 'N&T PLASTIC INDUSTRIES LTD', category: 'Industry', projectName: 'SANTRACK — Stock Management', value: 3000000, currency: 'RWF', startDate: '2026-10-15', endDate: '2027-01-15', paymentTerms: '100% on delivery', deliverables: 'SANTRACK customized for plastic manufacturing stock management', status: 'REVIEW', responsibleManager: 'Bob Nkurunziza', signedAt: '', notes: 'Negotiated at 3M. Technical review in progress.', createdAt: '2026-10-05' },
-  { id: '4', contractNumber: 'CT-2026-004', clientName: 'ECOBANK', category: 'Institution', projectName: 'EVS + SANHR IMS', value: 8000000, currency: 'RWF', startDate: '2026-12-01', endDate: '2027-06-30', paymentTerms: '25% on signing, 75% on delivery', deliverables: 'EVS system + SANHR IMS integration with bank HR system', status: 'APPROVAL', responsibleManager: 'Alice Uwimana', signedAt: '', notes: 'Proposal sent to akamikazi@ecobank.com. Awaiting CEO approval.', createdAt: '2026-10-08' },
-  { id: '5', contractNumber: 'CT-2025-012', clientName: 'Rwanda Mountain Ride', category: 'Self Employed', projectName: 'Company Website', value: 800000, currency: 'RWF', startDate: '2025-11-01', endDate: '2026-01-31', paymentTerms: '50% upfront, 50% on launch', deliverables: 'Full company website with booking system', status: 'COMPLETED', responsibleManager: 'Bob Nkurunziza', signedAt: '2025-10-28', notes: 'Website live. Client happy.', createdAt: '2025-10-25' },
-  { id: '6', contractNumber: 'CT-2026-005', clientName: 'NYARUGENGE HOSPITAL', category: 'Institution', projectName: 'EVS — Hospital Access Control', value: 15000000, currency: 'RWF', startDate: '2027-01-01', endDate: '2027-09-30', paymentTerms: 'Milestone-based payments', deliverables: 'Full EVS: gate pass, attendance, visitor management for 500+ staff', status: 'DRAFT', responsibleManager: 'Alice Uwimana', signedAt: '', notes: 'Director appointment pending. Draft prepared.', createdAt: '2026-10-11' },
-]
 
 const STATUS_CONFIG: Record<ContractStatus, { label: string; color: string; icon: React.ElementType }> = {
   DRAFT:     { label: 'Draft',     color: 'bg-gray-100 text-gray-600',    icon: FileText },
@@ -81,7 +74,8 @@ const emptyForm = {
 export default function ContractsPage() {
   const location = useLocation()
   const navigate = useNavigate()
-  const [contracts, setContracts] = useState<Contract[]>(mockContracts)
+  const [contracts, setContracts] = useState<Contract[]>([])
+  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<ContractStatus | 'ALL'>('ALL')
   const [showModal, setShowModal] = useState(false)
@@ -92,6 +86,38 @@ export default function ContractsPage() {
   const [signatureError, setSignatureError] = useState('')
   const [rowsPerPage, setRowsPerPage] = useState(5)
   const [page, setPage] = useState(1)
+
+  // ── Load contracts from backend ─────────────────────────────────────────────
+  useEffect(() => {
+    contractService.getAll({ limit: '100' })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then((res: any) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const mapped: Contract[] = (res.data ?? []).map((c: any) => ({
+          id: c.id,
+          contractNumber: c.contractNumber,
+          clientName: c.client?.companyName ?? '',
+          category: c.client?.category ?? '',
+          projectName: c.projectName ?? '',
+          value: Number(c.value),
+          currency: c.currency ?? 'RWF',
+          startDate: c.startDate ? String(c.startDate).slice(0, 10) : '',
+          endDate: c.endDate ? String(c.endDate).slice(0, 10) : '',
+          paymentTerms: c.paymentTerms ?? '',
+          deliverables: c.deliverables ?? '',
+          status: c.status as ContractStatus,
+          responsibleManager: c.responsibleManager
+            ? `${c.responsibleManager.firstName} ${c.responsibleManager.lastName}`
+            : '',
+          signedAt: c.signedAt ? String(c.signedAt).slice(0, 10) : '',
+          notes: c.notes ?? '',
+          createdAt: c.createdAt ? String(c.createdAt).slice(0, 10) : '',
+        }))
+        setContracts(mapped)
+      })
+      .catch((err: unknown) => console.error('Contracts load failed:', err))
+      .finally(() => setLoading(false))
+  }, [])
 
   useEffect(() => {
     const quotation = (location.state as { quotation?: QuotationTransfer } | null)?.quotation
@@ -223,6 +249,15 @@ export default function ContractsPage() {
     { label: 'Pending Signature', value: contracts.filter(c => c.status === 'SIGNING').length, color: 'text-amber-600' },
     { label: 'Active Value', value: formatCurrency(totalValue), color: 'text-blue-600' },
   ]
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-santech-600" />
+        <span className="ml-3 text-gray-500">Loading contracts...</span>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-5">

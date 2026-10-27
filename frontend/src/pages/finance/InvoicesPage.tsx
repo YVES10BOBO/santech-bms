@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Plus, Search, X, AlertCircle, CheckCircle2, Clock, DollarSign } from 'lucide-react'
 import { cn, formatDate, formatCurrency } from '@/lib/utils'
+import { financeService } from '@/lib/services/financeService'
 
 type InvoiceStatus = 'DRAFT' | 'SENT' | 'DUE' | 'PARTIALLY_PAID' | 'PAID' | 'OVERDUE' | 'CANCELLED'
 
@@ -76,6 +77,43 @@ export default function InvoicesPage() {
   const [error, setError] = useState('')
   const [rowsPerPage, setRowsPerPage] = useState(5)
   const [page, setPage] = useState(1)
+
+  // Load invoices from backend, fall back to mock data if unavailable
+  useEffect(() => {
+    financeService.getInvoices()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then((res: any) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const mapped: Invoice[] = (res.data ?? []).map((inv: any) => ({
+          id: inv.id,
+          invoiceNumber: inv.invoiceNumber,
+          clientName: inv.client?.companyName ?? '',
+          contractNumber: inv.contract?.contractNumber ?? '',
+          projectName: inv.project?.name ?? '',
+          amount: Number(inv.amount),
+          taxAmount: Number(inv.taxAmount),
+          totalAmount: Number(inv.totalAmount),
+          paidAmount: Number(inv.paidAmount ?? 0),
+          currency: inv.currency ?? 'RWF',
+          issueDate: inv.issueDate ? String(inv.issueDate).slice(0, 10) : '',
+          dueDate: inv.dueDate ? String(inv.dueDate).slice(0, 10) : '',
+          status: inv.status as InvoiceStatus,
+          notes: inv.notes ?? '',
+          payments: (inv.payments ?? []).map((p: any) => ({
+            id: p.id, invoiceId: inv.id,
+            amount: Number(p.amount),
+            paymentDate: p.paymentDate ? String(p.paymentDate).slice(0, 10) : '',
+            paymentMethod: p.paymentMethod ?? '',
+            reference: p.reference ?? '',
+          })),
+        }))
+        if (mapped.length > 0) {
+          setInvoices(mapped)
+          setPayments(mapped.flatMap(inv => inv.payments ?? []))
+        }
+      })
+      .catch(() => { /* keep mock data on error */ })
+  }, [])
 
   const filtered = invoices.filter(inv => {
     const s = search.toLowerCase()

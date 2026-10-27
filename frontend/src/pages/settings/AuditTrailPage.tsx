@@ -1,7 +1,8 @@
-  import { useState } from 'react'
-import { Search, Filter, Download, Shield, Eye, X } from 'lucide-react'
+  import { useState, useEffect } from 'react'
+import { Search, Filter, Download, Shield, Eye, X, Loader2 } from 'lucide-react'
 import DateRangePicker from '@/components/shared/DateRangePicker'
 import { cn, formatDateTime } from '@/lib/utils'
+import api from '@/lib/api'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type ActionType =
@@ -99,6 +100,7 @@ type RowsOption = 5 | 10 | 20 | 50 | 'All'
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function AuditTrailPage() {
+  const [logs, setLogs] = useState<AuditLog[]>(mockLogs)
   const [search, setSearch] = useState('')
   const [actionFilter, setActionFilter] = useState<ActionType | 'ALL'>('ALL')
   const [entityFilter, setEntityFilter] = useState<EntityType | 'ALL'>('ALL')
@@ -109,12 +111,38 @@ export default function AuditTrailPage() {
   const [page, setPage] = useState(1)
   const [viewLog, setViewLog] = useState<AuditLog | null>(null)
 
+  // Load audit logs from backend
+  useEffect(() => {
+    api.get('/audit-logs?limit=200')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then((res: any) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const mapped: AuditLog[] = (res.data?.data ?? []).map((l: any) => ({
+          id: l.id,
+          user: l.user ? `${l.user.firstName} ${l.user.lastName}` : 'System',
+          userRole: l.user?.role ?? 'ADMIN',
+          action: l.action as ActionType,
+          entity: l.entity as EntityType,
+          entityId: l.entityId ?? '',
+          entityName: l.entityName ?? '',
+          description: l.description ?? '',
+          oldValue: l.oldValue,
+          newValue: l.newValue,
+          ipAddress: l.ipAddress ?? '',
+          device: l.device ?? '',
+          createdAt: l.createdAt,
+        }))
+        if (mapped.length > 0) setLogs(mapped)
+      })
+      .catch(() => { /* keep mock data */ })
+  }, [])
+
   // ── Unique users for filter ────────────────────────────────────────────────
-  const uniqueUsers = Array.from(new Set(mockLogs.map(l => l.user)))
-  const uniqueEntities = Array.from(new Set(mockLogs.map(l => l.entity)))
+  const uniqueUsers = Array.from(new Set(logs.map(l => l.user)))
+  const uniqueEntities = Array.from(new Set(logs.map(l => l.entity)))
 
   // ── Filtering ──────────────────────────────────────────────────────────────
-  const filtered = mockLogs.filter(log => {
+  const filtered = logs.filter(log => {
     const s = search.toLowerCase()
     const matchSearch = !search ||
       log.user.toLowerCase().includes(s) ||

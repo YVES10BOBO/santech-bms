@@ -1,6 +1,7 @@
-import { useState } from 'react'
-import { Plus, Search, X, CheckCircle2, XCircle, Clock } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Plus, Search, X, CheckCircle2, XCircle, Clock, Loader2 } from 'lucide-react'
 import { cn, formatDate, getStatusColor } from '@/lib/utils'
+import { taskService } from '@/lib/services/taskService'
 
 type TaskStatus = 'CREATED' | 'ASSIGNED' | 'IN_PROGRESS' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'COMPLETED'
 type Priority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'
@@ -59,6 +60,7 @@ const emptyForm = {
 
 export default function TasksPage() {
   const [tasks, setTasks] = useState<Task[]>(mockTasks)
+  const [loading, setLoading] = useState(true)
   const [activeView, setActiveView] = useState<'all' | 'my'>('all')
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<TaskStatus | 'ALL'>('ALL')
@@ -74,6 +76,32 @@ export default function TasksPage() {
 
   // Simulate current user as Alice for "My Tasks" view
   const currentUser = 'Alice Uwimana'
+
+  useEffect(() => {
+    taskService.getAll({ limit: '100' })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then((res: any) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const mapped: Task[] = (res.data ?? []).map((t: any) => ({
+          id: t.id,
+          title: t.title,
+          description: t.description ?? '',
+          assignedTo: t.assignedTo ? `${t.assignedTo.firstName} ${t.assignedTo.lastName}` : '',
+          assignedBy: t.assignedBy ? `${t.assignedBy.firstName} ${t.assignedBy.lastName}` : '',
+          priority: t.priority as Priority,
+          startDate: t.startDate ? String(t.startDate).slice(0, 10) : '',
+          deadline: t.deadline ? String(t.deadline).slice(0, 10) : '',
+          periodStart: t.startDate ? String(t.startDate).slice(0, 10) : '',
+          periodEnd: t.deadline ? String(t.deadline).slice(0, 10) : '',
+          status: t.status as TaskStatus,
+          rejectionReason: t.rejectionReason ?? '',
+          completedAt: t.completedAt ? String(t.completedAt).slice(0, 10) : '',
+        }))
+        if (mapped.length > 0) setTasks(mapped)
+      })
+      .catch(() => { /* keep mock data */ })
+      .finally(() => setLoading(false))
+  }, [])
 
   const filtered = tasks.filter(t => {
     const s = search.toLowerCase()

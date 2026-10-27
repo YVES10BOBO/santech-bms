@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { financeService } from '@/lib/services/financeService'
 import {
   TrendingUp,
   TrendingDown,
@@ -326,8 +327,20 @@ function OverviewTab() {
   const [month, setMonth] = useState(10)
   const [year, setYear]   = useState(2026)
 
-  const totalRevenue  = Object.values(plRevenue).reduce((a, b) => a + b, 0)
-  const totalExpenses = Object.values(plExpenses).reduce((a, b) => a + b, 0)
+  // P&L data — fetched from backend, fallback to initial hardcoded values
+  const [totalRevenue, setTotalRevenue]   = useState(Object.values(plRevenue).reduce((a, b) => a + b, 0))
+  const [totalExpenses, setTotalExpenses] = useState(Object.values(plExpenses).reduce((a, b) => a + b, 0))
+
+  useEffect(() => {
+    financeService.getPL(month, year)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then((data: any) => {
+        if (data?.totalRevenue !== undefined) setTotalRevenue(Number(data.totalRevenue))
+        if (data?.totalExpenses !== undefined) setTotalExpenses(Number(data.totalExpenses))
+      })
+      .catch(() => { /* silently keep hardcoded fallback */ })
+  }, [month, year])
+
   const grossProfit   = totalRevenue - totalExpenses
   const netMargin     = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0
 
