@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Plus, Search, X, Eye, Edit2, Loader2 } from 'lucide-react'
+import { Plus, Search, X, Eye, Edit2, Loader2, CheckCircle2, Clock } from 'lucide-react'
 import { cn, formatDate, formatCurrency } from '@/lib/utils'
 import { projectService } from '@/lib/services/projectService'
 import toast from 'react-hot-toast'
