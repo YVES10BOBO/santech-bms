@@ -95,49 +95,41 @@ async function main() {
     }
   })
 
-  // Employee records
-  const [aliceEmp, bobEmp, claireEmp, davidEmp, eveEmp, frankEmp] = await Promise.all([
-    prisma.employee.upsert({
-      where: { employeeCode: 'ST-001' },
-      update: {},
-      create: {
-        userId: aliceUser.id, employeeCode: 'ST-001',
-        department: 'Sales & Marketing', position: 'Sales Executive',
-        hireDate: new Date('2024-03-01'), employmentStatus: 'ACTIVE',
-        baseSalary: 350000, currency: 'RWF', performanceScore: 82,
-        skills: ['CRM', 'Field Sales'],
-      }
-    }),
-    prisma.employee.upsert({
-      where: { employeeCode: 'ST-002' },
-      update: {},
-      create: {
-        userId: bobUser.id, employeeCode: 'ST-002',
-        department: 'IT', position: 'Software Developer',
-        hireDate: new Date('2024-01-15'), employmentStatus: 'ACTIVE',
-        baseSalary: 600000, currency: 'RWF', performanceScore: 91,
-        skills: ['React', 'Node.js', 'PostgreSQL'],
-      }
-    }),
-    prisma.employee.upsert({
-      where: { employeeCode: 'ST-003' },
-      update: {},
-      create: {
-        userId: claireUser.id, employeeCode: 'ST-003',
-        department: 'HR', position: 'HR Manager',
-        hireDate: new Date('2023-09-01'), employmentStatus: 'ACTIVE',
-        baseSalary: 500000, currency: 'RWF', performanceScore: 78,
-        skills: ['HR Management', 'Payroll'],
-      }
-    }),
-    prisma.employee.upsert({
-      where: { employeeCode: 'ST-004' },
-      update: {},
-      create: {
-        userId: davidUser.id, employeeCode: 'ST-004',
-        department: 'Finance', position: 'Accountant',
-        hireDate: new Date('2024-06-01'), employmentStatus: 'ON_LEAVE',
-        baseSalary: 450000, currency: 'RWF', performanceScore: 65,
+  // Employee records — sequential to avoid pgbouncer pool exhaustion
+  const aliceEmp = await prisma.employee.upsert({
+    where: { employeeCode: 'ST-001' },
+    update: {},
+    create: {
+      userId: aliceUser.id, employeeCode: 'ST-001',
+      department: 'Sales & Marketing', position: 'Sales Executive',
+      hireDate: new Date('2024-03-01'), employmentStatus: 'ACTIVE',
+      baseSalary: 350000, currency: 'RWF', performanceScore: 82,
+      skills: ['CRM', 'Field Sales'],
+    }
+  })
+  const bobEmp = await prisma.employee.upsert({
+    where: { employeeCode: 'ST-002' },
+    update: {},
+    create: {
+      userId: bobUser.id, employeeCode: 'ST-002',
+      department: 'IT', position: 'Software Developer',
+      hireDate: new Date('2024-01-15'), employmentStatus: 'ACTIVE',
+      baseSalary: 600000, currency: 'RWF', performanceScore: 91,
+      skills: ['React', 'Node.js', 'PostgreSQL'],
+    }
+  })
+  const claireEmp = await prisma.employee.upsert({
+    where: { employeeCode: 'ST-003' },
+    update: {},
+    create: {
+      userId: claireUser.id, employeeCode: 'ST-003',
+      department: 'HR', position: 'HR Manager',
+      hireDate: new Date('2023-09-01'), employmentStatus: 'ACTIVE',
+      baseSalary: 500000, currency: 'RWF', performanceScore: 78,
+      skills: ['HR Management', 'Payroll'],
+    }
+  })
+  const davidEmp = await prisma.employee.upsert({
         skills: ['Accounting', 'QuickBooks'],
       }
     }),
