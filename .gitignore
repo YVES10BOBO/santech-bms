@@ -14,6 +14,7 @@ backend/node_modules/
 # Temp / debug files
 backend-err.txt
 backend-out.txt
+*.txt
 
 # Agent planning files
 .agents/
