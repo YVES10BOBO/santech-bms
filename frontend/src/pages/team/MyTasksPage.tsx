@@ -1,8 +1,10 @@
-import { useState } from 'react'
-import { CheckCircle2, Clock, AlertCircle, ListTodo } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { CheckCircle2, Clock, AlertCircle, ListTodo, Loader2 } from 'lucide-react'
 import { cn, formatDate, getStatusColor } from '@/lib/utils'
+import { taskService } from '@/lib/services/taskService'
+import toast from 'react-hot-toast'
 
-type TaskStatus = 'CREATED' | 'ASSIGNED' | 'IN_PROGRESS' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'COMPLETED'
+type TaskStatus = 'CREATED' | 'ASSIGNED' | 'IN_PROGRESS' | 'PENDING_APPROVAL' | 'REVIEW' | 'APPROVED' | 'REJECTED' | 'COMPLETED'
 type Priority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'
 
 interface MyTask {
@@ -20,14 +22,6 @@ interface MyTask {
   completedAt: string
 }
 
-const myTasks: MyTask[] = [
-  { id: '1', title: 'Visit GAMICO LTD and present EVS system', description: 'Go to GAMICO LTD, meet with ABEL, HR, IT and Security Manager.', assignedBy: 'Admin', priority: 'HIGH', startDate: '2026-10-12', deadline: '2026-10-15', periodStart: '2026-10-12', periodEnd: '2026-10-15', status: 'IN_PROGRESS', rejectionReason: '', completedAt: '' },
-  { id: '2', title: 'Prepare EVS proposal for Ecobank', description: 'Create 2 detailed project proposals for EVS and SANHR IMS with screenshots.', assignedBy: 'Admin', priority: 'URGENT', startDate: '2026-10-10', deadline: '2026-10-13', periodStart: '2026-10-10', periodEnd: '2026-10-13', status: 'PENDING_APPROVAL', rejectionReason: '', completedAt: '2026-10-12' },
-  { id: '3', title: 'Follow up with QUINCAILLAIRE KEMEC LTD', description: 'Call them on October 15 after they finish paying taxes to discuss REVIXSAN.', assignedBy: 'Admin', priority: 'MEDIUM', startDate: '2026-10-14', deadline: '2026-10-15', periodStart: '2026-10-14', periodEnd: '2026-10-15', status: 'ASSIGNED', rejectionReason: '', completedAt: '' },
-  { id: '4', title: 'Prepare monthly sales report — September 2026', description: 'Compile all field visits, leads and opportunities from September.', assignedBy: 'Admin', priority: 'MEDIUM', startDate: '2026-10-01', deadline: '2026-10-05', periodStart: '2026-10-01', periodEnd: '2026-10-05', status: 'APPROVED', rejectionReason: '', completedAt: '2026-10-04' },
-  { id: '5', title: 'Cold call list — 20 companies from field visit sheet', description: 'Call all companies marked FOLLOW_UP in the field visit Excel sheet.', assignedBy: 'Admin', priority: 'LOW', startDate: '2026-10-07', deadline: '2026-10-10', periodStart: '2026-10-07', periodEnd: '2026-10-10', status: 'REJECTED', rejectionReason: 'Only 8 companies were called. Please complete all 20.', completedAt: '' },
-]
-
 const PRIORITY_COLORS: Record<Priority, string> = {
   LOW: 'bg-gray-100 text-gray-600',
   MEDIUM: 'bg-blue-100 text-blue-700',
@@ -36,26 +30,66 @@ const PRIORITY_COLORS: Record<Priority, string> = {
 }
 
 export default function MyTasksPage() {
-  const [tasks, setTasks] = useState<MyTask[]>(myTasks)
+  const [tasks, setTasks] = useState<MyTask[]>([])
+  const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<TaskStatus | 'ALL'>('ALL')
+
+  useEffect(() => {
+    taskService.getMyTasks()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then((res: any) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const mapped: MyTask[] = (res.data ?? []).map((t: any) => ({
+          id: t.id,
+          title: t.title,
+          description: t.description ?? '',
+          assignedBy: t.assignedBy
+            ? `${t.assignedBy.firstName} ${t.assignedBy.lastName}`
+            : 'Admin',
+          priority: t.priority as Priority,
+          startDate: t.startDate ? String(t.startDate).slice(0, 10) : '',
+          deadline: t.deadline ? String(t.deadline).slice(0, 10) : '',
+          periodStart: t.periodStart ? String(t.periodStart).slice(0, 10) : '',
+          periodEnd: t.periodEnd ? String(t.periodEnd).slice(0, 10) : '',
+          status: t.status as TaskStatus,
+          rejectionReason: t.rejectionReason ?? '',
+          completedAt: t.completedAt ? String(t.completedAt).slice(0, 10) : '',
+        }))
+        setTasks(mapped)
+      })
+      .catch(() => toast.error('Failed to load tasks'))
+      .finally(() => setLoading(false))
+  }, [])
 
   const today = new Date().toISOString().split('T')[0]
 
   const filtered = filter === 'ALL' ? tasks : tasks.filter(t => t.status === filter)
 
-  const markComplete = (id: string) => {
-    setTasks(prev => prev.map(t => t.id === id
-      ? { ...t, status: 'PENDING_APPROVAL', completedAt: today }
-      : t
-    ))
+  const markComplete = async (id: string) => {
+    try {
+      await taskService.markComplete(id)
+      setTasks(prev => prev.map(t => t.id === id
+        ? { ...t, status: 'REVIEW', completedAt: today }
+        : t
+      ))
+      toast.success('Task marked as complete — awaiting approval')
+    } catch {
+      toast.error('Failed to mark task complete')
+    }
   }
 
   const stats = [
     { label: 'Total', value: tasks.length, icon: ListTodo, color: 'text-santech-600', bg: 'bg-santech-50' },
     { label: 'In Progress', value: tasks.filter(t => ['ASSIGNED', 'IN_PROGRESS'].includes(t.status)).length, icon: Clock, color: 'text-yellow-600', bg: 'bg-yellow-50' },
-    { label: 'Pending Approval', value: tasks.filter(t => t.status === 'PENDING_APPROVAL').length, icon: AlertCircle, color: 'text-orange-600', bg: 'bg-orange-50' },
+    { label: 'Pending Approval', value: tasks.filter(t => t.status === 'REVIEW' || t.status === 'PENDING_APPROVAL').length, icon: AlertCircle, color: 'text-orange-600', bg: 'bg-orange-50' },
     { label: 'Completed', value: tasks.filter(t => ['APPROVED', 'COMPLETED'].includes(t.status)).length, icon: CheckCircle2, color: 'text-green-600', bg: 'bg-green-50' },
   ]
+
+  if (loading) return (
+    <div className="flex items-center justify-center h-64">
+      <Loader2 className="w-8 h-8 animate-spin text-santech-600" />
+    </div>
+  )
 
   return (
     <div className="space-y-5">
@@ -85,7 +119,7 @@ export default function MyTasksPage() {
           { value: 'ALL', label: 'All' },
           { value: 'ASSIGNED', label: 'To Do' },
           { value: 'IN_PROGRESS', label: 'In Progress' },
-          { value: 'PENDING_APPROVAL', label: 'Pending Approval' },
+          { value: 'REVIEW', label: 'Pending Approval' },
           { value: 'APPROVED', label: 'Approved' },
           { value: 'REJECTED', label: 'Rejected' },
         ].map(opt => (
@@ -99,7 +133,13 @@ export default function MyTasksPage() {
 
       {/* Task Cards */}
       <div className="space-y-3">
-        {filtered.length === 0 && (
+        {tasks.length === 0 && (
+          <div className="bms-card p-12 text-center text-gray-400">
+            <CheckCircle2 className="w-10 h-10 mx-auto mb-2 opacity-30" />
+            <p>No tasks assigned to you yet.</p>
+          </div>
+        )}
+        {filtered.length === 0 && tasks.length > 0 && (
           <div className="bms-card p-12 text-center text-gray-400">
             <CheckCircle2 className="w-10 h-10 mx-auto mb-2 opacity-30" />
             <p>No tasks in this category.</p>
@@ -116,7 +156,7 @@ export default function MyTasksPage() {
                   <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', getStatusColor(task.status))}>
                     {task.status.replace(/_/g, ' ')}
                   </span>
-                  {task.deadline < today && !['APPROVED', 'COMPLETED', 'PENDING_APPROVAL'].includes(task.status) && (
+                  {task.deadline < today && !['APPROVED', 'COMPLETED', 'REVIEW', 'PENDING_APPROVAL'].includes(task.status) && (
                     <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-red-100 text-red-600">OVERDUE</span>
                   )}
                 </div>
@@ -132,7 +172,7 @@ export default function MyTasksPage() {
 
                 <div className="flex flex-wrap gap-4 mt-3 text-xs text-gray-400">
                   <span>Assigned by: <span className="text-gray-600 font-medium">{task.assignedBy}</span></span>
-                  <span>Deadline: <span className={cn('font-medium', task.deadline < today && !['APPROVED', 'COMPLETED', 'PENDING_APPROVAL'].includes(task.status) ? 'text-red-500' : 'text-gray-600')}>{formatDate(task.deadline)}</span></span>
+                  <span>Deadline: <span className={cn('font-medium', task.deadline < today && !['APPROVED', 'COMPLETED', 'REVIEW', 'PENDING_APPROVAL'].includes(task.status) ? 'text-red-500' : 'text-gray-600')}>{formatDate(task.deadline)}</span></span>
                   {task.periodStart && <span>Period: <span className="text-gray-600">{formatDate(task.periodStart)} – {formatDate(task.periodEnd)}</span></span>}
                   {task.completedAt && <span>Completed: <span className="text-gray-600">{formatDate(task.completedAt)}</span></span>}
                 </div>
@@ -147,7 +187,7 @@ export default function MyTasksPage() {
                     Mark Complete
                   </button>
                 )}
-                {task.status === 'PENDING_APPROVAL' && (
+                {(task.status === 'REVIEW' || task.status === 'PENDING_APPROVAL') && (
                   <span className="flex items-center gap-1 text-xs text-orange-500 font-medium bg-orange-50 px-3 py-2 rounded-lg">
                     <Clock className="w-3.5 h-3.5" /> Awaiting Approval
                   </span>

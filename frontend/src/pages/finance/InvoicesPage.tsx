@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Plus, Search, X, AlertCircle, CheckCircle2, Clock, DollarSign } from 'lucide-react'
 import { cn, formatDate, formatCurrency } from '@/lib/utils'
 import { financeService } from '@/lib/services/financeService'
@@ -20,6 +20,7 @@ interface Invoice {
   dueDate: string
   status: InvoiceStatus
   notes: string
+  payments?: Payment[]
 }
 
 interface Payment {
@@ -387,5 +388,3 @@ export default function InvoicesPage() {
     </div>
   )
 }
-
-import React from 'react'

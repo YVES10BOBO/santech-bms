@@ -63,7 +63,7 @@ export default function SalaryPage() {
             // No salary record — create one from employee base salary
             return [{
               id: emp.id,
-              employeeName: emp.user ? `${emp.user.firstName} ${emp.user.lastName}` : '',
+              employeeName: `${emp.firstName ?? ''} ${emp.lastName ?? ''}`.trim(),
               department: emp.department ?? '',
               position: emp.position ?? '',
               month: monthFilter,
@@ -79,7 +79,7 @@ export default function SalaryPage() {
           }
           return emp.salaryRecords.map((sr: any) => ({
             id: sr.id,
-            employeeName: emp.user ? `${emp.user.firstName} ${emp.user.lastName}` : '',
+            employeeName: `${emp.firstName ?? ''} ${emp.lastName ?? ''}`.trim(),
             department: emp.department ?? '',
             position: emp.position ?? '',
             month: sr.month,
@@ -137,6 +137,12 @@ export default function SalaryPage() {
     }))
     setShowPromoModal(false); setPromoForm({ newPosition: '', salaryRaise: '', reason: '' })
   }
+
+  if (loading) return (
+    <div className="flex items-center justify-center h-64">
+      <Loader2 className="w-8 h-8 animate-spin text-santech-600" />
+    </div>
+  )
 
   return (
     <div className="space-y-5">

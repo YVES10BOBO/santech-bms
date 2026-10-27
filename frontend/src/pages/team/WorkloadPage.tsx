@@ -77,7 +77,8 @@ const emptyAssignForm: AssignTaskForm = {
 }
 
 export default function WorkloadPage() {
-  const [employees, setEmployees] = useState<EmployeeWorkload[]>(mockEmployees)
+  const [employees, setEmployees] = useState<EmployeeWorkload[]>([])
+  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [deptFilter, setDeptFilter] = useState('All')
   const [statusFilter, setStatusFilter] = useState<WorkloadStatus | 'All'>('All')
@@ -85,6 +86,52 @@ export default function WorkloadPage() {
   const [assignTarget, setAssignTarget] = useState<EmployeeWorkload | null>(null)
   const [assignForm, setAssignForm] = useState<AssignTaskForm>(emptyAssignForm)
   const [assignError, setAssignError] = useState('')
+
+  useEffect(() => {
+    Promise.all([
+      employeeService.getAll({ limit: '100' }),
+      taskService.getAll({ limit: '500' }),
+    ])
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then(([empRes, taskRes]: [any, any]) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const emps: any[] = empRes.data ?? []
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const tasks: any[] = taskRes.data ?? []
+        const today = new Date().toISOString().split('T')[0]
+
+        const mapped: EmployeeWorkload[] = emps.map((emp, idx) => {
+          const empTasks = tasks.filter((t: any) => t.assignedTo?.id === emp.id || t.assignedToId === emp.id)
+          const assigned = empTasks.filter((t: any) => t.status === 'ASSIGNED').length
+          const inProgress = empTasks.filter((t: any) => t.status === 'IN_PROGRESS').length
+          const pendingApproval = empTasks.filter((t: any) => t.status === 'REVIEW' || t.status === 'PENDING_APPROVAL').length
+          const overdue = empTasks.filter((t: any) =>
+            t.deadline && String(t.deadline).slice(0, 10) < today &&
+            !['APPROVED', 'COMPLETED', 'REVIEW'].includes(t.status)
+          ).length
+          const totalTasks = empTasks.filter((t: any) =>
+            !['APPROVED', 'COMPLETED'].includes(t.status)
+          ).length
+
+          return {
+            id: emp.id,
+            firstName: emp.firstName,
+            lastName: emp.lastName,
+            position: emp.position,
+            department: emp.department,
+            totalTasks,
+            taskBreakdown: { assigned, inProgress, pendingApproval, overdue },
+            activeProjects: 0,
+            performanceScore: Number(emp.performanceScore ?? 0),
+            status: deriveWorkloadStatus(totalTasks),
+            avatarColor: AVATAR_COLORS[idx % AVATAR_COLORS.length],
+          }
+        })
+        setEmployees(mapped)
+      })
+      .catch(() => toast.error('Failed to load workload data'))
+      .finally(() => setLoading(false))
+  }, [])
 
   const filtered = employees.filter(emp => {
     const s = search.toLowerCase()
@@ -111,25 +158,45 @@ export default function WorkloadPage() {
     setAssignForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
   }
 
-  const handleAssignSubmit = (e: React.FormEvent) => {
+  const handleAssignSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!assignForm.title || !assignForm.deadline) {
       setAssignError('Task title and deadline are required.')
       return
     }
     if (!assignTarget) return
-    setEmployees(prev => prev.map(emp =>
-      emp.id === assignTarget.id
-        ? {
-            ...emp,
-            totalTasks: emp.totalTasks + 1,
-            taskBreakdown: { ...emp.taskBreakdown, assigned: emp.taskBreakdown.assigned + 1 },
-            status: emp.totalTasks + 1 >= 9 ? 'OVERLOADED' : emp.totalTasks + 1 >= 5 ? 'BUSY' : 'AVAILABLE',
-          }
-        : emp
-    ))
-    setAssignTarget(null)
+    try {
+      await taskService.create({
+        title: assignForm.title,
+        description: assignForm.description,
+        assignedToId: assignTarget.id,
+        priority: assignForm.priority,
+        deadline: assignForm.deadline,
+        periodStart: assignForm.periodStart || undefined,
+        periodEnd: assignForm.periodEnd || undefined,
+      })
+      setEmployees(prev => prev.map(emp =>
+        emp.id === assignTarget.id
+          ? {
+              ...emp,
+              totalTasks: emp.totalTasks + 1,
+              taskBreakdown: { ...emp.taskBreakdown, assigned: emp.taskBreakdown.assigned + 1 },
+              status: deriveWorkloadStatus(emp.totalTasks + 1),
+            }
+          : emp
+      ))
+      toast.success('Task assigned successfully')
+      setAssignTarget(null)
+    } catch {
+      setAssignError('Failed to assign task. Please try again.')
+    }
   }
+
+  if (loading) return (
+    <div className="flex items-center justify-center h-64">
+      <Loader2 className="w-8 h-8 animate-spin text-santech-600" />
+    </div>
+  )
 
   return (
     <div className="space-y-5">

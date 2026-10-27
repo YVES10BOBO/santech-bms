@@ -20,17 +20,42 @@ type Priority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'
 interface Project {
   id: string
   name: string
-  client: { companyName: string } | null
+  client: { companyName: string } | string | null
   status: ProjectStatus
   priority: Priority
-  projectManager: { firstName: string; lastName: string } | null
+  projectManager: { firstName: string; lastName: string } | string | null
   budget: number
   progress: number
   startDate: string
   endDate: string
   description: string
-  milestones: { name: string; isCompleted: boolean }[]
+  milestones: ({ name: string; isCompleted: boolean } | string)[]
   contractId?: string | null
+  // legacy local fields (kept for backward compat)
+  contractRef?: string
+}
+
+// ─── Helper functions for API vs legacy data ───────────────────────────────────
+function getClientName(project: Project): string {
+  if (!project.client) return ''
+  if (typeof project.client === 'string') return project.client
+  return project.client.companyName ?? ''
+}
+
+function getManagerName(project: Project): string {
+  const pm = project.projectManager
+  if (!pm) return ''
+  if (typeof pm === 'string') return pm
+  return `${pm.firstName} ${pm.lastName}`
+}
+
+function getMilestones(project: Project): { name: string; isCompleted: boolean }[] {
+  return project.milestones.map(m => {
+    if (typeof m === 'string') {
+      return { name: m.replace(/\s-\s(Pending|In Progress|Done)$/i, '').trim(), isCompleted: /- Done$/i.test(m) }
+    }
+    return m
+  })
 }
 
 // ─── Badge helpers ─────────────────────────────────────────────────────────────
@@ -152,7 +177,7 @@ export default function ProjectsPage() {
   const [viewProject, setViewProject] = useState<Project | null>(null)
 
   useEffect(() => {
-    localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(projects))
+    // No longer writing to localStorage — data comes from API
   }, [projects])
 
   useEffect(() => {
@@ -186,7 +211,7 @@ export default function ProjectsPage() {
     const matchSearch =
       !search ||
       p.name.toLowerCase().includes(s) ||
-      p.client.toLowerCase().includes(s)
+      getClientName(p).toLowerCase().includes(s)
     const matchStatus = statusFilter === 'ALL' || p.status === statusFilter
     const matchPriority = priorityFilter === 'ALL' || p.priority === priorityFilter
     return matchSearch && matchStatus && matchPriority
@@ -225,16 +250,16 @@ export default function ProjectsPage() {
   const openEdit = (p: Project) => {
     setForm({
       name: p.name,
-      client: p.client,
-      manager: p.manager,
+      client: getClientName(p),
+      manager: getManagerName(p),
       budget: String(p.budget),
       startDate: p.startDate,
       endDate: p.endDate,
       priority: p.priority,
       status: p.status,
       description: p.description,
-      contractRef: p.contractRef,
-      milestonePlan: p.milestones.map(milestone => milestone.replace(/\s-\s(Pending|In Progress|Done)$/i, '')).join('\n'),
+      contractRef: p.contractRef ?? '',
+      milestonePlan: getMilestones(p).map(m => m.name).join('\n'),
     })
     setFormErrors({})
     setEditProject(p)
@@ -245,50 +270,39 @@ export default function ProjectsPage() {
     setEditProject(null)
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!validateForm()) return
 
-    if (editProject) {
-      setProjects(prev =>
-        prev.map(p =>
-          p.id === editProject.id
-            ? {
-                ...p,
-                name: form.name,
-                client: form.client,
-                manager: form.manager,
-                budget: Number(form.budget) || 0,
-                startDate: form.startDate,
-                endDate: form.endDate,
-                priority: form.priority,
-                status: form.status,
-                description: form.description,
-                contractRef: form.contractRef,
-                milestones: form.milestonePlan.split('\n').map(item => item.trim()).filter(Boolean).map(item => `${item} - Pending`),
-              }
-            : p,
-        ),
-      )
-    } else {
-      const newProject: Project = {
-        id: Date.now(),
-        name: form.name,
-        client: form.client,
-        status: form.status,
-        priority: form.priority,
-        manager: form.manager,
-        budget: Number(form.budget) || 0,
-        progress: 0,
-        startDate: form.startDate,
-        endDate: form.endDate,
-        description: form.description,
-        milestones: form.milestonePlan.split('\n').map(item => item.trim()).filter(Boolean).map(item => `${item} - Pending`),
-        contractRef: form.contractRef,
-      }
-      setProjects(prev => [newProject, ...prev])
+    const milestonesList = form.milestonePlan
+      .split('\n').map(item => item.trim()).filter(Boolean)
+      .map(name => ({ name, deadline: form.endDate || new Date().toISOString().split('T')[0] }))
+
+    const payload: Record<string, unknown> = {
+      name: form.name,
+      budget: Number(form.budget) || 0,
+      startDate: form.startDate || undefined,
+      endDate: form.endDate || undefined,
+      priority: form.priority,
+      status: form.status,
+      description: form.description || undefined,
+      milestones: milestonesList.length > 0 ? milestonesList : undefined,
     }
-    closeModal()
+
+    try {
+      if (editProject) {
+        const updated = await projectService.update(String(editProject.id), payload)
+        setProjects(prev => prev.map(p => p.id === editProject.id ? { ...p, ...updated } : p))
+        toast.success('Project updated')
+      } else {
+        const created = await projectService.create(payload)
+        setProjects(prev => [created, ...prev])
+        toast.success('Project created')
+      }
+      closeModal()
+    } catch {
+      toast.error('Failed to save project')
+    }
   }
 
   // ── Modal title ────────────────────────────────────────────────────────────
@@ -409,7 +423,7 @@ export default function ProjectsPage() {
                     </td>
                     {/* Client */}
                     <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">
-                      {project.client}
+                      {getClientName(project)}
                     </td>
                     {/* Status */}
                     <td className="px-4 py-3">
@@ -435,7 +449,7 @@ export default function ProjectsPage() {
                     </td>
                     {/* Manager */}
                     <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">
-                      {project.manager}
+                      {getManagerName(project)}
                     </td>
                     {/* Budget */}
                     <td className="px-4 py-3 text-xs text-gray-700 whitespace-nowrap font-medium">
@@ -834,11 +848,11 @@ export default function ProjectsPage() {
               <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-xs">
                 <div>
                   <p className="text-gray-400 font-medium uppercase tracking-wide">Client</p>
-                  <p className="text-gray-700 font-medium mt-0.5">{viewProject.client}</p>
+                  <p className="text-gray-700 font-medium mt-0.5">{getClientName(viewProject)}</p>
                 </div>
                 <div>
                   <p className="text-gray-400 font-medium uppercase tracking-wide">Manager</p>
-                  <p className="text-gray-700 font-medium mt-0.5">{viewProject.manager}</p>
+                  <p className="text-gray-700 font-medium mt-0.5">{getManagerName(viewProject)}</p>
                 </div>
                 <div>
                   <p className="text-gray-400 font-medium uppercase tracking-wide">Budget</p>
@@ -877,25 +891,22 @@ export default function ProjectsPage() {
               )}
 
               {/* Milestones */}
-              {viewProject.milestones.length > 0 && (
+              {getMilestones(viewProject).length > 0 && (
                 <div>
                   <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">
                     Milestones
                   </p>
                   <ul className="space-y-2">
-                    {viewProject.milestones.map((m, i) => {
-                      const done = m.endsWith('- Done')
-                      return (
+                    {getMilestones(viewProject).map((m, i) => (
                         <li key={i} className="flex items-start gap-2 text-sm">
-                          {done ? (
+                          {m.isCompleted ? (
                             <CheckCircle2 className="w-4 h-4 text-green-500 mt-0.5 shrink-0" />
                           ) : (
                             <Clock className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
                           )}
-                          <span className={cn(done ? 'text-gray-600' : 'text-gray-400')}>{m}</span>
+                          <span className={cn(m.isCompleted ? 'text-gray-600' : 'text-gray-400')}>{m.name}</span>
                         </li>
-                      )
-                    })}
+                    ))}
                   </ul>
                 </div>
               )}

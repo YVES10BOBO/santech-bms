@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { Plus, Search, X, CheckCircle2, XCircle, Clock, Loader2 } from 'lucide-react'
 import { cn, formatDate, getStatusColor } from '@/lib/utils'
 import { taskService } from '@/lib/services/taskService'
+import { employeeService } from '@/lib/services/employeeService'
+import toast from 'react-hot-toast'
 
 type TaskStatus = 'CREATED' | 'ASSIGNED' | 'IN_PROGRESS' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'COMPLETED'
 type Priority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'
@@ -20,6 +22,11 @@ interface Task {
   status: TaskStatus
   rejectionReason: string
   completedAt: string
+}
+
+interface EmployeeOption {
+  id: string
+  name: string
 }
 
 const mockTasks: Task[] = [
@@ -51,10 +58,8 @@ const STATUS_OPTIONS: { value: TaskStatus | 'ALL'; label: string }[] = [
   { value: 'COMPLETED', label: 'Completed' },
 ]
 
-const EMPLOYEES = ['Alice Uwimana', 'Bob Nkurunziza', 'Claire Mukamana', 'David Habimana', 'Eve Ingabire', 'Frank Bizimana']
-
 const emptyForm = {
-  title: '', description: '', assignedTo: EMPLOYEES[0], priority: 'MEDIUM' as Priority,
+  title: '', description: '', assignedTo: '', priority: 'MEDIUM' as Priority,
   startDate: '', deadline: '', periodStart: '', periodEnd: '',
 }
 
@@ -73,16 +78,20 @@ export default function TasksPage() {
   const [error, setError] = useState('')
   const [rowsPerPage, setRowsPerPage] = useState(5)
   const [page, setPage] = useState(1)
+  const [employeeOptions, setEmployeeOptions] = useState<EmployeeOption[]>([])
 
   // Simulate current user as Alice for "My Tasks" view
   const currentUser = 'Alice Uwimana'
 
   useEffect(() => {
-    taskService.getAll({ limit: '100' })
+    Promise.all([
+      taskService.getAll({ limit: '100' }),
+      employeeService.getAll({ limit: '100' }),
+    ])
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .then((res: any) => {
+      .then(([taskRes, empRes]: [any, any]) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const mapped: Task[] = (res.data ?? []).map((t: any) => ({
+        const mapped: Task[] = (taskRes.data ?? []).map((t: any) => ({
           id: t.id,
           title: t.title,
           description: t.description ?? '',
@@ -91,13 +100,20 @@ export default function TasksPage() {
           priority: t.priority as Priority,
           startDate: t.startDate ? String(t.startDate).slice(0, 10) : '',
           deadline: t.deadline ? String(t.deadline).slice(0, 10) : '',
-          periodStart: t.startDate ? String(t.startDate).slice(0, 10) : '',
-          periodEnd: t.deadline ? String(t.deadline).slice(0, 10) : '',
+          periodStart: t.periodStart ? String(t.periodStart).slice(0, 10) : '',
+          periodEnd: t.periodEnd ? String(t.periodEnd).slice(0, 10) : '',
           status: t.status as TaskStatus,
           rejectionReason: t.rejectionReason ?? '',
           completedAt: t.completedAt ? String(t.completedAt).slice(0, 10) : '',
         }))
         if (mapped.length > 0) setTasks(mapped)
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const empMapped: EmployeeOption[] = (empRes.data ?? []).map((e: any) => ({
+          id: e.id,
+          name: `${e.firstName} ${e.lastName}`,
+        }))
+        if (empMapped.length > 0) setEmployeeOptions(empMapped)
       })
       .catch(() => { /* keep mock data */ })
       .finally(() => setLoading(false))
@@ -120,30 +136,74 @@ export default function TasksPage() {
     setForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!form.title || !form.deadline || !form.assignedTo) { setError('Title, deadline and assignee are required.'); return }
-    const t: Task = {
-      id: String(Date.now()), ...form,
-      assignedBy: 'Admin', status: 'ASSIGNED',
-      rejectionReason: '', completedAt: '',
+    try {
+      const created = await taskService.create({
+        title: form.title,
+        description: form.description || undefined,
+        assignedToId: form.assignedTo,
+        priority: form.priority,
+        startDate: form.startDate || undefined,
+        deadline: form.deadline,
+        periodStart: form.periodStart || undefined,
+        periodEnd: form.periodEnd || undefined,
+      })
+      const t: Task = {
+        id: created.id,
+        title: created.title,
+        description: created.description ?? '',
+        assignedTo: created.assignedTo
+          ? `${created.assignedTo.firstName} ${created.assignedTo.lastName}`
+          : form.assignedTo,
+        assignedBy: created.assignedBy
+          ? `${created.assignedBy.firstName} ${created.assignedBy.lastName}`
+          : 'Admin',
+        priority: created.priority as Priority,
+        startDate: created.startDate ? String(created.startDate).slice(0, 10) : '',
+        deadline: created.deadline ? String(created.deadline).slice(0, 10) : '',
+        periodStart: created.periodStart ? String(created.periodStart).slice(0, 10) : '',
+        periodEnd: created.periodEnd ? String(created.periodEnd).slice(0, 10) : '',
+        status: created.status as TaskStatus,
+        rejectionReason: created.rejectionReason ?? '',
+        completedAt: created.completedAt ? String(created.completedAt).slice(0, 10) : '',
+      }
+      setTasks(prev => [t, ...prev])
+      setShowModal(false); setForm(emptyForm); setError('')
+      toast.success('Task assigned successfully')
+    } catch {
+      setError('Failed to assign task. Please try again.')
     }
-    setTasks(prev => [t, ...prev])
-    setShowModal(false); setForm(emptyForm); setError('')
   }
 
-  const markComplete = (id: string) => {
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, status: 'PENDING_APPROVAL', completedAt: new Date().toISOString().split('T')[0] } : t))
+  const markComplete = async (id: string) => {
+    try {
+      await taskService.markComplete(id)
+      setTasks(prev => prev.map(t => t.id === id ? { ...t, status: 'PENDING_APPROVAL', completedAt: new Date().toISOString().split('T')[0] } : t))
+    } catch {
+      toast.error('Failed to update task')
+    }
   }
 
-  const approveTask = (id: string) => {
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, status: 'APPROVED' } : t))
+  const approveTask = async (id: string) => {
+    try {
+      await taskService.approve(id)
+      setTasks(prev => prev.map(t => t.id === id ? { ...t, status: 'APPROVED' } : t))
+    } catch {
+      toast.error('Failed to approve task')
+    }
   }
 
-  const rejectTask = () => {
+  const rejectTask = async () => {
     if (!rejectReason.trim()) return
-    setTasks(prev => prev.map(t => t.id === rejectId ? { ...t, status: 'REJECTED', rejectionReason: rejectReason } : t))
-    setRejectId(null); setRejectReason('')
+    try {
+      await taskService.reject(rejectId!, rejectReason)
+      setTasks(prev => prev.map(t => t.id === rejectId ? { ...t, status: 'REJECTED', rejectionReason: rejectReason } : t))
+      setRejectId(null); setRejectReason('')
+    } catch {
+      toast.error('Failed to reject task')
+    }
   }
 
   const stats = [
@@ -204,7 +264,7 @@ export default function TasksPage() {
         {activeView === 'all' && (
           <select value={employeeFilter} onChange={e => { setEmployeeFilter(e.target.value); setPage(1) }} className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500">
             <option value="ALL">All Employees</option>
-            {EMPLOYEES.map(e => <option key={e}>{e}</option>)}
+            {employeeOptions.map(e => <option key={e.id} value={e.name}>{e.name}</option>)}
           </select>
         )}
       </div>
@@ -330,7 +390,8 @@ export default function TasksPage() {
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Assign To *</label>
                   <select name="assignedTo" value={form.assignedTo} onChange={handleChange} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500">
-                    {EMPLOYEES.map(e => <option key={e}>{e}</option>)}
+                    <option value="">Select employee...</option>
+                    {employeeOptions.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
                   </select>
                 </div>
                 <div>
