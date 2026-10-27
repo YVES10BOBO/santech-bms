@@ -3,6 +3,7 @@
 **/.env
 **/.env.*
 !**/.env.example
+!**/frontend/.env.production
 
 # Compiled output — never commit dist
 backend/dist/
