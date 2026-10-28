@@ -2,32 +2,37 @@ import { Router } from 'express'
 import { authenticate, authorize } from '../middleware/auth'
 import {
   getInvoices, getInvoice, createInvoice, updateInvoice, recordPayment,
-  getPL,
+  getIncome, createIncome, getExpenses, createExpense, getPL,
   getOpportunities, createOpportunity, updateOpportunity,
   getContracts, createContract, updateContract,
 } from '../controllers/financeController'
+import { FINANCE, SALES, CONTRACT_VIEWERS } from '../lib/roles'
 
 const router = Router()
 router.use(authenticate)
 
-// ── Invoices
-router.get('/invoices', getInvoices)
-router.get('/invoices/:id', getInvoice)
-router.post('/invoices', authorize('SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER'), createInvoice)
-router.put('/invoices/:id', authorize('SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER'), updateInvoice)
-router.post('/invoices/:id/payment', authorize('SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER'), recordPayment)
+// ── Invoices & payments (finance only)
+router.get('/invoices', authorize(...FINANCE), getInvoices)
+router.get('/invoices/:id', authorize(...FINANCE), getInvoice)
+router.post('/invoices', authorize(...FINANCE), createInvoice)
+router.put('/invoices/:id', authorize(...FINANCE), updateInvoice)
+router.post('/invoices/:id/payment', authorize(...FINANCE), recordPayment)
 
-// ── P&L / Income Statement
-router.get('/pl', getPL)
+// ── Income, expenses, P&L (finance only)
+router.get('/income', authorize(...FINANCE), getIncome)
+router.post('/income', authorize(...FINANCE), createIncome)
+router.get('/expenses', authorize(...FINANCE), getExpenses)
+router.post('/expenses', authorize(...FINANCE), createExpense)
+router.get('/pl', authorize(...FINANCE), getPL)
 
-// ── Opportunities / Sales Pipeline
-router.get('/opportunities', getOpportunities)
-router.post('/opportunities', createOpportunity)
-router.put('/opportunities/:id', updateOpportunity)
+// ── Sales pipeline (sales team + management)
+router.get('/opportunities', authorize(...SALES), getOpportunities)
+router.post('/opportunities', authorize(...SALES), createOpportunity)
+router.put('/opportunities/:id', authorize(...SALES), updateOpportunity)
 
-// ── Contracts
-router.get('/contracts', getContracts)
-router.post('/contracts', authorize('SUPER_ADMIN', 'ADMIN'), createContract)
-router.put('/contracts/:id', authorize('SUPER_ADMIN', 'ADMIN'), updateContract)
+// ── Contracts (approval step is checked inside updateContract)
+router.get('/contracts', authorize(...CONTRACT_VIEWERS), getContracts)
+router.post('/contracts', authorize(...FINANCE, 'SALES_MANAGER'), createContract)
+router.put('/contracts/:id', authorize(...FINANCE, 'SALES_MANAGER'), updateContract)
 
 export default router

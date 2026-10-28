@@ -1,9 +1,12 @@
 import React, { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Plus, Search, X, FileText, Eye, AlertCircle, CheckCircle2, Clock, ThumbsUp, ThumbsDown, FolderPlus, Upload, Loader2 } from 'lucide-react'
+import { Plus, Search, X, FileText, Eye, AlertCircle, CheckCircle2, Clock, ThumbsUp, ThumbsDown, FolderPlus, Upload } from 'lucide-react'
 import { cn, formatDate, formatCurrency } from '@/lib/utils'
 import { contractService } from '@/lib/services/contractService'
+import { useLookups, apiError } from '@/lib/services/lookupService'
+import { useAuthStore } from '@/store/authStore'
 import PageLoader from '@/components/shared/PageLoader'
+import toast from 'react-hot-toast'
 
 type ContractStatus = 'DRAFT' | 'REVIEW' | 'APPROVAL' | 'SIGNING' | 'ACTIVE' | 'RENEWAL' | 'COMPLETED' | 'CANCELLED'
 type SignatureStatus = 'PENDING' | 'SIGNED'
@@ -17,6 +20,8 @@ interface ContractSignatory {
 interface Contract {
   id: string
   contractNumber: string
+  clientId: string
+  responsibleManagerId: string
   clientName: string
   category: string
   projectName: string
@@ -64,12 +69,40 @@ const STATUS_CONFIG: Record<ContractStatus, { label: string; color: string; icon
 const WORKFLOW: ContractStatus[] = ['DRAFT', 'REVIEW', 'APPROVAL', 'SIGNING', 'ACTIVE', 'COMPLETED']
 
 const emptyForm = {
-  contractNumber: '', clientName: '', category: 'Self Employed',
+  contractNumber: '', clientId: '',
   projectName: '', value: '', currency: 'RWF',
   startDate: '', endDate: '', paymentTerms: '',
   deliverables: '',
-  responsibleManager: '', notes: '', sourceQuotationNumber: '',
+  responsibleManagerId: '', notes: '', sourceQuotationNumber: '',
   signatories: '',
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toContract(c: any): Contract {
+  return {
+    id: c.id,
+    contractNumber: c.contractNumber,
+    clientId: c.clientId ?? c.client?.id ?? '',
+    responsibleManagerId: c.responsibleManagerId ?? c.responsibleManager?.id ?? '',
+    clientName: c.client?.companyName ?? '',
+    category: c.client?.category ?? '',
+    projectName: c.projectName ?? '',
+    value: Number(c.value),
+    currency: c.currency ?? 'RWF',
+    startDate: c.startDate ? String(c.startDate).slice(0, 10) : '',
+    endDate: c.endDate ? String(c.endDate).slice(0, 10) : '',
+    paymentTerms: c.paymentTerms ?? '',
+    deliverables: c.deliverables ?? '',
+    status: c.status as ContractStatus,
+    responsibleManager: c.responsibleManager ? `${c.responsibleManager.firstName} ${c.responsibleManager.lastName}` : '',
+    signedAt: c.signedAt ? String(c.signedAt).slice(0, 10) : '',
+    notes: c.notes ?? '',
+    createdAt: c.createdAt ? String(c.createdAt).slice(0, 10) : '',
+    sourceQuotationNumber: c.sourceQuotationNumber ?? undefined,
+    signatories: Array.isArray(c.signatories) ? c.signatories : [],
+    signedDocumentName: c.signedDocumentName ?? undefined,
+    approvalNote: c.approvalNote ?? undefined,
+  }
 }
 
 export default function ContractsPage() {
@@ -85,40 +118,39 @@ export default function ContractsPage() {
   const [viewContract, setViewContract] = useState<Contract | null>(null)
   const [error, setError] = useState('')
   const [signatureError, setSignatureError] = useState('')
+  // Quotation hand-off carries names; match them to real records once lookups load
+  const [pendingQuotation, setPendingQuotation] = useState<{ clientName: string; manager: string } | null>(null)
   const [rowsPerPage, setRowsPerPage] = useState(5)
   const [page, setPage] = useState(1)
+  const [saving, setSaving] = useState(false)
+  const lookups = useLookups()
+  const { user } = useAuthStore()
+  const canApprove = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN'
 
   // ── Load contracts from backend ─────────────────────────────────────────────
   useEffect(() => {
-    contractService.getAll({ limit: '100' })
+    contractService.getAll({ limit: '500' })
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .then((res: any) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const mapped: Contract[] = (res.data ?? []).map((c: any) => ({
-          id: c.id,
-          contractNumber: c.contractNumber,
-          clientName: c.client?.companyName ?? '',
-          category: c.client?.category ?? '',
-          projectName: c.projectName ?? '',
-          value: Number(c.value),
-          currency: c.currency ?? 'RWF',
-          startDate: c.startDate ? String(c.startDate).slice(0, 10) : '',
-          endDate: c.endDate ? String(c.endDate).slice(0, 10) : '',
-          paymentTerms: c.paymentTerms ?? '',
-          deliverables: c.deliverables ?? '',
-          status: c.status as ContractStatus,
-          responsibleManager: c.responsibleManager
-            ? `${c.responsibleManager.firstName} ${c.responsibleManager.lastName}`
-            : '',
-          signedAt: c.signedAt ? String(c.signedAt).slice(0, 10) : '',
-          notes: c.notes ?? '',
-          createdAt: c.createdAt ? String(c.createdAt).slice(0, 10) : '',
-        }))
-        setContracts(mapped)
-      })
-      .catch((err: unknown) => console.error('Contracts load failed:', err))
+      .then((res: any) => setContracts((res.data ?? []).map(toContract)))
+      .catch(err => toast.error(apiError(err, 'Failed to load contracts')))
       .finally(() => setLoading(false))
   }, [])
+
+  /** Saves changes and refreshes the row + side panel. Returns false on failure. */
+  const saveContract = async (id: string, changes: Record<string, unknown>, success: string) => {
+    try {
+      const updated = toContract(await contractService.update(id, changes))
+      setContracts(prev => prev.map(c => c.id === id ? updated : c))
+      setViewContract(prev => prev && prev.id === id ? updated : prev)
+      toast.success(success)
+      return true
+    } catch (err) {
+      const msg = apiError(err, 'Failed to update contract')
+      setSignatureError(msg)
+      toast.error(msg)
+      return false
+    }
+  }
 
   useEffect(() => {
     const quotation = (location.state as { quotation?: QuotationTransfer } | null)?.quotation
@@ -127,21 +159,32 @@ export default function ContractsPage() {
     const deliverables = quotation.items.map(item => `${item.description} x ${item.quantity}`).join('\n')
     setForm({
       ...emptyForm,
-      clientName: quotation.clientName,
+      clientId: '',
       projectName: quotation.linkedDeal || `${quotation.clientName} project`,
       value: String(quotation.totalAmount),
       currency: quotation.currency,
       paymentTerms: quotation.paymentTerms,
       deliverables,
-      responsibleManager: quotation.assignedTo,
+      responsibleManagerId: '',
       notes: quotation.notes,
       sourceQuotationNumber: quotation.quotationNumber,
     })
     setEditId(null)
     setError('')
+    setPendingQuotation({ clientName: quotation.clientName, manager: quotation.assignedTo })
     setShowModal(true)
     navigate(location.pathname, { replace: true, state: null })
   }, [location.pathname, location.state, navigate])
+
+  useEffect(() => {
+    if (!pendingQuotation || !lookups.clients.length) return
+    const norm = (v: string) => v.trim().toLowerCase()
+    const client = lookups.clients.find(c => norm(c.name) === norm(pendingQuotation.clientName))
+    const manager = lookups.users.find(u => norm(u.name) === norm(pendingQuotation.manager))
+    setForm(f => ({ ...f, clientId: f.clientId || client?.id || '', responsibleManagerId: f.responsibleManagerId || manager?.id || '' }))
+    if (!client) setError(`Client "${pendingQuotation.clientName}" is not registered yet — choose it from the list or add it in Customers first.`)
+    setPendingQuotation(null)
+  }, [pendingQuotation, lookups.clients, lookups.users])
 
   const filtered = contracts.filter(c => {
     const s = search.toLowerCase()
@@ -159,35 +202,48 @@ export default function ContractsPage() {
 
   const openAdd = () => { setForm(emptyForm); setEditId(null); setError(''); setShowModal(true) }
   const openEdit = (c: Contract) => {
-    setForm({ contractNumber: c.contractNumber, clientName: c.clientName, category: c.category, projectName: c.projectName, value: String(c.value), currency: c.currency, startDate: c.startDate, endDate: c.endDate, paymentTerms: c.paymentTerms, deliverables: c.deliverables, responsibleManager: c.responsibleManager, notes: c.notes, sourceQuotationNumber: c.sourceQuotationNumber ?? '', signatories: (c.signatories ?? []).map(signatory => signatory.name).join('\n') })
+    setForm({ contractNumber: c.contractNumber, clientId: c.clientId, projectName: c.projectName, value: String(c.value), currency: c.currency, startDate: c.startDate, endDate: c.endDate, paymentTerms: c.paymentTerms, deliverables: c.deliverables, responsibleManagerId: c.responsibleManagerId, notes: c.notes, sourceQuotationNumber: c.sourceQuotationNumber ?? '', signatories: (c.signatories ?? []).map(signatory => signatory.name).join('\n') })
     setEditId(c.id); setError(''); setShowModal(true); setViewContract(null)
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!form.clientName || !form.projectName || !form.value) { setError('Client, project and value are required.'); return }
+    if (!form.clientId || !form.projectName || !form.value) { setError('Client, project and value are required.'); return }
+    if (!form.startDate || !form.endDate) { setError('Start and end dates are required.'); return }
     const existing = editId ? contracts.find(contract => contract.id === editId) : undefined
     const signatories = form.signatories.split('\n').map(name => name.trim()).filter(Boolean).map(name => {
       const previous = existing?.signatories?.find(signatory => signatory.name === name)
       return previous ?? { name, status: 'PENDING' as const }
     })
-    const c: Contract = {
-      id: editId || String(Date.now()),
-      contractNumber: form.contractNumber || `CT-${new Date().getFullYear()}-${String(contracts.length + 1).padStart(3, '0')}`,
-      clientName: form.clientName, category: form.category, projectName: form.projectName,
+    const payload = {
+      contractNumber: form.contractNumber || undefined,
+      clientId: form.clientId, projectName: form.projectName,
       value: parseFloat(form.value), currency: form.currency,
       startDate: form.startDate, endDate: form.endDate,
       paymentTerms: form.paymentTerms, deliverables: form.deliverables,
-      status: existing?.status ?? 'DRAFT', responsibleManager: form.responsibleManager,
-      signedAt: existing?.signedAt ?? '',
-      notes: form.notes, createdAt: new Date().toISOString().split('T')[0],
-      sourceQuotationNumber: form.sourceQuotationNumber,
+      responsibleManagerId: form.responsibleManagerId || null,
+      notes: form.notes, sourceQuotationNumber: form.sourceQuotationNumber || undefined,
       signatories,
-      signedDocumentName: existing?.signedDocumentName,
     }
-    if (editId) setContracts(prev => prev.map(x => x.id === editId ? c : x))
-    else setContracts(prev => [c, ...prev])
-    setShowModal(false)
+    setSaving(true)
+    try {
+      if (editId) {
+        const { contractNumber: _n, sourceQuotationNumber: _q, ...changes } = payload
+        const updated = toContract(await contractService.update(editId, changes))
+        setContracts(prev => prev.map(x => x.id === editId ? updated : x))
+        toast.success('Contract updated')
+      } else {
+        const created = toContract(await contractService.create(payload))
+        setContracts(prev => [created, ...prev])
+        toast.success(`Contract ${created.contractNumber} created`)
+        lookups.reload()
+      }
+      setShowModal(false)
+    } catch (err) {
+      setError(apiError(err, 'Failed to save contract'))
+    } finally {
+      setSaving(false)
+    }
   }
 
   const advanceStatus = (id: string) => {
@@ -196,51 +252,38 @@ export default function ContractsPage() {
     const idx = WORKFLOW.indexOf(contract.status)
     if (idx < 0 || idx >= WORKFLOW.length - 1) return
     const next = WORKFLOW[idx + 1]
+    if (contract.status === 'APPROVAL') { setViewContract(contract); return }
     if (next === 'ACTIVE' && (!contract.signatories?.length || contract.signatories.some(signatory => signatory.status !== 'SIGNED') || !contract.signedDocumentName)) {
       setSignatureError('All signatories must sign and the signed contract document must be attached before activation.')
+      setViewContract(contract)
       return
     }
     setSignatureError('')
-    setContracts(prev => prev.map(item => item.id !== id ? item : {
-      ...item,
-      status: next,
-      signedAt: next === 'ACTIVE' ? new Date().toISOString().split('T')[0] : item.signedAt,
-    }))
+    saveContract(id, { status: next }, `Contract moved to ${STATUS_CONFIG[next].label}`)
   }
 
   const reviewApproval = (id: string, approved: boolean) => {
     const note = window.prompt(approved ? 'Optional approval note:' : 'Reason for requesting changes (required):', '')
     if (note === null || (!approved && !note.trim())) return
-    const update = (contract: Contract): Contract => contract.id === id ? {
-      ...contract,
-      status: approved ? 'SIGNING' : 'REVIEW',
-      approvalNote: note.trim(),
-    } : contract
-    setContracts(prev => prev.map(update))
-    setViewContract(prev => prev ? update(prev) : prev)
+    saveContract(id, { status: approved ? 'SIGNING' : 'REVIEW', approvalNote: note.trim() }, approved ? 'Contract approved for signing' : 'Changes requested')
   }
 
   const markSignatorySigned = (contractId: string, signatoryName: string) => {
+    const contract = contracts.find(c => c.id === contractId)
+    if (!contract) return
     const signedAt = new Date().toISOString().split('T')[0]
-    const update = (contract: Contract): Contract => contract.id !== contractId ? contract : {
-      ...contract,
-      signatories: contract.signatories?.map(signatory => signatory.name === signatoryName
-        ? { ...signatory, status: 'SIGNED', signedAt }
-        : signatory),
-    }
-    setContracts(prev => prev.map(update))
-    setViewContract(prev => prev ? update(prev) : prev)
+    const signatories = (contract.signatories ?? []).map(signatory => signatory.name === signatoryName
+      ? { ...signatory, status: 'SIGNED' as const, signedAt }
+      : signatory)
     setSignatureError('')
+    saveContract(contractId, { signatories }, `${signatoryName} signed`)
   }
 
   const attachSignedDocument = (contractId: string, file?: File) => {
     if (!file) return
-    const update = (contract: Contract): Contract => contract.id === contractId
-      ? { ...contract, signedDocumentName: file.name }
-      : contract
-    setContracts(prev => prev.map(update))
-    setViewContract(prev => prev ? update(prev) : prev)
     setSignatureError('')
+    // Only the file name is stored for now (no file storage service yet)
+    saveContract(contractId, { signedDocumentName: file.name }, 'Signed document attached')
   }
 
   const totalValue = contracts.filter(c => c.status === 'ACTIVE').reduce((s, c) => s + c.value, 0)
@@ -250,15 +293,6 @@ export default function ContractsPage() {
     { label: 'Pending Signature', value: contracts.filter(c => c.status === 'SIGNING').length, color: 'text-amber-600' },
     { label: 'Active Value', value: formatCurrency(totalValue), color: 'text-blue-600' },
   ]
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-santech-600" />
-        <span className="ml-3 text-gray-500">Loading contracts...</span>
-      </div>
-    )
-  }
 
   if (loading) return <PageLoader />
 
@@ -361,7 +395,7 @@ export default function ContractsPage() {
                       <div className="flex gap-2 items-center">
                         <button onClick={() => setViewContract(c)} className="text-xs text-santech-600 hover:underline font-medium">View</button>
                         <button onClick={() => openEdit(c)} className="text-xs text-gray-500 hover:underline font-medium">Edit</button>
-                        {canAdvance && (
+                        {canAdvance && c.status !== 'APPROVAL' && (
                           <button onClick={() => advanceStatus(c.id)} className="text-xs bg-green-50 text-green-600 px-2 py-0.5 rounded-lg hover:bg-green-100 font-medium whitespace-nowrap">
                             → {STATUS_CONFIG[WORKFLOW[idx + 1]].label}
                           </button>
@@ -451,7 +485,10 @@ export default function ContractsPage() {
                   <p className="text-sm text-gray-600 bg-gray-50 rounded-lg p-3">{viewContract.notes}</p>
                 </div>
               )}
-              {viewContract.status === 'APPROVAL' && (
+              {viewContract.status === 'APPROVAL' && !canApprove && (
+                <p className="rounded-lg bg-purple-50 p-3 text-sm text-purple-800">Waiting for management approval.</p>
+              )}
+              {viewContract.status === 'APPROVAL' && canApprove && (
                 <section className="rounded-xl border border-purple-100 bg-purple-50 p-4 space-y-3">
                   <div>
                     <h3 className="text-sm font-semibold text-purple-900">Approval decision</h3>
@@ -472,7 +509,7 @@ export default function ContractsPage() {
                 </section>
               )}
               {viewContract.status === 'ACTIVE' && (
-                <button onClick={() => navigate('/projects', { state: { contract: { contractRef: viewContract.contractNumber, name: viewContract.projectName, client: viewContract.clientName, manager: viewContract.responsibleManager, budget: viewContract.value, startDate: viewContract.startDate, endDate: viewContract.endDate, description: viewContract.deliverables } } })} className="w-full flex items-center justify-center gap-2 rounded-lg bg-santech-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-santech-700"><FolderPlus className="h-4 w-4" />Create project from contract</button>
+                <button onClick={() => navigate('/projects', { state: { contract: { contractId: viewContract.id, clientId: viewContract.clientId, managerId: viewContract.responsibleManagerId, contractRef: viewContract.contractNumber, name: viewContract.projectName, client: viewContract.clientName, manager: viewContract.responsibleManager, budget: viewContract.value, startDate: viewContract.startDate, endDate: viewContract.endDate, description: viewContract.deliverables } } })} className="w-full flex items-center justify-center gap-2 rounded-lg bg-santech-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-santech-700"><FolderPlus className="h-4 w-4" />Create project from contract</button>
               )}
               <div className="flex gap-2 pt-2">
                 <button onClick={() => openEdit(viewContract)} className="flex-1 py-2 border border-santech-200 text-santech-600 rounded-lg text-sm font-medium hover:bg-santech-50">Edit</button>
@@ -512,8 +549,11 @@ export default function ContractsPage() {
                 </div>
               )}
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Client Name *</label>
-                <input name="clientName" value={form.clientName} onChange={handleChange} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500" />
+                <label className="block text-xs font-medium text-gray-700 mb-1">Client *</label>
+                <select name="clientId" value={form.clientId} onChange={handleChange} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500">
+                  <option value="">Select client…</option>
+                  {lookups.clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Project Name *</label>
@@ -526,16 +566,19 @@ export default function ContractsPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Responsible Manager</label>
-                  <input name="responsibleManager" value={form.responsibleManager} onChange={handleChange} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500" />
+                  <select name="responsibleManagerId" value={form.responsibleManagerId} onChange={handleChange} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500">
+                    <option value="">Not assigned</option>
+                    {lookups.users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                  </select>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Start Date</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Start Date *</label>
                   <input name="startDate" type="date" value={form.startDate} onChange={handleChange} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">End Date</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">End Date *</label>
                   <input name="endDate" type="date" value={form.endDate} onChange={handleChange} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500" />
                 </div>
               </div>
@@ -557,7 +600,7 @@ export default function ContractsPage() {
               </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 font-medium">Cancel</button>
-                <button type="submit" className="flex-1 py-2.5 bg-santech-600 text-white rounded-lg text-sm hover:bg-santech-700 font-medium">Save Contract</button>
+                <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-santech-600 text-white rounded-lg text-sm hover:bg-santech-700 font-medium disabled:opacity-50">{saving ? 'Saving…' : 'Save Contract'}</button>
               </div>
             </form>
           </div>

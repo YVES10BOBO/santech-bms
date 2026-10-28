@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { PrismaClient } from '@prisma/client'
 import type { AuthRequest } from '../middleware/auth'
+import { logAudit } from '../lib/audit'
 
 const prisma = new PrismaClient()
 
@@ -46,6 +47,11 @@ export async function login(req: Request, res: Response): Promise<void> {
       where: { id: user.id },
       data: { lastLoginAt: new Date() }
     })
+
+    await logAudit(req as AuthRequest, {
+      action: 'LOGIN', entity: 'Auth', entityId: user.id, entityName: `${user.firstName} ${user.lastName}`,
+      description: 'User logged into the system',
+    }, user.id)
 
     const { password: _, ...userWithoutPassword } = user
 

@@ -60,6 +60,10 @@ import tasksRouter from './routes/tasks'
 import projectsRouter from './routes/projects'
 import financeRouter from './routes/finance'
 import dashboardRouter from './routes/dashboard'
+import salaryRouter from './routes/salary'
+import lookupsRouter from './routes/lookups'
+import prisma from './lib/prisma'
+import { authenticate as authMiddleware, authorize } from './middleware/auth'
 
 app.use('/api/auth', authLimiter, authRouter)
 app.use('/api/clients', clientsRouter)
@@ -71,21 +75,24 @@ app.use('/api/finance', financeRouter)
 app.use('/api/dashboard', dashboardRouter)
 
 // Opportunities and Contracts are served under /api/finance (see routes/finance.ts)
+app.use('/api/salary', salaryRouter)
+app.use('/api/lookups', lookupsRouter)
 
-// Audit logs — inline route (no separate router needed)
-import { PrismaClient } from '@prisma/client'
-import { authenticate as authMiddleware } from './middleware/auth'
-const prisma = new PrismaClient()
-app.get('/api/audit-logs', authMiddleware, async (req: express.Request, res: express.Response) => {
+// Audit logs — read-only, management only
+app.get('/api/audit-logs', authMiddleware, authorize('SUPER_ADMIN', 'ADMIN'), async (req: express.Request, res: express.Response) => {
   try {
-    const limit = Math.min(Number(req.query.limit ?? 100), 500)
-    const logs = await prisma.auditLog.findMany({
-      take: limit,
-      orderBy: { createdAt: 'desc' },
-      include: { user: { select: { id: true, firstName: true, lastName: true, role: true } } }
-    })
-    res.json({ success: true, data: logs, pagination: { total: logs.length } })
-  } catch {
+    const limit = Math.min(Number(req.query.limit ?? 200), 1000)
+    const [logs, total] = await Promise.all([
+      prisma.auditLog.findMany({
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: { user: { select: { id: true, firstName: true, lastName: true, role: true } } },
+      }),
+      prisma.auditLog.count(),
+    ])
+    res.json({ success: true, data: logs, pagination: { total } })
+  } catch (err) {
+    console.error('Audit logs error:', err)
     res.status(500).json({ success: false, message: 'Internal server error' })
   }
 })

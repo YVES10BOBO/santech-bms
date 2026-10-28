@@ -4,6 +4,7 @@ import { cn, formatDate, formatCurrency, getInitials } from '@/lib/utils'
 import { employeeService } from '@/lib/services/employeeService'
 import { taskService } from '@/lib/services/taskService'
 import toast from 'react-hot-toast'
+import { apiError } from '@/lib/services/lookupService'
 import PageLoader from '@/components/shared/PageLoader'
 
 type WorkloadStatus = 'AVAILABLE' | 'BUSY' | 'OVERLOADED'
@@ -18,6 +19,8 @@ interface TaskBreakdown {
 
 interface EmployeeWorkload {
   id: string
+  /** Tasks are linked to the login account (user), not the employee record */
+  userId: string
   firstName: string
   lastName: string
   position: string
@@ -102,7 +105,7 @@ export default function WorkloadPage() {
         const today = new Date().toISOString().split('T')[0]
 
         const mapped: EmployeeWorkload[] = emps.map((emp, idx) => {
-          const empTasks = tasks.filter((t: any) => t.assignedTo?.id === emp.id || t.assignedToId === emp.id)
+          const empTasks = tasks.filter((t: any) => t.assignedTo?.id === emp.userId || t.assignedToId === emp.userId)
           const assigned = empTasks.filter((t: any) => t.status === 'ASSIGNED').length
           const inProgress = empTasks.filter((t: any) => t.status === 'IN_PROGRESS').length
           const pendingApproval = empTasks.filter((t: any) => t.status === 'REVIEW' || t.status === 'PENDING_APPROVAL').length
@@ -116,6 +119,7 @@ export default function WorkloadPage() {
 
           return {
             id: emp.id,
+            userId: emp.userId,
             firstName: emp.firstName,
             lastName: emp.lastName,
             position: emp.position,
@@ -170,7 +174,7 @@ export default function WorkloadPage() {
       await taskService.create({
         title: assignForm.title,
         description: assignForm.description,
-        assignedToId: assignTarget.id,
+        assignedToId: assignTarget.userId,
         priority: assignForm.priority,
         deadline: assignForm.deadline,
         periodStart: assignForm.periodStart || undefined,
@@ -188,8 +192,8 @@ export default function WorkloadPage() {
       ))
       toast.success('Task assigned successfully')
       setAssignTarget(null)
-    } catch {
-      setAssignError('Failed to assign task. Please try again.')
+    } catch (err) {
+      setAssignError(apiError(err, 'Failed to assign task. Please try again.'))
     }
   }
 

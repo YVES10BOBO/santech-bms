@@ -5,6 +5,8 @@ import { taskService } from '@/lib/services/taskService'
 import { employeeService } from '@/lib/services/employeeService'
 import PageLoader from '@/components/shared/PageLoader'
 import toast from 'react-hot-toast'
+import { apiError } from '@/lib/services/lookupService'
+import { useAuthStore } from '@/store/authStore'
 
 type TaskStatus = 'CREATED' | 'ASSIGNED' | 'IN_PROGRESS' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'COMPLETED'
 type Priority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'
@@ -13,6 +15,7 @@ interface Task {
   id: string
   title: string
   description: string
+  assignedToId: string
   assignedTo: string
   assignedBy: string
   priority: Priority
@@ -30,16 +33,26 @@ interface EmployeeOption {
   name: string
 }
 
-const mockTasks: Task[] = [
-  { id: '1', title: 'Visit GAMICO LTD and present EVS system', description: 'Go to GAMICO LTD, meet with ABEL, HR, IT and Security Manager and present the EVS system.', assignedTo: 'Alice Uwimana', assignedBy: 'Admin', priority: 'HIGH', startDate: '2026-10-12', deadline: '2026-10-15', periodStart: '2026-10-12', periodEnd: '2026-10-15', status: 'IN_PROGRESS', rejectionReason: '', completedAt: '' },
-  { id: '2', title: 'Prepare EVS proposal for Ecobank', description: 'Create 2 detailed project proposals for EVS and SANHR IMS with screenshots and pricing.', assignedTo: 'Alice Uwimana', assignedBy: 'Admin', priority: 'URGENT', startDate: '2026-10-10', deadline: '2026-10-13', periodStart: '2026-10-10', periodEnd: '2026-10-13', status: 'PENDING_APPROVAL', rejectionReason: '', completedAt: '2026-10-12' },
-  { id: '3', title: 'Follow up with SABBAN ABATTOIR', description: 'Call HR THEONESTE regarding EVS system quote of 12M and arrange next meeting.', assignedTo: 'Bob Nkurunziza', assignedBy: 'Admin', priority: 'HIGH', startDate: '2026-10-11', deadline: '2026-10-14', periodStart: '2026-10-11', periodEnd: '2026-10-14', status: 'ASSIGNED', rejectionReason: '', completedAt: '' },
-  { id: '4', title: 'Update company website content', description: 'Update the products and services section of the Santech website with new EVS features.', assignedTo: 'Bob Nkurunziza', assignedBy: 'Admin', priority: 'MEDIUM', startDate: '2026-10-08', deadline: '2026-10-12', periodStart: '2026-10-08', periodEnd: '2026-10-12', status: 'APPROVED', rejectionReason: '', completedAt: '2026-10-11' },
-  { id: '5', title: 'Prepare monthly sales report — September 2026', description: 'Compile all field visits, leads and opportunities from September into a management report.', assignedTo: 'Alice Uwimana', assignedBy: 'Admin', priority: 'MEDIUM', startDate: '2026-10-01', deadline: '2026-10-05', periodStart: '2026-10-01', periodEnd: '2026-10-05', status: 'COMPLETED', rejectionReason: '', completedAt: '2026-10-04' },
-  { id: '6', title: 'Database backup and server maintenance', description: 'Perform weekly backup of all client databases and check server health.', assignedTo: 'Frank Bizimana', assignedBy: 'Admin', priority: 'HIGH', startDate: '2026-10-11', deadline: '2026-10-11', periodStart: '2026-10-11', periodEnd: '2026-10-11', status: 'REJECTED', rejectionReason: 'Backup was incomplete — missing the production database. Please redo.', completedAt: '' },
-  { id: '7', title: 'Conduct HR onboarding for new staff', description: 'Onboard 2 new sales staff members — contracts, system access, training.', assignedTo: 'Claire Mukamana', assignedBy: 'Admin', priority: 'MEDIUM', startDate: '2026-10-13', deadline: '2026-10-15', periodStart: '2026-10-13', periodEnd: '2026-10-15', status: 'CREATED', rejectionReason: '', completedAt: '' },
-  { id: '8', title: 'Prepare salary slips for October 2026', description: 'Generate and review salary slips for all employees for October 2026.', assignedTo: 'David Habimana', assignedBy: 'Admin', priority: 'HIGH', startDate: '2026-10-28', deadline: '2026-10-31', periodStart: '2026-10-28', periodEnd: '2026-10-31', status: 'CREATED', rejectionReason: '', completedAt: '' },
-]
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toTask(t: any): Task {
+  return {
+    id: t.id,
+    title: t.title,
+    description: t.description ?? '',
+    assignedToId: t.assignedTo?.id ?? t.assignedToId ?? '',
+    assignedTo: t.assignedTo ? `${t.assignedTo.firstName} ${t.assignedTo.lastName}` : '',
+    assignedBy: t.assignedBy ? `${t.assignedBy.firstName} ${t.assignedBy.lastName}` : '',
+    priority: t.priority as Priority,
+    startDate: t.startDate ? String(t.startDate).slice(0, 10) : '',
+    deadline: t.deadline ? String(t.deadline).slice(0, 10) : '',
+    periodStart: t.periodStart ? String(t.periodStart).slice(0, 10) : '',
+    periodEnd: t.periodEnd ? String(t.periodEnd).slice(0, 10) : '',
+    // Older records used REVIEW for "waiting for approval"
+    status: (t.status === 'REVIEW' ? 'PENDING_APPROVAL' : t.status) as TaskStatus,
+    rejectionReason: t.rejectionReason ?? '',
+    completedAt: t.completedAt ? String(t.completedAt).slice(0, 10) : '',
+  }
+}
 
 const PRIORITY_COLORS: Record<Priority, string> = {
   LOW: 'bg-gray-100 text-gray-600',
@@ -65,7 +78,7 @@ const emptyForm = {
 }
 
 export default function TasksPage() {
-  const [tasks, setTasks] = useState<Task[]>(mockTasks)
+  const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [activeView, setActiveView] = useState<'all' | 'my'>('all')
   const [search, setSearch] = useState('')
@@ -81,8 +94,8 @@ export default function TasksPage() {
   const [page, setPage] = useState(1)
   const [employeeOptions, setEmployeeOptions] = useState<EmployeeOption[]>([])
 
-  // Simulate current user as Alice for "My Tasks" view
-  const currentUser = 'Alice Uwimana'
+  const { user } = useAuthStore()
+  const currentUserId = user?.id ?? ''
 
   useEffect(() => {
     Promise.all([
@@ -92,31 +105,16 @@ export default function TasksPage() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .then(([taskRes, empRes]: [any, any]) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const mapped: Task[] = (taskRes.data ?? []).map((t: any) => ({
-          id: t.id,
-          title: t.title,
-          description: t.description ?? '',
-          assignedTo: t.assignedTo ? `${t.assignedTo.firstName} ${t.assignedTo.lastName}` : '',
-          assignedBy: t.assignedBy ? `${t.assignedBy.firstName} ${t.assignedBy.lastName}` : '',
-          priority: t.priority as Priority,
-          startDate: t.startDate ? String(t.startDate).slice(0, 10) : '',
-          deadline: t.deadline ? String(t.deadline).slice(0, 10) : '',
-          periodStart: t.periodStart ? String(t.periodStart).slice(0, 10) : '',
-          periodEnd: t.periodEnd ? String(t.periodEnd).slice(0, 10) : '',
-          status: t.status as TaskStatus,
-          rejectionReason: t.rejectionReason ?? '',
-          completedAt: t.completedAt ? String(t.completedAt).slice(0, 10) : '',
-        }))
-        if (mapped.length > 0) setTasks(mapped)
+        setTasks((taskRes.data ?? []).map(toTask))
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const empMapped: EmployeeOption[] = (empRes.data ?? []).map((e: any) => ({
-          id: e.id,
+          id: e.userId,
           name: `${e.firstName} ${e.lastName}`,
         }))
         if (empMapped.length > 0) setEmployeeOptions(empMapped)
       })
-      .catch(() => { /* keep mock data */ })
+      .catch(err => toast.error(apiError(err, 'Failed to load tasks')))
       .finally(() => setLoading(false))
   }, [])
 
@@ -126,7 +124,7 @@ export default function TasksPage() {
     const matchStatus = statusFilter === 'ALL' || t.status === statusFilter
     const matchPriority = priorityFilter === 'ALL' || t.priority === priorityFilter
     const matchEmployee = employeeFilter === 'ALL' || t.assignedTo === employeeFilter
-    const matchView = activeView === 'all' || t.assignedTo === currentUser
+    const matchView = activeView === 'all' || t.assignedToId === currentUserId
     return matchSearch && matchStatus && matchPriority && matchEmployee && matchView
   })
 
@@ -151,59 +149,44 @@ export default function TasksPage() {
         periodStart: form.periodStart || undefined,
         periodEnd: form.periodEnd || undefined,
       })
-      const t: Task = {
-        id: created.id,
-        title: created.title,
-        description: created.description ?? '',
-        assignedTo: created.assignedTo
-          ? `${created.assignedTo.firstName} ${created.assignedTo.lastName}`
-          : form.assignedTo,
-        assignedBy: created.assignedBy
-          ? `${created.assignedBy.firstName} ${created.assignedBy.lastName}`
-          : 'Admin',
-        priority: created.priority as Priority,
-        startDate: created.startDate ? String(created.startDate).slice(0, 10) : '',
-        deadline: created.deadline ? String(created.deadline).slice(0, 10) : '',
-        periodStart: created.periodStart ? String(created.periodStart).slice(0, 10) : '',
-        periodEnd: created.periodEnd ? String(created.periodEnd).slice(0, 10) : '',
-        status: created.status as TaskStatus,
-        rejectionReason: created.rejectionReason ?? '',
-        completedAt: created.completedAt ? String(created.completedAt).slice(0, 10) : '',
-      }
+      const t = toTask(created)
       setTasks(prev => [t, ...prev])
       setShowModal(false); setForm(emptyForm); setError('')
       toast.success('Task assigned successfully')
-    } catch {
-      setError('Failed to assign task. Please try again.')
+    } catch (err) {
+      setError(apiError(err, 'Failed to assign task. Please try again.'))
     }
   }
 
   const markComplete = async (id: string) => {
     try {
-      await taskService.markComplete(id)
-      setTasks(prev => prev.map(t => t.id === id ? { ...t, status: 'PENDING_APPROVAL', completedAt: new Date().toISOString().split('T')[0] } : t))
-    } catch {
-      toast.error('Failed to update task')
+      const saved = toTask(await taskService.markComplete(id))
+      setTasks(prev => prev.map(t => t.id === id ? saved : t))
+      toast.success('Sent for approval')
+    } catch (err) {
+      toast.error(apiError(err, 'Failed to update task'))
     }
   }
 
   const approveTask = async (id: string) => {
     try {
-      await taskService.approve(id)
-      setTasks(prev => prev.map(t => t.id === id ? { ...t, status: 'APPROVED' } : t))
-    } catch {
-      toast.error('Failed to approve task')
+      const saved = toTask(await taskService.approve(id))
+      setTasks(prev => prev.map(t => t.id === id ? saved : t))
+      toast.success('Task approved — performance score updated')
+    } catch (err) {
+      toast.error(apiError(err, 'Failed to approve task'))
     }
   }
 
   const rejectTask = async () => {
     if (!rejectReason.trim()) return
     try {
-      await taskService.reject(rejectId!, rejectReason)
-      setTasks(prev => prev.map(t => t.id === rejectId ? { ...t, status: 'REJECTED', rejectionReason: rejectReason } : t))
+      const saved = toTask(await taskService.reject(rejectId!, rejectReason))
+      setTasks(prev => prev.map(t => t.id === rejectId ? saved : t))
       setRejectId(null); setRejectReason('')
-    } catch {
-      toast.error('Failed to reject task')
+      toast.success('Task rejected')
+    } catch (err) {
+      toast.error(apiError(err, 'Failed to reject task'))
     }
   }
 
@@ -315,7 +298,7 @@ export default function TasksPage() {
                   <td className="px-4 py-3">
                     <div className="flex gap-1.5 flex-wrap">
                       {/* Employee: mark complete */}
-                      {task.assignedTo === currentUser && ['ASSIGNED', 'IN_PROGRESS'].includes(task.status) && (
+                      {task.assignedToId === currentUserId && ['ASSIGNED', 'IN_PROGRESS'].includes(task.status) && (
                         <button onClick={() => markComplete(task.id)} className="flex items-center gap-1 text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded-lg hover:bg-blue-100 transition-colors font-medium">
                           <CheckCircle2 className="w-3 h-3" /> Complete
                         </button>

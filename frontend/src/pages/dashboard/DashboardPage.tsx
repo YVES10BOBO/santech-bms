@@ -11,39 +11,20 @@ import {
 import { cn, formatCurrency } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
 import type { DashboardKPIs } from '@/types'
-import { dashboardService } from '@/lib/services/dashboardService'
+import { dashboardService, type DashboardCharts } from '@/lib/services/dashboardService'
 import { fieldVisitService } from '@/lib/services/fieldVisitService'
 import PageLoader from '@/components/shared/PageLoader'
 
-// TODO: wire to aggregation endpoints (follow-up slice — not in scope now)
-const revenueData = [
-  { month: 'Apr', revenue: 3200000, expenses: 1100000 },
-  { month: 'May', revenue: 2800000, expenses: 980000 },
-  { month: 'Jun', revenue: 4100000, expenses: 1300000 },
-  { month: 'Jul', revenue: 3600000, expenses: 1200000 },
-  { month: 'Aug', revenue: 4800000, expenses: 1500000 },
-  { month: 'Sep', revenue: 5200000, expenses: 1700000 },
-  { month: 'Oct', revenue: 4900000, expenses: 1420000 },
-]
+const PIPELINE_COLORS: Record<string, string> = {
+  'New Lead': '#94a3b8', Contacted: '#60a5fa', Qualified: '#a78bfa', Requirements: '#c084fc',
+  Proposal: '#f59e0b', Negotiation: '#fb923c', Won: '#34d399',
+}
+const SERVICE_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#64748b']
 
-// TODO: wire to aggregation endpoints (follow-up slice — not in scope now)
-const pipelineData = [
-  { stage: 'New Lead', count: 32, color: '#94a3b8' },
-  { stage: 'Contacted', count: 24, color: '#60a5fa' },
-  { stage: 'Qualified', count: 16, color: '#a78bfa' },
-  { stage: 'Proposal', count: 10, color: '#f59e0b' },
-  { stage: 'Negotiation', count: 5, color: '#fb923c' },
-  { stage: 'Won', count: 3, color: '#34d399' },
-]
-
-// TODO: wire to aggregation endpoints (follow-up slice — not in scope now)
-const serviceRevenueData = [
-  { name: 'EVS', value: 8500000, color: '#3b82f6' },
-  { name: 'SANTRACK', value: 5200000, color: '#10b981' },
-  { name: 'Websites', value: 4100000, color: '#f59e0b' },
-  { name: 'REVIXSAN', value: 3800000, color: '#8b5cf6' },
-  { name: 'Training', value: 2900000, color: '#ec4899' },
-]
+function greeting() {
+  const h = new Date().getHours()
+  return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'
+}
 
 const statusColors: Record<string, string> = {
   FOLLOW_UP: 'bg-blue-100 text-blue-700',
@@ -113,6 +94,22 @@ export default function DashboardPage() {
   }, [])
 
   const [recentVisits, setRecentVisits] = useState<RecentVisitRow[]>([])
+  const [charts, setCharts] = useState<DashboardCharts | null>(null)
+
+  useEffect(() => {
+    dashboardService.getCharts()
+      .then(res => setCharts(res.data))
+      .catch((err: unknown) => console.error('Dashboard charts fetch failed:', err))
+  }, [])
+
+  const revenueData = charts?.revenueVsExpenses ?? []
+  const pipelineData = (charts?.pipeline ?? []).map(p => ({ ...p, color: PIPELINE_COLORS[p.stage] ?? '#94a3b8' }))
+  const serviceRevenueData = (charts?.revenueByService ?? []).slice(0, 6).map((s, i) => ({ ...s, color: SERVICE_COLORS[i % SERVICE_COLORS.length] }))
+  const last = revenueData[revenueData.length - 1]
+  const prev = revenueData[revenueData.length - 2]
+  const growth = last && prev && prev.revenue > 0 ? Math.round(((last.revenue - prev.revenue) / prev.revenue) * 100) : null
+  const chartRange = revenueData.length ? `${revenueData[0].month} ${revenueData[0].year} — ${last.month} ${last.year}` : ''
+  const todayLabel = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 
   useEffect(() => {
     fieldVisitService.getAll({ limit: 5 })
@@ -137,10 +134,10 @@ export default function DashboardPage() {
       {/* Page header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-800">
-          Good morning, {user?.firstName} 👋
+          {greeting()}, {user?.firstName} 👋
         </h1>
         <p className="text-gray-500 text-sm mt-1">
-          Here's what's happening at Santech today — Sunday, 11 October 2026
+          Here's what's happening at Santech today — {todayLabel}
         </p>
       </div>
 
@@ -153,7 +150,6 @@ export default function DashboardPage() {
           icon={Users}
           iconBg="bg-blue-50"
           iconColor="text-blue-600"
-          trend={8}
         />
         <KPICard
           title="New This Month"
@@ -162,7 +158,6 @@ export default function DashboardPage() {
           icon={Target}
           iconBg="bg-purple-50"
           iconColor="text-purple-600"
-          trend={15}
         />
         <KPICard
           title="Active Leads"
@@ -171,7 +166,6 @@ export default function DashboardPage() {
           icon={TrendingUp}
           iconBg="bg-amber-50"
           iconColor="text-amber-600"
-          trend={5}
         />
         <KPICard
           title="Active Projects"
@@ -188,11 +182,10 @@ export default function DashboardPage() {
         <KPICard
           title="Total Revenue"
           value={formatRWF(kpiData?.totalRevenue ?? 0)}
-          subtitle="this fiscal year"
+          subtitle="this year"
           icon={DollarSign}
           iconBg="bg-green-50"
           iconColor="text-green-600"
-          trend={12}
         />
         <KPICard
           title="Net Income"
@@ -201,7 +194,6 @@ export default function DashboardPage() {
           icon={BarChart3}
           iconBg="bg-teal-50"
           iconColor="text-teal-600"
-          trend={9}
         />
         <KPICard
           title="Pending Invoices"
@@ -228,11 +220,13 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="font-semibold text-gray-800">Revenue vs Expenses</h3>
-              <p className="text-xs text-gray-400">April — October 2026</p>
+              <p className="text-xs text-gray-400">{chartRange}</p>
             </div>
-            <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
-              +12% growth
-            </span>
+            {growth !== null && (
+              <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', growth >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600')}>
+                {growth >= 0 ? '+' : ''}{growth}% vs last month
+              </span>
+            )}
           </div>
           <ResponsiveContainer width="100%" height={200}>
             <AreaChart data={revenueData}>
@@ -276,6 +270,7 @@ export default function DashboardPage() {
             </PieChart>
           </ResponsiveContainer>
           <div className="space-y-1.5 mt-2">
+            {serviceRevenueData.length === 0 && <p className="text-xs text-gray-400">No income recorded this year yet.</p>}
             {serviceRevenueData.map((item) => (
               <div key={item.name} className="flex items-center justify-between text-xs">
                 <div className="flex items-center gap-1.5">
@@ -368,7 +363,7 @@ export default function DashboardPage() {
         {/* Quick stats */}
         <div className="lg:col-span-2 bg-gradient-to-br from-santech-800 to-santech-600 rounded-xl p-5 text-white shadow-sm">
           <h3 className="font-semibold mb-1">Business Performance Summary</h3>
-          <p className="text-santech-200 text-xs mb-5">October 2026 — Year to date</p>
+          <p className="text-santech-200 text-xs mb-5">{new Date().getFullYear()} — Year to date</p>
           <div className="grid grid-cols-3 gap-4">
             {[
               { label: 'Revenue', value: formatRWF(kpiData?.totalRevenue ?? 0), sub: 'total income' },

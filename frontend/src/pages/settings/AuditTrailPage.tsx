@@ -1,8 +1,11 @@
-  import { useState, useEffect } from 'react'
-import { Search, Filter, Download, Shield, Eye, X, Loader2 } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Search, Filter, Download, Shield, Eye, X } from 'lucide-react'
 import DateRangePicker from '@/components/shared/DateRangePicker'
 import { cn, formatDateTime } from '@/lib/utils'
 import api from '@/lib/api'
+import { apiError } from '@/lib/services/lookupService'
+import PageLoader from '@/components/shared/PageLoader'
+import toast from 'react-hot-toast'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type ActionType =
@@ -49,30 +52,6 @@ interface AuditLog {
   createdAt: string
 }
 
-// ─── Mock Data ────────────────────────────────────────────────────────────────
-const mockLogs: AuditLog[] = [
-  { id: '1', user: 'System Admin', userRole: 'SUPER_ADMIN', action: 'LOGIN', entity: 'Auth', entityId: 'u1', entityName: 'System Admin', description: 'User logged into the system', ipAddress: '192.168.1.10', device: 'Chrome / Windows', createdAt: '2026-10-11T08:00:00Z' },
-  { id: '2', user: 'System Admin', userRole: 'SUPER_ADMIN', action: 'CREATE', entity: 'User', entityId: 'u5', entityName: 'Bob Nkurunziza', description: 'Created new user account for Bob Nkurunziza as Employee', newValue: { email: 'bob@santech.rw', role: 'EMPLOYEE', department: 'IT' }, ipAddress: '192.168.1.10', device: 'Chrome / Windows', createdAt: '2026-10-11T08:05:00Z' },
-  { id: '3', user: 'HR Manager', userRole: 'ADMIN', action: 'UPDATE', entity: 'Employee', entityId: 'e2', entityName: 'Alice Uwimana', description: 'Updated base salary for Alice Uwimana', oldValue: { baseSalary: 300000 }, newValue: { baseSalary: 350000 }, ipAddress: '192.168.1.11', device: 'Firefox / Windows', createdAt: '2026-10-11T08:30:00Z' },
-  { id: '4', user: 'Alice Uwimana', userRole: 'SALES_STAFF', action: 'CREATE', entity: 'FieldVisit', entityId: 'fv10', entityName: 'GAMICO LTD', description: 'Recorded new field visit to GAMICO LTD', newValue: { company: 'GAMICO LTD', product: 'EVS', outcome: 'FOLLOW_UP' }, ipAddress: '192.168.1.12', device: 'Chrome / Android', createdAt: '2026-10-11T09:00:00Z' },
-  { id: '5', user: 'Alice Uwimana', userRole: 'SALES_STAFF', action: 'CREATE', entity: 'Lead', entityId: 'l11', entityName: 'MARRIOTT INTERNATIONAL', description: 'Added new lead — MARRIOTT INTERNATIONAL interested in EVS', newValue: { status: 'NEW', interestedIn: 'EVS', estimatedValue: 25000000 }, ipAddress: '192.168.1.12', device: 'Chrome / Android', createdAt: '2026-10-11T09:15:00Z' },
-  { id: '6', user: 'System Admin', userRole: 'SUPER_ADMIN', action: 'APPROVE', entity: 'Task', entityId: 't2', entityName: 'Prepare EVS proposal for Ecobank', description: 'Approved task completion by Alice Uwimana', oldValue: { status: 'PENDING_APPROVAL' }, newValue: { status: 'APPROVED' }, ipAddress: '192.168.1.10', device: 'Chrome / Windows', createdAt: '2026-10-11T09:45:00Z' },
-  { id: '7', user: 'HR Manager', userRole: 'ADMIN', action: 'STATUS_CHANGE', entity: 'Contract', entityId: 'ct2', entityName: 'CT-2026-002 — SABBAN ABATTOIR', description: 'Advanced contract status from APPROVAL to SIGNING', oldValue: { status: 'APPROVAL' }, newValue: { status: 'SIGNING' }, ipAddress: '192.168.1.11', device: 'Firefox / Windows', createdAt: '2026-10-11T10:00:00Z' },
-  { id: '8', user: 'HR Manager', userRole: 'ADMIN', action: 'PAYMENT', entity: 'Invoice', entityId: 'inv4', entityName: 'INV-2026-004 — N&T PLASTIC', description: 'Recorded payment of RWF 1,500,000 for invoice INV-2026-004', newValue: { amount: 1500000, method: 'Bank Transfer', reference: 'BNK-2026-1045' }, ipAddress: '192.168.1.11', device: 'Firefox / Windows', createdAt: '2026-10-11T10:30:00Z' },
-  { id: '9', user: 'System Admin', userRole: 'SUPER_ADMIN', action: 'UPDATE', entity: 'Salary', entityId: 's3', entityName: 'Claire Mukamana — October 2026', description: 'Added bonus of RWF 30,000 to Claire Mukamana salary', oldValue: { bonuses: 0, netSalary: 490000 }, newValue: { bonuses: 30000, netSalary: 520000 }, ipAddress: '192.168.1.10', device: 'Chrome / Windows', createdAt: '2026-10-11T11:00:00Z' },
-  { id: '10', user: 'Alice Uwimana', userRole: 'SALES_STAFF', action: 'STATUS_CHANGE', entity: 'Lead', entityId: 'l2', entityName: 'SABAN Ltd Abattoir', description: 'Advanced lead status from CONTACTED to QUALIFIED', oldValue: { status: 'CONTACTED' }, newValue: { status: 'QUALIFIED' }, ipAddress: '192.168.1.12', device: 'Chrome / Android', createdAt: '2026-10-11T11:30:00Z' },
-  { id: '11', user: 'System Admin', userRole: 'SUPER_ADMIN', action: 'REJECT', entity: 'Task', entityId: 't6', entityName: 'Database backup and server maintenance', description: 'Rejected task — backup was incomplete. Missing production database.', oldValue: { status: 'PENDING_APPROVAL' }, newValue: { status: 'REJECTED', reason: 'Backup was incomplete — missing the production database.' }, ipAddress: '192.168.1.10', device: 'Chrome / Windows', createdAt: '2026-10-11T12:00:00Z' },
-  { id: '12', user: 'Alice Uwimana', userRole: 'SALES_STAFF', action: 'CREATE', entity: 'Quotation', entityId: 'qt5', entityName: 'QT-2026-005 — N&T PLASTIC', description: 'Created quotation for N&T PLASTIC INDUSTRIES — SANTRACK 3M RWF', newValue: { totalAmount: 3000000, status: 'DRAFT' }, ipAddress: '192.168.1.12', device: 'Chrome / Windows', createdAt: '2026-10-11T13:00:00Z' },
-  { id: '13', user: 'HR Manager', userRole: 'ADMIN', action: 'UPDATE', entity: 'Employee', entityId: 'e4', entityName: 'David Habimana', description: 'Updated employment status for David Habimana', oldValue: { employmentStatus: 'ACTIVE' }, newValue: { employmentStatus: 'ON_LEAVE' }, ipAddress: '192.168.1.11', device: 'Firefox / Windows', createdAt: '2026-10-11T13:30:00Z' },
-  { id: '14', user: 'System Admin', userRole: 'SUPER_ADMIN', action: 'CREATE', entity: 'Project', entityId: 'p6', entityName: 'Custom Driver Management System', description: 'Created new project for Capital Transport Agency', newValue: { client: 'Capital Transport Agency', budget: 5000000, status: 'PLANNING' }, ipAddress: '192.168.1.10', device: 'Chrome / Windows', createdAt: '2026-10-11T14:00:00Z' },
-  { id: '15', user: 'HR Manager', userRole: 'ADMIN', action: 'EXPORT', entity: 'Client', entityId: 'all', entityName: 'All Clients', description: 'Exported client list to Excel', ipAddress: '192.168.1.11', device: 'Firefox / Windows', createdAt: '2026-10-11T14:30:00Z' },
-  { id: '16', user: 'Alice Uwimana', userRole: 'SALES_STAFF', action: 'LOGIN', entity: 'Auth', entityId: 'u3', entityName: 'Alice Uwimana', description: 'User logged into the system', ipAddress: '192.168.1.12', device: 'Chrome / Android', createdAt: '2026-10-11T15:00:00Z' },
-  { id: '17', user: 'System Admin', userRole: 'SUPER_ADMIN', action: 'STATUS_CHANGE', entity: 'Deal', entityId: 'd1', entityName: 'EVS — SABBAN ABATTOIR', description: 'Moved deal from NEGOTIATION to WON', oldValue: { stage: 'NEGOTIATION' }, newValue: { stage: 'WON' }, ipAddress: '192.168.1.10', device: 'Chrome / Windows', createdAt: '2026-10-11T15:30:00Z' },
-  { id: '18', user: 'HR Manager', userRole: 'ADMIN', action: 'UPDATE', entity: 'Contract', entityId: 'ct1', entityName: 'CT-2026-001', description: 'Updated payment terms for East African Seed Ltd contract', oldValue: { paymentTerms: '100% upfront' }, newValue: { paymentTerms: '50% upfront, 50% on delivery' }, ipAddress: '192.168.1.11', device: 'Firefox / Windows', createdAt: '2026-10-11T16:00:00Z' },
-  { id: '19', user: 'System Admin', userRole: 'SUPER_ADMIN', action: 'DELETE', entity: 'Lead', entityId: 'l_old', entityName: 'Test Lead', description: 'Deleted test lead record', oldValue: { companyName: 'Test Lead', status: 'NEW' }, ipAddress: '192.168.1.10', device: 'Chrome / Windows', createdAt: '2026-10-11T16:30:00Z' },
-  { id: '20', user: 'Alice Uwimana', userRole: 'SALES_STAFF', action: 'LOGOUT', entity: 'Auth', entityId: 'u3', entityName: 'Alice Uwimana', description: 'User logged out of the system', ipAddress: '192.168.1.12', device: 'Chrome / Android', createdAt: '2026-10-11T17:00:00Z' },
-]
-
 // ─── Action config ────────────────────────────────────────────────────────────
 const ACTION_CONFIG: Record<ActionType, { label: string; color: string; bg: string }> = {
   CREATE:        { label: 'Created',        color: 'text-green-700',  bg: 'bg-green-100' },
@@ -87,6 +66,10 @@ const ACTION_CONFIG: Record<ActionType, { label: string; color: string; bg: stri
   STATUS_CHANGE: { label: 'Status Change',  color: 'text-amber-700',  bg: 'bg-amber-100' },
 }
 
+// Unknown action names (e.g. from older data) still render instead of crashing the page
+const actionConfig = (action: string) =>
+  ACTION_CONFIG[action as ActionType] ?? { label: action.replace(/_/g, ' '), color: 'text-gray-700', bg: 'bg-gray-100' }
+
 const ROLE_COLORS: Record<string, string> = {
   SUPER_ADMIN: 'bg-purple-100 text-purple-700',
   ADMIN:       'bg-blue-100 text-blue-700',
@@ -100,7 +83,9 @@ type RowsOption = 5 | 10 | 20 | 50 | 'All'
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function AuditTrailPage() {
-  const [logs, setLogs] = useState<AuditLog[]>(mockLogs)
+  const [logs, setLogs] = useState<AuditLog[]>([])
+  const [total, setTotal] = useState(0)
+  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [actionFilter, setActionFilter] = useState<ActionType | 'ALL'>('ALL')
   const [entityFilter, setEntityFilter] = useState<EntityType | 'ALL'>('ALL')
@@ -113,7 +98,7 @@ export default function AuditTrailPage() {
 
   // Load audit logs from backend
   useEffect(() => {
-    api.get('/audit-logs?limit=200')
+    api.get('/audit-logs?limit=1000')
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .then((res: any) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -129,12 +114,14 @@ export default function AuditTrailPage() {
           oldValue: l.oldValue,
           newValue: l.newValue,
           ipAddress: l.ipAddress ?? '',
-          device: l.device ?? '',
+          device: l.userAgent ?? '',
           createdAt: l.createdAt,
         }))
-        if (mapped.length > 0) setLogs(mapped)
+        setLogs(mapped)
+        setTotal(res.data?.pagination?.total ?? mapped.length)
       })
-      .catch(() => { /* keep mock data */ })
+      .catch(err => toast.error(apiError(err, 'Failed to load audit trail')))
+      .finally(() => setLoading(false))
   }, [])
 
   // ── Unique users for filter ────────────────────────────────────────────────
@@ -174,13 +161,15 @@ export default function AuditTrailPage() {
 
   // ── Stats ──────────────────────────────────────────────────────────────────
   const today = new Date().toISOString().split('T')[0]
-  const todayLogs = mockLogs.filter(l => l.createdAt.startsWith(today))
+  const todayLogs = logs.filter(l => l.createdAt.startsWith(today))
   const stats = [
-    { label: 'Total Actions', value: mockLogs.length, color: 'text-santech-600' },
+    { label: 'Total Actions', value: total, color: 'text-santech-600' },
     { label: 'Today', value: todayLogs.length, color: 'text-blue-600' },
-    { label: 'Creates', value: mockLogs.filter(l => l.action === 'CREATE').length, color: 'text-green-600' },
-    { label: 'Updates', value: mockLogs.filter(l => l.action === 'UPDATE').length, color: 'text-amber-600' },
+    { label: 'Creates', value: logs.filter(l => l.action === 'CREATE').length, color: 'text-green-600' },
+    { label: 'Updates', value: logs.filter(l => l.action === 'UPDATE' || l.action === 'STATUS_CHANGE').length, color: 'text-amber-600' },
   ]
+
+  if (loading) return <PageLoader />
 
   return (
     <div className="space-y-5">
@@ -271,7 +260,7 @@ export default function AuditTrailPage() {
               {paginated.length === 0 ? (
                 <tr><td colSpan={8} className="text-center py-10 text-gray-400 text-sm">No audit records found.</td></tr>
               ) : paginated.map(log => {
-                const actionCfg = ACTION_CONFIG[log.action]
+                const actionCfg = actionConfig(log.action)
                 return (
                   <tr key={log.id} className="hover:bg-gray-50 transition-colors">
                     {/* Date & Time */}
@@ -369,8 +358,8 @@ export default function AuditTrailPage() {
 
               {/* Action badge */}
               <div className="flex items-center gap-2 flex-wrap">
-                <span className={cn('text-xs px-3 py-1 rounded-full font-semibold', ACTION_CONFIG[viewLog.action].bg, ACTION_CONFIG[viewLog.action].color)}>
-                  {ACTION_CONFIG[viewLog.action].label}
+                <span className={cn('text-xs px-3 py-1 rounded-full font-semibold', actionConfig(viewLog.action).bg, actionConfig(viewLog.action).color)}>
+                  {actionConfig(viewLog.action).label}
                 </span>
                 <span className="text-xs bg-santech-50 text-santech-700 px-2 py-1 rounded-full font-medium">{viewLog.entity}</span>
                 <span className={cn('text-xs px-2 py-1 rounded-full font-medium', ROLE_COLORS[viewLog.userRole] || 'bg-gray-100 text-gray-600')}>

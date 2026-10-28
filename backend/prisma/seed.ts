@@ -5,6 +5,7 @@
 
 import { PrismaClient } from '@prisma/client'
 import bcrypt from 'bcryptjs'
+import { seedFinanceAndWorkflows } from './seeds/financeAndWorkflows'
 
 const prisma = new PrismaClient()
 
@@ -244,18 +245,8 @@ async function main() {
   }
   console.log('✅ Field visits seeded')
 
-  // ── 10. AUDIT LOG SAMPLES ─────────────────────────────────
-  const auditRows = [
-    { userId: adminUser.id,  action: 'CREATE',         entity: 'Invoice',     entityId: 'inv-001',      newValue: { amount: 750000, status: 'PAID' } as object },
-    { userId: aliceUser.id,  action: 'UPDATE',         entity: 'Opportunity', entityId: 'opp-sabban',   oldValue: { stage: 'PROPOSAL' } as object, newValue: { stage: 'NEGOTIATION' } as object },
-    { userId: davidUser.id,  action: 'RECORD_PAYMENT', entity: 'Payment',     entityId: 'pay-001',      newValue: { amount: 750000, method: 'Bank Transfer' } as object },
-    { userId: bobUser.id,    action: 'CREATE',         entity: 'Project',     entityId: 'proj-evs-sabban', newValue: { name: 'EVS System', status: 'PLANNING' } as object },
-    { userId: claireUser.id, action: 'UPDATE',         entity: 'Employee',    entityId: 'ST-004',        oldValue: { status: 'ACTIVE' } as object, newValue: { status: 'ON_LEAVE' } as object },
-  ]
-  for (const a of auditRows) {
-    await prisma.auditLog.create({ data: { userId: a.userId, action: a.action, entity: a.entity, entityId: a.entityId, oldValue: a.oldValue ?? undefined, newValue: a.newValue } }).catch(() => null)
-  }
-  console.log('✅ Audit log samples seeded')
+  // ── 10. FINANCE, PAYROLL, CONTRACT SIGNING, MILESTONES, AUDIT TRAIL ─────
+  await seedFinanceAndWorkflows(prisma)
 
   console.log('\n🎉 All seed data loaded!')
   console.log('📋 Demo logins (all use password: Santech@2026):')

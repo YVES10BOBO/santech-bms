@@ -1,14 +1,21 @@
 import React, { useState, useEffect } from 'react'
-import { Plus, Search, X, CheckCircle2, FileText, Eye, Loader2 } from 'lucide-react'
+import { Plus, Search, X, CheckCircle2, FileText, Eye } from 'lucide-react'
 import { cn, formatDate, formatCurrency } from '@/lib/utils'
 import { milestoneService } from '@/lib/services/milestoneService'
+import { useLookups, apiError } from '@/lib/services/lookupService'
+import { useAuthStore } from '@/store/authStore'
 import PageLoader from '@/components/shared/PageLoader'
+import toast from 'react-hot-toast'
 
 type MilestoneStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'PENDING_APPROVAL' | 'COMPLETED' | 'APPROVED' | 'OVERDUE' | 'INVOICED'
 
 interface Milestone {
   id: string
   name: string
+  projectId: string
+  /** Status saved in the database (OVERDUE is only a display state) */
+  savedStatus: MilestoneStatus
+  invoiceNumber?: string
   project: string
   client: string
   contractRef: string
@@ -22,7 +29,6 @@ interface Milestone {
   pm: string
   description: string
   approvalDate?: string
-  sourceProjectId?: number
 }
 
 const STATUS_COLORS: Record<MilestoneStatus, string> = {
@@ -35,143 +41,8 @@ const STATUS_COLORS: Record<MilestoneStatus, string> = {
   INVOICED: 'bg-purple-100 text-purple-700',
 }
 
-const PROJECT_OPTIONS = [
-  { label: 'SANTRACK Implementation', value: 'SANTRACK Implementation', contractRef: 'CT-2026-001', contractValue: 1500000, client: 'East African Seed Ltd' },
-  { label: 'EVS System', value: 'EVS System', contractRef: 'CT-2026-002', contractValue: 12000000, client: 'SABBAN ABATTOIR' },
-  { label: 'Company Website', value: 'Company Website', contractRef: 'CT-2026-003', contractValue: 800000, client: 'Rwanda Mountain Ride' },
-]
-
-const mockMilestones: Milestone[] = [
-  {
-    id: 'm1', name: 'Requirements & Analysis', project: 'SANTRACK Implementation', client: 'East African Seed Ltd',
-    contractRef: 'CT-2026-001', milestoneNumber: 1, deadline: '2026-10-15', paymentPercent: 15,
-    paymentAmount: 225000, contractValue: 1500000, status: 'APPROVED',
-    deliverables: 'Requirements document, system specification', pm: 'Bob Nkurunziza',
-    description: 'Gather and document all system requirements and produce a full specification.', approvalDate: '2026-10-14',
-  },
-  {
-    id: 'm2', name: 'Development & Installation', project: 'SANTRACK Implementation', client: 'East African Seed Ltd',
-    contractRef: 'CT-2026-001', milestoneNumber: 2, deadline: '2026-11-15', paymentPercent: 50,
-    paymentAmount: 750000, contractValue: 1500000, status: 'IN_PROGRESS',
-    deliverables: 'SANTRACK installed and configured', pm: 'Bob Nkurunziza',
-    description: 'Develop, install and configure the SANTRACK system at the client site.',
-  },
-  {
-    id: 'm3', name: 'Training & Handover', project: 'SANTRACK Implementation', client: 'East African Seed Ltd',
-    contractRef: 'CT-2026-001', milestoneNumber: 3, deadline: '2026-12-01', paymentPercent: 35,
-    paymentAmount: 525000, contractValue: 1500000, status: 'NOT_STARTED',
-    deliverables: 'Staff trained, system handed over, documentation', pm: 'Bob Nkurunziza',
-    description: 'Conduct end-user training and formally hand over the system with all documentation.',
-  },
-  {
-    id: 'm4', name: 'Requirements Analysis', project: 'EVS System', client: 'SABBAN ABATTOIR',
-    contractRef: 'CT-2026-002', milestoneNumber: 1, deadline: '2026-11-05', paymentPercent: 10,
-    paymentAmount: 1200000, contractValue: 12000000, status: 'NOT_STARTED',
-    deliverables: 'Full system requirements for 90 employees', pm: 'Bob Nkurunziza',
-    description: 'Analyse and document the EVS requirements for 90 employees at SABBAN ABATTOIR.',
-  },
-  {
-    id: 'm5', name: 'Hardware Installation', project: 'EVS System', client: 'SABBAN ABATTOIR',
-    contractRef: 'CT-2026-002', milestoneNumber: 2, deadline: '2026-12-01', paymentPercent: 30,
-    paymentAmount: 3600000, contractValue: 12000000, status: 'NOT_STARTED',
-    deliverables: 'Access control terminals installed', pm: 'Bob Nkurunziza',
-    description: 'Procure and install all biometric access control hardware on site.',
-  },
-  {
-    id: 'm6', name: 'Software Configuration', project: 'EVS System', client: 'SABBAN ABATTOIR',
-    contractRef: 'CT-2026-002', milestoneNumber: 3, deadline: '2026-12-20', paymentPercent: 30,
-    paymentAmount: 3600000, contractValue: 12000000, status: 'NOT_STARTED',
-    deliverables: 'EVS fully configured for 90 employees', pm: 'Bob Nkurunziza',
-    description: 'Configure the EVS software with all employee profiles and access rules.',
-  },
-  {
-    id: 'm7', name: 'Testing & Acceptance', project: 'EVS System', client: 'SABBAN ABATTOIR',
-    contractRef: 'CT-2026-002', milestoneNumber: 4, deadline: '2027-01-10', paymentPercent: 20,
-    paymentAmount: 2400000, contractValue: 12000000, status: 'NOT_STARTED',
-    deliverables: 'User acceptance testing passed', pm: 'Bob Nkurunziza',
-    description: 'Run full UAT with the client and obtain sign-off on all acceptance criteria.',
-  },
-  {
-    id: 'm8', name: 'Training & Handover', project: 'EVS System', client: 'SABBAN ABATTOIR',
-    contractRef: 'CT-2026-002', milestoneNumber: 5, deadline: '2027-01-31', paymentPercent: 10,
-    paymentAmount: 1200000, contractValue: 12000000, status: 'NOT_STARTED',
-    deliverables: 'Staff trained, system live', pm: 'Bob Nkurunziza',
-    description: 'Train all relevant staff and go live with the EVS system.',
-  },
-  {
-    id: 'm9', name: 'Final Testing', project: 'Company Website', client: 'Rwanda Mountain Ride',
-    contractRef: 'CT-2026-003', milestoneNumber: 4, deadline: '2026-10-01', paymentPercent: 25,
-    paymentAmount: 200000, contractValue: 800000, status: 'OVERDUE',
-    deliverables: 'Website tested across all browsers', pm: 'Bob Nkurunziza',
-    description: 'Perform cross-browser and cross-device testing of the completed website.',
-  },
-]
-
-const PROJECTS_STORAGE_KEY = 'santech_projects_mock_v1'
-const MILESTONES_STORAGE_KEY = 'santech_milestones_mock_v1'
-
-interface StoredProject {
-  id: number
-  name: string
-  client: string
-  manager: string
-  budget: number
-  startDate: string
-  endDate: string
-  milestones: string[]
-  contractRef: string
-}
-
-function readProjectList(): StoredProject[] {
-  try {
-    const stored = localStorage.getItem(PROJECTS_STORAGE_KEY)
-    return stored ? JSON.parse(stored) as StoredProject[] : []
-  } catch {
-    return []
-  }
-}
-
-function readMilestoneList(): Milestone[] {
-  let saved: Milestone[] = []
-  try {
-    const stored = localStorage.getItem(MILESTONES_STORAGE_KEY)
-    if (stored) saved = JSON.parse(stored) as Milestone[]
-  } catch {
-    saved = []
-  }
-  const current = [...mockMilestones, ...saved]
-  const additional = readProjectList().flatMap(project => {
-    if (!project.contractRef || !project.milestones.length || current.some(milestone => milestone.sourceProjectId === project.id)) return []
-    const names = project.milestones.map(value => value.replace(/\s-\s(Pending|In Progress|Done)$/i, '').trim()).filter(Boolean)
-    const split = names.length ? Math.floor(100 / names.length) : 0
-    return names.map((name, index): Milestone => {
-      const paymentPercent = index === names.length - 1 ? 100 - split * (names.length - 1) : split
-      const statusText = project.milestones[index]?.match(/\s-\s(Pending|In Progress|Done)$/i)?.[1]?.toLowerCase()
-      const status: MilestoneStatus = statusText === 'done' ? 'APPROVED' : statusText === 'in progress' ? 'IN_PROGRESS' : 'NOT_STARTED'
-      return {
-        id: `project-${project.id}-milestone-${index + 1}`,
-        sourceProjectId: project.id,
-        name,
-        project: project.name,
-        client: project.client,
-        contractRef: project.contractRef,
-        milestoneNumber: index + 1,
-        deadline: project.endDate || new Date().toISOString().slice(0, 10),
-        paymentPercent,
-        paymentAmount: Math.round(project.budget * paymentPercent / 100),
-        contractValue: project.budget,
-        status,
-        deliverables: name,
-        pm: project.manager,
-        description: `Imported from project ${project.name}. Update the deadline, payment split, and deliverables to match the contract.`,
-      }
-    })
-  })
-  return [...current, ...additional]
-}
-
 const emptyForm = {
-  project: PROJECT_OPTIONS[0].value,
+  projectId: '',
   name: '',
   milestoneNumber: 1,
   description: '',
@@ -179,6 +50,37 @@ const emptyForm = {
   paymentPercent: 0,
   deliverables: '',
   status: 'NOT_STARTED' as MilestoneStatus,
+}
+
+const OPEN_STATUSES: MilestoneStatus[] = ['NOT_STARTED', 'IN_PROGRESS']
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toMilestone(m: any): Milestone {
+  const contractValue = Number(m.project?.contractValue ?? 0)
+  const pct = Number(m.paymentPercentage ?? 0)
+  const deadline = m.deadline ? String(m.deadline).slice(0, 10) : ''
+  const savedStatus = m.status as MilestoneStatus
+  const overdue = OPEN_STATUSES.includes(savedStatus) && deadline !== '' && getDaysLeft(deadline) < 0
+  return {
+    id: m.id,
+    name: m.name,
+    projectId: m.projectId ?? m.project?.id ?? '',
+    savedStatus,
+    invoiceNumber: m.invoice?.invoiceNumber,
+    project: m.project?.name ?? '',
+    client: m.project?.client?.companyName ?? '',
+    contractRef: m.project?.contract?.contractNumber ?? '',
+    milestoneNumber: Number(m.milestoneNumber ?? 1),
+    deadline,
+    paymentPercent: pct,
+    paymentAmount: Math.round(contractValue * pct / 100),
+    contractValue,
+    status: overdue ? 'OVERDUE' : savedStatus,
+    deliverables: m.deliverables ?? '',
+    pm: m.project?.projectManager ? `${m.project.projectManager.firstName} ${m.project.projectManager.lastName}` : '',
+    description: m.description ?? '',
+    approvalDate: m.approvedAt ? String(m.approvedAt).slice(0, 10) : undefined,
+  }
 }
 
 function getDaysLeft(deadline: string): number {
@@ -197,7 +99,14 @@ function DaysLeftCell({ deadline }: { deadline: string }) {
 }
 
 export default function MilestonesPage() {
-  const [milestones, setMilestones] = useState<Milestone[]>(mockMilestones)
+  const [milestones, setMilestones] = useState<Milestone[]>([])
+  const [busyId, setBusyId] = useState<string | null>(null)
+  const lookups = useLookups()
+  const { user } = useAuthStore()
+  const role = user?.role ?? ''
+  const canApprove = role === 'SUPER_ADMIN' || role === 'ADMIN'
+  const canInvoice = canApprove || role === 'FINANCE_MANAGER'
+  const canEdit = canApprove || role === 'PROJECT_MANAGER'
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<MilestoneStatus | 'ALL'>('ALL')
@@ -217,43 +126,23 @@ export default function MilestonesPage() {
   const [panelMilestone, setPanelMilestone] = useState<Milestone | null>(null)
 
   // Success toast
-  const [toast, setToast] = useState('')
+  const [banner, setBanner] = useState('')
 
-  // Load milestones from backend
+  // Load milestones from the database
   useEffect(() => {
     milestoneService.getAll()
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .then((res: any) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const mapped: Milestone[] = (res.data ?? []).map((m: any) => ({
-          id: m.id,
-          name: m.name,
-          project: m.project?.name ?? '',
-          client: m.project?.client?.companyName ?? '',
-          contractRef: m.project?.contract?.contractNumber ?? '',
-          milestoneNumber: m.milestoneNumber ?? 1,
-          deadline: m.deadline ? String(m.deadline).slice(0, 10) : '',
-          paymentPercent: Number(m.paymentPercent ?? 0),
-          paymentAmount: Number(m.paymentAmount ?? 0),
-          contractValue: Number(m.project?.contractValue ?? 0),
-          status: m.status as MilestoneStatus,
-          deliverables: m.deliverables ?? '',
-          pm: m.project?.projectManager
-            ? `${m.project.projectManager.firstName} ${m.project.projectManager.lastName}`
-            : '',
-          description: m.description ?? '',
-          approvalDate: m.approvalDate ? String(m.approvalDate).slice(0, 10) : undefined,
-        }))
-        if (mapped.length > 0) setMilestones(mapped)
-      })
-      .catch(() => { /* keep mock data */ })
+      .then((res: any) => setMilestones((res.data ?? []).map(toMilestone)))
+      .catch(err => toast.error(apiError(err, 'Failed to load milestones')))
       .finally(() => setLoading(false))
   }, [])
 
-  const showToast = (msg: string) => {
-    setToast(msg)
-    setTimeout(() => setToast(''), 3000)
+  const showBanner = (msg: string) => {
+    setBanner(msg)
+    setTimeout(() => setBanner(''), 4000)
   }
+
+  const projectNames = Array.from(new Set(milestones.map(m => m.project))).sort()
 
   // Stats
   const total = milestones.length
@@ -281,25 +170,40 @@ export default function MilestonesPage() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / (pageSize || 1)))
   const paginated = rowsPerPage === 'all' ? filtered : filtered.slice((page - 1) * pageSize, page * pageSize)
 
-  // Actions
-  const markComplete = (id: string) => {
-    setMilestones(prev => prev.map(m => m.id === id ? { ...m, status: 'PENDING_APPROVAL' } : m))
-    if (panelMilestone?.id === id) setPanelMilestone(prev => prev ? { ...prev, status: 'PENDING_APPROVAL' } : prev)
+  // Actions — each one is saved, then the row is replaced with the saved version
+  const runAction = async (id: string, action: () => Promise<unknown>, success: string) => {
+    setBusyId(id)
+    try {
+      const saved = toMilestone(await action())
+      setMilestones(prev => prev.map(m => m.id === id ? saved : m))
+      setPanelMilestone(prev => prev?.id === id ? saved : prev)
+      toast.success(success)
+    } catch (err) {
+      toast.error(apiError(err, 'Action failed'))
+    } finally {
+      setBusyId(null)
+    }
   }
 
-  const approveMilestone = (id: string) => {
-    const today = new Date().toISOString().split('T')[0]
-    setMilestones(prev => prev.map(m => m.id === id ? { ...m, status: 'APPROVED', approvalDate: today } : m))
-    if (panelMilestone?.id === id) setPanelMilestone(prev => prev ? { ...prev, status: 'APPROVED', approvalDate: today } : prev)
-  }
+  const markComplete = (id: string) => runAction(id, () => milestoneService.complete(id), 'Sent for approval')
+  const approveMilestone = (id: string) => runAction(id, () => milestoneService.approve(id), 'Milestone approved')
 
-  const confirmGenerateInvoice = () => {
+  const confirmGenerateInvoice = async () => {
     if (!invoiceMilestone) return
-    const id = invoiceMilestone.id
-    setMilestones(prev => prev.map(m => m.id === id ? { ...m, status: 'INVOICED' } : m))
-    if (panelMilestone?.id === id) setPanelMilestone(prev => prev ? { ...prev, status: 'INVOICED' } : prev)
+    const m = invoiceMilestone
     setInvoiceMilestone(null)
-    showToast(`Invoice generated for ${invoiceMilestone.name} — ${formatCurrency(invoiceMilestone.paymentAmount)}`)
+    setBusyId(m.id)
+    try {
+      const result = await milestoneService.generateInvoice(m.id)
+      const saved = toMilestone(result.milestone)
+      setMilestones(prev => prev.map(x => x.id === m.id ? saved : x))
+      setPanelMilestone(prev => prev?.id === m.id ? saved : prev)
+      showBanner(`Invoice ${result.invoice.invoiceNumber} created for ${m.name} — ${formatCurrency(m.paymentAmount)}. See Finance → Invoices.`)
+    } catch (err) {
+      toast.error(apiError(err, 'Failed to generate invoice'))
+    } finally {
+      setBusyId(null)
+    }
   }
 
   // Add milestone form
@@ -307,32 +211,27 @@ export default function MilestonesPage() {
     setForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
   }
 
-  const handleAddSubmit = (e: React.FormEvent) => {
+  const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!form.projectId) { setFormError('Choose a project.'); return }
     if (!form.name.trim()) { setFormError('Milestone name is required.'); return }
     if (!form.deadline) { setFormError('Deadline is required.'); return }
-    if (form.paymentPercent === undefined || form.paymentPercent === null) { setFormError('Payment percentage is required.'); return }
-    const projectMeta = PROJECT_OPTIONS.find(p => p.value === form.project)!
-    const newMilestone: Milestone = {
-      id: `m${Date.now()}`,
-      name: form.name,
-      project: form.project,
-      client: projectMeta.client,
-      contractRef: projectMeta.contractRef,
-      contractValue: projectMeta.contractValue,
-      milestoneNumber: Number(form.milestoneNumber),
-      deadline: form.deadline,
-      paymentPercent: Number(form.paymentPercent),
-      paymentAmount: Math.round(projectMeta.contractValue * Number(form.paymentPercent) / 100),
-      status: form.status,
-      deliverables: form.deliverables,
-      pm: 'Bob Nkurunziza',
-      description: form.description,
+    const pct = Number(form.paymentPercent)
+    if (isNaN(pct) || pct < 0 || pct > 100) { setFormError('Payment percentage must be between 0 and 100.'); return }
+    try {
+      const created = toMilestone(await milestoneService.create({
+        projectId: form.projectId, name: form.name, milestoneNumber: Number(form.milestoneNumber),
+        description: form.description, deadline: form.deadline, paymentPercentage: pct,
+        deliverables: form.deliverables, status: form.status,
+      }))
+      setMilestones(prev => [created, ...prev])
+      toast.success('Milestone added')
+      setShowAddModal(false)
+      setForm(emptyForm)
+      setFormError('')
+    } catch (err) {
+      setFormError(apiError(err, 'Failed to save milestone'))
     }
-    setMilestones(prev => [newMilestone, ...prev])
-    setShowAddModal(false)
-    setForm(emptyForm)
-    setFormError('')
   }
 
   const inputCls = 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500'
@@ -343,9 +242,9 @@ export default function MilestonesPage() {
   return (
     <div className="space-y-5">
       {/* Toast */}
-      {toast && (
+      {banner && (
         <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[100] bg-green-600 text-white text-sm px-5 py-3 rounded-xl shadow-lg flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4" /> {toast}
+          <CheckCircle2 className="w-4 h-4" /> {banner}
         </div>
       )}
 
@@ -355,12 +254,12 @@ export default function MilestonesPage() {
           <h1 className="text-2xl font-bold text-gray-800">Milestone Management</h1>
           <p className="text-gray-500 text-sm mt-0.5">Track project milestones and trigger milestone-based invoicing</p>
         </div>
-        <button
+        {canEdit && <button
           onClick={() => { setShowAddModal(true); setFormError('') }}
           className="flex items-center gap-2 px-4 py-2 bg-santech-600 text-white rounded-lg text-sm font-medium hover:bg-santech-700 transition-colors"
         >
           <Plus className="w-4 h-4" /> Add Milestone
-        </button>
+        </button>}
       </div>
 
       {/* Stats */}
@@ -393,7 +292,7 @@ export default function MilestonesPage() {
         <select value={projectFilter} onChange={e => { setProjectFilter(e.target.value); setPage(1) }}
           className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500">
           <option value="ALL">All Projects</option>
-          {PROJECT_OPTIONS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+          {projectNames.map(name => <option key={name} value={name}>{name}</option>)}
         </select>
         <div className="flex items-center gap-2 text-xs text-gray-500">
           <span>Rows:</span>
@@ -448,26 +347,26 @@ export default function MilestonesPage() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex gap-1.5 flex-wrap">
-                      {(m.status === 'IN_PROGRESS' || m.status === 'NOT_STARTED') && (
-                        <button onClick={() => markComplete(m.id)}
+                      {canEdit && OPEN_STATUSES.includes(m.savedStatus) && (
+                        <button disabled={busyId === m.id} onClick={() => markComplete(m.id)}
                           className="flex items-center gap-1 text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded-lg hover:bg-blue-100 font-medium transition-colors">
                           <CheckCircle2 className="w-3 h-3" /> Mark Complete
                         </button>
                       )}
-                      {m.status === 'PENDING_APPROVAL' && (
-                        <button onClick={() => approveMilestone(m.id)}
+                      {canApprove && m.status === 'PENDING_APPROVAL' && (
+                        <button disabled={busyId === m.id} onClick={() => approveMilestone(m.id)}
                           className="flex items-center gap-1 text-xs bg-green-50 text-green-600 px-2 py-1 rounded-lg hover:bg-green-100 font-medium transition-colors">
                           <CheckCircle2 className="w-3 h-3" /> Approve
                         </button>
                       )}
-                      {m.status === 'APPROVED' && (
-                        <button onClick={() => setInvoiceMilestone(m)}
+                      {canInvoice && m.status === 'APPROVED' && m.paymentPercent > 0 && (
+                        <button disabled={busyId === m.id} onClick={() => setInvoiceMilestone(m)}
                           className="flex items-center gap-1 text-xs bg-purple-50 text-purple-600 px-2 py-1 rounded-lg hover:bg-purple-100 font-medium transition-colors">
                           <FileText className="w-3 h-3" /> Generate Invoice
                         </button>
                       )}
                       {m.status === 'INVOICED' && (
-                        <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-lg font-medium">Invoiced</span>
+                        <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-lg font-medium">{m.invoiceNumber ? `Invoiced · ${m.invoiceNumber}` : 'Invoiced'}</span>
                       )}
                       <button onClick={() => setPanelMilestone(m)}
                         className="flex items-center gap-1 text-xs bg-gray-50 text-gray-600 px-2 py-1 rounded-lg hover:bg-gray-100 font-medium transition-colors">
@@ -512,8 +411,9 @@ export default function MilestonesPage() {
               )}
               <div>
                 <label className={labelCls}>Project</label>
-                <select name="project" value={form.project} onChange={handleFormChange} className={inputCls}>
-                  {PROJECT_OPTIONS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+                <select name="projectId" value={form.projectId} onChange={handleFormChange} className={inputCls}>
+                  <option value="">Select project…</option>
+                  {lookups.projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
               </div>
               <div>
@@ -545,7 +445,7 @@ export default function MilestonesPage() {
               <div>
                 <label className={labelCls}>Status</label>
                 <select name="status" value={form.status} onChange={handleFormChange} className={inputCls}>
-                  {(Object.keys(STATUS_COLORS) as MilestoneStatus[]).map(s => (
+                  {OPEN_STATUSES.map(s => (
                     <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
                   ))}
                 </select>
@@ -615,7 +515,8 @@ export default function MilestonesPage() {
               </div>
               <Row label="Payment" value={`${panelMilestone.paymentPercent}% = ${formatCurrency(panelMilestone.paymentAmount)}`} />
               <Row label="Contract Value" value={formatCurrency(panelMilestone.contractValue)} />
-              <Row label="Contract Ref" value={panelMilestone.contractRef} />
+              <Row label="Contract Ref" value={panelMilestone.contractRef || '—'} />
+              {panelMilestone.invoiceNumber && <Row label="Invoice" value={panelMilestone.invoiceNumber} />}
               <Row label="PM" value={panelMilestone.pm} />
               <div>
                 <p className="text-xs text-gray-400 mb-1">Deliverables</p>

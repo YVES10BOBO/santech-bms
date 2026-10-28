@@ -1,6 +1,7 @@
 import { Response } from 'express'
 import { PrismaClient } from '@prisma/client'
 import type { AuthRequest } from '../middleware/auth'
+import { logAudit } from '../lib/audit'
 
 const prisma = new PrismaClient()
 
@@ -139,6 +140,12 @@ export async function createClient(req: AuthRequest, res: Response): Promise<voi
       },
       include: { members: true },
     })
+    const label = client.companyName || client.fullName || client.teamName || client.delegationName || 'client'
+    await logAudit(req, {
+      action: 'CREATE', entity: 'Client', entityId: client.id, entityName: label,
+      description: `Registered new ${String(client.kind ?? 'client').toLowerCase()} client ${label}`,
+      newValue: { kind: client.kind, category: client.category, status: client.status },
+    })
     res.status(201).json({ success: true, data: client, message: 'Client created successfully' })
   } catch (error) {
     res.status(500).json({ success: false, message: 'Internal server error' })
@@ -221,6 +228,14 @@ export async function updateClient(req: AuthRequest, res: Response): Promise<voi
         include: { members: true },
       })
     })
+    if (client) {
+      const label = client.companyName || client.fullName || client.teamName || client.delegationName || 'client'
+      await logAudit(req, {
+        action: 'UPDATE', entity: 'Client', entityId: client.id, entityName: label,
+        description: req.body.active === false ? `Deactivated client ${label}` : req.body.active === true && Object.keys(req.body).length === 1 ? `Reactivated client ${label}` : `Updated client ${label}`,
+        newValue: { status: client.status, active: client.active },
+      })
+    }
     res.json({ success: true, data: client, message: 'Client updated successfully' })
   } catch (error) {
     res.status(500).json({ success: false, message: 'Internal server error' })
@@ -229,7 +244,12 @@ export async function updateClient(req: AuthRequest, res: Response): Promise<voi
 
 export async function deleteClient(req: AuthRequest, res: Response): Promise<void> {
   try {
-    await prisma.client.delete({ where: { id: req.params.id } })
+    const removed = await prisma.client.delete({ where: { id: req.params.id } })
+    const label = removed.companyName || removed.fullName || removed.teamName || removed.delegationName || 'client'
+    await logAudit(req, {
+      action: 'DELETE', entity: 'Client', entityId: removed.id, entityName: label,
+      description: `Deleted client ${label}`, oldValue: { status: removed.status, category: removed.category },
+    })
     res.json({ success: true, message: 'Client deleted successfully' })
   } catch (error) {
     res.status(500).json({ success: false, message: 'Internal server error' })

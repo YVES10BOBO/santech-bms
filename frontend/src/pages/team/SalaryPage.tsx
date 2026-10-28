@@ -1,11 +1,15 @@
 import { useState, useEffect } from 'react'
-import { Plus, Search, X, TrendingUp, CheckCircle, Loader2 } from 'lucide-react'
+import { Search, X, TrendingUp, CheckCircle } from 'lucide-react'
 import { cn, formatCurrency } from '@/lib/utils'
-import { employeeService } from '@/lib/services/employeeService'
+import { salaryService } from '@/lib/services/salaryService'
+import { apiError } from '@/lib/services/lookupService'
+import { useAuthStore } from '@/store/authStore'
 import PageLoader from '@/components/shared/PageLoader'
+import toast from 'react-hot-toast'
 
 interface SalaryRecord {
   id: string
+  employeeId: string
   employeeName: string
   department: string
   position: string
@@ -22,13 +26,27 @@ interface SalaryRecord {
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-const mockSalaries: SalaryRecord[] = [
-  { id: '1', employeeName: 'Alice Uwimana', department: 'Sales & Marketing', position: 'Sales Executive', month: 10, year: 2026, baseSalary: 350000, bonuses: 50000, deductions: 15000, netSalary: 385000, performanceScore: 82, isPaid: false, paidAt: '' },
-  { id: '2', employeeName: 'Bob Nkurunziza', department: 'IT', position: 'Software Developer', month: 10, year: 2026, baseSalary: 600000, bonuses: 75000, deductions: 20000, netSalary: 655000, performanceScore: 91, isPaid: true, paidAt: '2026-10-05' },
-  { id: '3', employeeName: 'Claire Mukamana', department: 'HR', position: 'HR Manager', month: 10, year: 2026, baseSalary: 500000, bonuses: 0, deductions: 10000, netSalary: 490000, performanceScore: 78, isPaid: false, paidAt: '' },
-  { id: '4', employeeName: 'David Habimana', department: 'Finance', position: 'Accountant', month: 10, year: 2026, baseSalary: 450000, bonuses: 30000, deductions: 10000, netSalary: 470000, performanceScore: 65, isPaid: true, paidAt: '2026-10-05' },
-  { id: '5', employeeName: 'Frank Bizimana', department: 'IT', position: 'System Administrator', month: 10, year: 2026, baseSalary: 480000, bonuses: 40000, deductions: 12000, netSalary: 508000, performanceScore: 88, isPaid: false, paidAt: '' },
-]
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toRecord(r: any): SalaryRecord {
+  return {
+    id: r.id,
+    employeeId: r.employee?.id ?? r.employeeId,
+    employeeName: r.employee ? `${r.employee.user.firstName} ${r.employee.user.lastName}` : '',
+    department: r.employee?.department ?? '',
+    position: r.employee?.position ?? '',
+    month: r.month,
+    year: r.year,
+    baseSalary: Number(r.baseSalary),
+    bonuses: Number(r.bonuses ?? 0),
+    deductions: Number(r.deductions ?? 0),
+    netSalary: Number(r.netSalary),
+    performanceScore: Math.round(Number(r.employee?.performanceScore ?? 0)),
+    isPaid: !!r.isPaid,
+    paidAt: r.paidAt ? String(r.paidAt).slice(0, 10) : '',
+  }
+}
+
+const NOW = new Date()
 
 const scoreColor = (score: number) =>
   score >= 80 ? 'text-green-600' : score >= 50 ? 'text-yellow-600' : 'text-red-600'
@@ -37,13 +55,17 @@ const scoreBg = (score: number) =>
   score >= 80 ? 'bg-green-500' : score >= 50 ? 'bg-yellow-500' : 'bg-red-500'
 
 export default function SalaryPage() {
-  const [records, setRecords] = useState<SalaryRecord[]>(mockSalaries)
+  const [records, setRecords] = useState<SalaryRecord[]>([])
+  const [busy, setBusy] = useState(false)
+  const { user } = useAuthStore()
+  const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN'
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN'
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [deptFilter, setDeptFilter] = useState('All')
   const [paidFilter, setPaidFilter] = useState<'ALL' | 'PAID' | 'UNPAID'>('ALL')
-  const [monthFilter, setMonthFilter] = useState(10)
-  const [yearFilter, setYearFilter] = useState(2026)
+  const [monthFilter, setMonthFilter] = useState(NOW.getMonth() + 1)
+  const [yearFilter, setYearFilter] = useState(NOW.getFullYear())
 
   // Modals
   const [showBonusModal, setShowBonusModal] = useState(false)
@@ -52,52 +74,16 @@ export default function SalaryPage() {
   const [bonusForm, setBonusForm] = useState({ type: 'bonus', amount: '', reason: '' })
   const [promoForm, setPromoForm] = useState({ newPosition: '', salaryRaise: '', reason: '' })
 
-  // Load salary data from backend (employees have salary records)
-  useEffect(() => {
-    employeeService.getAll({ limit: '100' })
+  // Load payroll for the selected month from the database
+  const load = () =>
+    salaryService.getPayroll(monthFilter, yearFilter)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .then((res: any) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const emps: any[] = res.data ?? []
-        const mapped: SalaryRecord[] = emps.flatMap((emp: any) => {
-          if (!emp.salaryRecords?.length) {
-            // No salary record — create one from employee base salary
-            return [{
-              id: emp.id,
-              employeeName: `${emp.firstName ?? ''} ${emp.lastName ?? ''}`.trim(),
-              department: emp.department ?? '',
-              position: emp.position ?? '',
-              month: monthFilter,
-              year: yearFilter,
-              baseSalary: Number(emp.baseSalary ?? 0),
-              bonuses: 0,
-              deductions: 0,
-              netSalary: Number(emp.baseSalary ?? 0),
-              performanceScore: Number(emp.performanceScore ?? 0),
-              isPaid: false,
-              paidAt: '',
-            }]
-          }
-          return emp.salaryRecords.map((sr: any) => ({
-            id: sr.id,
-            employeeName: `${emp.firstName ?? ''} ${emp.lastName ?? ''}`.trim(),
-            department: emp.department ?? '',
-            position: emp.position ?? '',
-            month: sr.month,
-            year: sr.year,
-            baseSalary: Number(sr.baseSalary),
-            bonuses: Number(sr.bonuses ?? 0),
-            deductions: Number(sr.deductions ?? 0),
-            netSalary: Number(sr.netSalary),
-            performanceScore: Number(emp.performanceScore ?? 0),
-            isPaid: sr.isPaid ?? false,
-            paidAt: sr.paidAt ? String(sr.paidAt).slice(0, 10) : '',
-          }))
-        })
-        if (mapped.length > 0) setRecords(mapped)
-      })
-      .catch(() => { /* keep mock data */ })
-      .finally(() => setLoading(false))
+      .then((res: any) => setRecords((res.data ?? []).map(toRecord)))
+      .catch(err => toast.error(apiError(err, 'Failed to load payroll')))
+
+  useEffect(() => {
+    load().finally(() => setLoading(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [monthFilter, yearFilter])
 
   const filtered = records.filter(r => {
@@ -112,31 +98,52 @@ export default function SalaryPage() {
   const paidTotal = filtered.filter(r => r.isPaid).reduce((sum, r) => sum + r.netSalary, 0)
   const unpaidTotal = filtered.filter(r => !r.isPaid).reduce((sum, r) => sum + r.netSalary, 0)
 
-  const markPaid = (id: string) => {
-    setRecords(prev => prev.map(r => r.id === id ? { ...r, isPaid: true, paidAt: new Date().toISOString().split('T')[0] } : r))
+  const replace = (saved: SalaryRecord) => setRecords(prev => prev.map(r => r.id === saved.id ? saved : r))
+
+  const markPaid = async (id: string) => {
+    setBusy(true)
+    try {
+      replace(toRecord(await salaryService.pay(id)))
+      toast.success('Salary paid — added to Finance expenses')
+    } catch (err) {
+      toast.error(apiError(err, 'Failed to mark as paid'))
+    } finally {
+      setBusy(false)
+    }
   }
 
-  const applyBonus = () => {
+  const applyBonus = async () => {
     if (!bonusForm.amount || !selectedId) return
-    const amount = parseFloat(bonusForm.amount)
-    setRecords(prev => prev.map(r => {
-      if (r.id !== selectedId) return r
-      const newBonuses = bonusForm.type === 'bonus' ? r.bonuses + amount : r.bonuses
-      const newDeductions = bonusForm.type === 'deduction' ? r.deductions + amount : r.deductions
-      return { ...r, bonuses: newBonuses, deductions: newDeductions, netSalary: r.baseSalary + newBonuses - newDeductions }
-    }))
-    setShowBonusModal(false); setBonusForm({ type: 'bonus', amount: '', reason: '' })
+    setBusy(true)
+    try {
+      replace(toRecord(await salaryService.adjust(selectedId, {
+        type: bonusForm.type as 'bonus' | 'deduction', amount: parseFloat(bonusForm.amount), reason: bonusForm.reason,
+      })))
+      toast.success(bonusForm.type === 'bonus' ? 'Bonus added' : 'Deduction added')
+      setShowBonusModal(false); setBonusForm({ type: 'bonus', amount: '', reason: '' })
+    } catch (err) {
+      toast.error(apiError(err, 'Failed to save'))
+    } finally {
+      setBusy(false)
+    }
   }
 
-  const applyPromotion = () => {
-    if (!promoForm.newPosition || !promoForm.salaryRaise || !selectedId) return
-    const raise = parseFloat(promoForm.salaryRaise)
-    setRecords(prev => prev.map(r => {
-      if (r.id !== selectedId) return r
-      const newBase = r.baseSalary + raise
-      return { ...r, position: promoForm.newPosition, baseSalary: newBase, netSalary: newBase + r.bonuses - r.deductions }
-    }))
-    setShowPromoModal(false); setPromoForm({ newPosition: '', salaryRaise: '', reason: '' })
+  const applyPromotion = async () => {
+    const record = records.find(r => r.id === selectedId)
+    if (!promoForm.newPosition || !record) return
+    setBusy(true)
+    try {
+      const res = await salaryService.promote(record.employeeId, {
+        newPosition: promoForm.newPosition, salaryRaise: parseFloat(promoForm.salaryRaise) || 0, reason: promoForm.reason,
+      })
+      toast.success(res.message ?? 'Promotion saved')
+      setShowPromoModal(false); setPromoForm({ newPosition: '', salaryRaise: '', reason: '' })
+      await load()
+    } catch (err) {
+      toast.error(apiError(err, 'Failed to save promotion'))
+    } finally {
+      setBusy(false)
+    }
   }
 
   if (loading) return <PageLoader />
@@ -153,7 +160,7 @@ export default function SalaryPage() {
             {MONTH_NAMES.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
           </select>
           <select value={yearFilter} onChange={e => setYearFilter(Number(e.target.value))} className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500">
-            {[2025, 2026, 2027].map(y => <option key={y}>{y}</option>)}
+            {[NOW.getFullYear() - 1, NOW.getFullYear(), NOW.getFullYear() + 1].map(y => <option key={y}>{y}</option>)}
           </select>
         </div>
       </div>
@@ -228,10 +235,10 @@ export default function SalaryPage() {
                   <td className="px-4 py-3">
                     <div className="flex gap-1.5 flex-wrap">
                       {!r.isPaid && (
-                        <button onClick={() => markPaid(r.id)} className="text-xs bg-green-50 text-green-600 px-2 py-1 rounded-lg hover:bg-green-100 font-medium">Mark Paid</button>
+                        <button disabled={busy} onClick={() => markPaid(r.id)} className="text-xs bg-green-50 text-green-600 px-2 py-1 rounded-lg hover:bg-green-100 font-medium">Mark Paid</button>
                       )}
-                      <button onClick={() => { setSelectedId(r.id); setShowBonusModal(true) }} className="text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded-lg hover:bg-blue-100 font-medium">+ Bonus</button>
-                      <button onClick={() => { setSelectedId(r.id); setShowPromoModal(true) }} className="text-xs bg-purple-50 text-purple-600 px-2 py-1 rounded-lg hover:bg-purple-100 font-medium flex items-center gap-1"><TrendingUp className="w-3 h-3" /> Promote</button>
+                      {isAdmin && !r.isPaid && <button onClick={() => { setSelectedId(r.id); setShowBonusModal(true) }} className="text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded-lg hover:bg-blue-100 font-medium">+ Bonus</button>}
+                      {isSuperAdmin && <button onClick={() => { setSelectedId(r.id); setShowPromoModal(true) }} className="text-xs bg-purple-50 text-purple-600 px-2 py-1 rounded-lg hover:bg-purple-100 font-medium flex items-center gap-1"><TrendingUp className="w-3 h-3" /> Promote</button>}
                     </div>
                   </td>
                 </tr>
@@ -268,7 +275,7 @@ export default function SalaryPage() {
             </div>
             <div className="flex gap-3 mt-4">
               <button onClick={() => setShowBonusModal(false)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600">Cancel</button>
-              <button onClick={applyBonus} className="flex-1 py-2 bg-santech-600 text-white rounded-lg text-sm hover:bg-santech-700 font-medium">Apply</button>
+              <button disabled={busy} onClick={applyBonus} className="disabled:opacity-50 flex-1 py-2 bg-santech-600 text-white rounded-lg text-sm hover:bg-santech-700 font-medium">Apply</button>
             </div>
           </div>
         </div>
@@ -298,7 +305,7 @@ export default function SalaryPage() {
             </div>
             <div className="flex gap-3 mt-4">
               <button onClick={() => setShowPromoModal(false)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600">Cancel</button>
-              <button onClick={applyPromotion} className="flex-1 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700 font-medium">Confirm Promotion</button>
+              <button disabled={busy} onClick={applyPromotion} className="disabled:opacity-50 flex-1 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700 font-medium">Confirm Promotion</button>
             </div>
           </div>
         </div>

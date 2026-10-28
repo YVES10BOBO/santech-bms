@@ -1,19 +1,36 @@
 import { Response } from 'express'
-import { PrismaClient } from '@prisma/client'
+import type { Prisma, ContractStatus } from '@prisma/client'
+import prisma from '../lib/prisma'
+import { logAudit } from '../lib/audit'
+import { nextDocumentNumber, guessIncomeCategory } from '../lib/numbering'
+import { ADMINS, hasRole } from '../lib/roles'
 import type { AuthRequest } from '../middleware/auth'
 
-const prisma = new PrismaClient()
+const fail = (res: Response, error: unknown, where: string) => {
+  console.error(`${where} error:`, error)
+  res.status(500).json({ success: false, message: 'Internal server error' })
+}
+
+const userName = { select: { id: true, firstName: true, lastName: true } }
 
 // ── INVOICES ──────────────────────────────────────────────────────────────────
 
+const invoiceInclude = {
+  client: { select: { id: true, companyName: true } },
+  contract: { select: { id: true, contractNumber: true, projectName: true } },
+  project: { select: { id: true, name: true } },
+  milestone: { select: { id: true, name: true } },
+  payments: { orderBy: { paymentDate: 'desc' as const } },
+}
+
 export async function getInvoices(req: AuthRequest, res: Response): Promise<void> {
   try {
-    const { page = 1, limit = 50, status, clientId, search } = req.query
+    const { page = 1, limit = 100, status, clientId, search } = req.query
     const skip = (Number(page) - 1) * Number(limit)
 
-    const where: Record<string, unknown> = {}
-    if (status) where.status = status
-    if (clientId) where.clientId = clientId
+    const where: Prisma.InvoiceWhereInput = {}
+    if (status) where.status = status as Prisma.InvoiceWhereInput['status']
+    if (clientId) where.clientId = String(clientId)
     if (search) {
       where.OR = [
         { invoiceNumber: { contains: String(search), mode: 'insensitive' } },
@@ -22,69 +39,40 @@ export async function getInvoices(req: AuthRequest, res: Response): Promise<void
     }
 
     const [invoices, total] = await Promise.all([
-      prisma.invoice.findMany({
-        where, skip, take: Number(limit),
-        include: {
-          client: { select: { id: true, companyName: true } },
-          contract: { select: { id: true, contractNumber: true } },
-          payments: { orderBy: { paymentDate: 'desc' } }
-        },
-        orderBy: { createdAt: 'desc' }
-      }),
-      prisma.invoice.count({ where })
+      prisma.invoice.findMany({ where, skip, take: Number(limit), include: invoiceInclude, orderBy: { issueDate: 'desc' } }),
+      prisma.invoice.count({ where }),
     ])
 
     res.json({
       success: true,
       data: invoices,
-      pagination: { page: Number(page), limit: Number(limit), total, totalPages: Math.ceil(total / Number(limit)) }
+      pagination: { page: Number(page), limit: Number(limit), total, totalPages: Math.ceil(total / Number(limit)) },
     })
-  } catch (error) {
-    res.status(500).json({ success: false, message: 'Internal server error' })
-  }
+  } catch (error) { fail(res, error, 'getInvoices') }
 }
 
 export async function getInvoice(req: AuthRequest, res: Response): Promise<void> {
   try {
-    const invoice = await prisma.invoice.findUnique({
-      where: { id: req.params.id },
-      include: {
-        client: true,
-        contract: true,
-        payments: { orderBy: { paymentDate: 'desc' } }
-      }
-    })
+    const invoice = await prisma.invoice.findUnique({ where: { id: req.params.id }, include: invoiceInclude })
     if (!invoice) { res.status(404).json({ success: false, message: 'Invoice not found' }); return }
     res.json({ success: true, data: invoice })
-  } catch (error) {
-    res.status(500).json({ success: false, message: 'Internal server error' })
-  }
+  } catch (error) { fail(res, error, 'getInvoice') }
 }
 
 export async function createInvoice(req: AuthRequest, res: Response): Promise<void> {
   try {
-    const {
-      invoiceNumber, clientId, contractId, projectId,
-      amount, taxAmount, currency, issueDate, dueDate, notes, status
-    } = req.body
+    const { invoiceNumber, clientId, contractId, projectId, amount, taxAmount, currency, issueDate, dueDate, notes, status } = req.body
 
     if (!clientId || !amount || !dueDate) {
-      res.status(400).json({ success: false, message: 'clientId, amount and dueDate are required' }); return
+      res.status(400).json({ success: false, message: 'Client, amount and due date are required' }); return
     }
 
     const amountNum = parseFloat(amount)
     const taxNum = parseFloat(taxAmount) || 0
 
-    // Auto-generate invoice number if not provided
-    let invNumber = invoiceNumber
-    if (!invNumber) {
-      const count = await prisma.invoice.count()
-      invNumber = `INV-${new Date().getFullYear()}-${String(count + 1).padStart(3, '0')}`
-    }
-
     const invoice = await prisma.invoice.create({
       data: {
-        invoiceNumber: invNumber,
+        invoiceNumber: invoiceNumber || await nextDocumentNumber('INV'),
         clientId,
         contractId: contractId || null,
         projectId: projectId || null,
@@ -97,25 +85,30 @@ export async function createInvoice(req: AuthRequest, res: Response): Promise<vo
         notes: notes || null,
         status: status || 'DRAFT',
       },
-      include: {
-        client: { select: { id: true, companyName: true } },
-        payments: true,
-      }
+      include: invoiceInclude,
+    })
+
+    await logAudit(req, {
+      action: 'CREATE', entity: 'Invoice', entityId: invoice.id,
+      entityName: `${invoice.invoiceNumber} — ${invoice.client.companyName ?? ''}`,
+      description: `Created invoice ${invoice.invoiceNumber} for ${invoice.client.companyName ?? 'client'}`,
+      newValue: { totalAmount: invoice.totalAmount, status: invoice.status, dueDate: dueDate },
     })
 
     res.status(201).json({ success: true, data: invoice, message: 'Invoice created successfully' })
   } catch (error: unknown) {
-    const e = error as { code?: string }
-    if (e.code === 'P2002') {
+    if ((error as { code?: string }).code === 'P2002') {
       res.status(409).json({ success: false, message: 'Invoice number already exists' }); return
     }
-    res.status(500).json({ success: false, message: 'Internal server error' })
+    fail(res, error, 'createInvoice')
   }
 }
 
 export async function updateInvoice(req: AuthRequest, res: Response): Promise<void> {
   try {
-    const { status, notes, dueDate, paidAmount } = req.body
+    const { status, notes, dueDate } = req.body
+    const before = await prisma.invoice.findUnique({ where: { id: req.params.id } })
+    if (!before) { res.status(404).json({ success: false, message: 'Invoice not found' }); return }
 
     const invoice = await prisma.invoice.update({
       where: { id: req.params.id },
@@ -123,14 +116,21 @@ export async function updateInvoice(req: AuthRequest, res: Response): Promise<vo
         ...(status !== undefined && { status }),
         ...(notes !== undefined && { notes }),
         ...(dueDate !== undefined && { dueDate: new Date(dueDate) }),
-        ...(paidAmount !== undefined && { paidAmount: parseFloat(paidAmount) }),
       },
-      include: { client: { select: { id: true, companyName: true } }, payments: true }
+      include: invoiceInclude,
+    })
+
+    await logAudit(req, {
+      action: status && status !== before.status ? 'STATUS_CHANGE' : 'UPDATE',
+      entity: 'Invoice', entityId: invoice.id, entityName: invoice.invoiceNumber,
+      description: status && status !== before.status
+        ? `Changed invoice ${invoice.invoiceNumber} from ${before.status} to ${status}`
+        : `Updated invoice ${invoice.invoiceNumber}`,
+      oldValue: { status: before.status, dueDate: before.dueDate.toISOString().slice(0, 10) },
+      newValue: { status: invoice.status, dueDate: invoice.dueDate.toISOString().slice(0, 10) },
     })
     res.json({ success: true, data: invoice, message: 'Invoice updated successfully' })
-  } catch (error) {
-    res.status(500).json({ success: false, message: 'Internal server error' })
-  }
+  } catch (error) { fail(res, error, 'updateInvoice') }
 }
 
 export async function recordPayment(req: AuthRequest, res: Response): Promise<void> {
@@ -139,72 +139,204 @@ export async function recordPayment(req: AuthRequest, res: Response): Promise<vo
     const invoiceId = req.params.id
 
     if (!amount || !paymentDate || !paymentMethod) {
-      res.status(400).json({ success: false, message: 'amount, paymentDate and paymentMethod are required' }); return
+      res.status(400).json({ success: false, message: 'Amount, payment date and method are required' }); return
     }
 
-    const invoice = await prisma.invoice.findUnique({ where: { id: invoiceId } })
+    const invoice = await prisma.invoice.findUnique({
+      where: { id: invoiceId },
+      include: { client: { select: { companyName: true } }, contract: { select: { projectName: true } }, project: { select: { name: true } } },
+    })
     if (!invoice) { res.status(404).json({ success: false, message: 'Invoice not found' }); return }
 
     const amountNum = parseFloat(amount)
-    const newPaid = Number(invoice.paidAmount) + amountNum
-    const newStatus = newPaid >= Number(invoice.totalAmount) ? 'PAID' : 'PARTIALLY_PAID'
+    const balance = invoice.totalAmount - invoice.paidAmount
+    if (!(amountNum > 0)) { res.status(400).json({ success: false, message: 'Amount must be greater than zero' }); return }
+    if (amountNum > balance + 0.01) {
+      res.status(400).json({ success: false, message: `Amount is more than the balance due (${balance})` }); return
+    }
 
-    const [payment] = await prisma.$transaction([
-      prisma.payment.create({
+    const newPaid = invoice.paidAmount + amountNum
+    const newStatus = newPaid >= invoice.totalAmount - 0.01 ? 'PAID' : 'PARTIALLY_PAID'
+
+    // Payment, invoice balance and the matching income entry are saved together.
+    const payment = await prisma.$transaction(async tx => {
+      const p = await tx.payment.create({
         data: {
-          invoiceId, amount: amountNum,
-          currency: invoice.currency,
-          paymentDate: new Date(paymentDate),
-          paymentMethod,
-          reference: reference || null,
-          notes: notes || null,
-        }
-      }),
-      prisma.invoice.update({
-        where: { id: invoiceId },
-        data: { paidAmount: newPaid, status: newStatus }
+          invoiceId, amount: amountNum, currency: invoice.currency,
+          paymentDate: new Date(paymentDate), paymentMethod,
+          reference: reference || null, notes: notes || null,
+        },
       })
-    ])
+      await tx.invoice.update({ where: { id: invoiceId }, data: { paidAmount: newPaid, status: newStatus } })
+      await tx.incomeEntry.create({
+        data: {
+          date: new Date(paymentDate),
+          description: `Payment for ${invoice.invoiceNumber}${invoice.project?.name || invoice.contract?.projectName ? ` — ${invoice.project?.name ?? invoice.contract?.projectName}` : ''}`,
+          category: guessIncomeCategory(invoice.project?.name ?? invoice.contract?.projectName),
+          amount: amountNum, currency: invoice.currency,
+          clientId: invoice.clientId, clientName: invoice.client.companyName,
+          paymentId: p.id, recordedById: req.user!.id,
+        },
+      })
+      return p
+    })
 
-    res.status(201).json({ success: true, data: payment, message: 'Payment recorded successfully' })
-  } catch (error) {
-    res.status(500).json({ success: false, message: 'Internal server error' })
-  }
+    await logAudit(req, {
+      action: 'PAYMENT', entity: 'Invoice', entityId: invoice.id,
+      entityName: `${invoice.invoiceNumber} — ${invoice.client.companyName ?? ''}`,
+      description: `Recorded payment of RWF ${amountNum.toLocaleString('en-US')} for invoice ${invoice.invoiceNumber}`,
+      oldValue: { paidAmount: invoice.paidAmount, status: invoice.status },
+      newValue: { amount: amountNum, method: paymentMethod, reference: reference || null, paidAmount: newPaid, status: newStatus },
+    })
+
+    const updated = await prisma.invoice.findUnique({ where: { id: invoiceId }, include: invoiceInclude })
+    res.status(201).json({ success: true, data: { payment, invoice: updated }, message: 'Payment recorded successfully' })
+  } catch (error) { fail(res, error, 'recordPayment') }
+}
+
+// ── INCOME & EXPENSES ─────────────────────────────────────────────────────────
+
+function periodFilter(month?: unknown, year?: unknown): Prisma.DateTimeFilter | undefined {
+  const y = parseInt(String(year))
+  if (!y) return undefined
+  const m = parseInt(String(month))
+  return m
+    ? { gte: new Date(Date.UTC(y, m - 1, 1)), lt: new Date(Date.UTC(y, m, 1)) }
+    : { gte: new Date(Date.UTC(y, 0, 1)), lt: new Date(Date.UTC(y + 1, 0, 1)) }
+}
+
+export async function getIncome(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const { category, search, month, year } = req.query
+    const where: Prisma.IncomeEntryWhereInput = {}
+    if (category) where.category = String(category)
+    const date = periodFilter(month, year)
+    if (date) where.date = date
+    if (search) {
+      where.OR = [
+        { description: { contains: String(search), mode: 'insensitive' } },
+        { clientName: { contains: String(search), mode: 'insensitive' } },
+      ]
+    }
+    const rows = await prisma.incomeEntry.findMany({
+      where, orderBy: { date: 'desc' },
+      include: { recordedBy: userName, payment: { select: { invoice: { select: { invoiceNumber: true } } } } },
+    })
+    res.json({ success: true, data: rows })
+  } catch (error) { fail(res, error, 'getIncome') }
+}
+
+export async function createIncome(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const { date, description, category, amount, clientId, clientName } = req.body
+    if (!date || !description || !(parseFloat(amount) > 0)) {
+      res.status(400).json({ success: false, message: 'Date, description and a positive amount are required' }); return
+    }
+    let name: string | null = clientName || null
+    if (clientId && !name) {
+      const c = await prisma.client.findUnique({ where: { id: clientId }, select: { companyName: true } })
+      name = c?.companyName ?? null
+    }
+    const row = await prisma.incomeEntry.create({
+      data: {
+        date: new Date(date), description, category: category || 'Other',
+        amount: parseFloat(amount), clientId: clientId || null, clientName: name,
+        recordedById: req.user!.id,
+      },
+      include: { recordedBy: userName },
+    })
+    await logAudit(req, {
+      action: 'CREATE', entity: 'Income', entityId: row.id, entityName: description,
+      description: `Recorded income of RWF ${row.amount.toLocaleString('en-US')} (${row.category})`,
+      newValue: { amount: row.amount, category: row.category, client: name },
+    })
+    res.status(201).json({ success: true, data: row, message: 'Income recorded' })
+  } catch (error) { fail(res, error, 'createIncome') }
+}
+
+export async function getExpenses(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const { category, search, month, year } = req.query
+    const where: Prisma.ExpenseEntryWhereInput = {}
+    if (category) where.category = String(category)
+    const date = periodFilter(month, year)
+    if (date) where.date = date
+    if (search) {
+      where.OR = [
+        { description: { contains: String(search), mode: 'insensitive' } },
+        { notes: { contains: String(search), mode: 'insensitive' } },
+      ]
+    }
+    const rows = await prisma.expenseEntry.findMany({ where, orderBy: { date: 'desc' }, include: { recordedBy: userName } })
+    res.json({ success: true, data: rows })
+  } catch (error) { fail(res, error, 'getExpenses') }
+}
+
+export async function createExpense(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const { date, description, category, amount, notes } = req.body
+    if (!date || !description || !(parseFloat(amount) > 0)) {
+      res.status(400).json({ success: false, message: 'Date, description and a positive amount are required' }); return
+    }
+    const row = await prisma.expenseEntry.create({
+      data: {
+        date: new Date(date), description, category: category || 'Other',
+        amount: parseFloat(amount), notes: notes || null, recordedById: req.user!.id,
+      },
+      include: { recordedBy: userName },
+    })
+    await logAudit(req, {
+      action: 'CREATE', entity: 'Expense', entityId: row.id, entityName: description,
+      description: `Recorded expense of RWF ${row.amount.toLocaleString('en-US')} (${row.category})`,
+      newValue: { amount: row.amount, category: row.category },
+    })
+    res.status(201).json({ success: true, data: row, message: 'Expense recorded' })
+  } catch (error) { fail(res, error, 'createExpense') }
 }
 
 // ── INCOME STATEMENT / P&L ────────────────────────────────────────────────────
+// Revenue = income entries (invoice payments are added automatically).
+// Expenses = expense entries (paid salaries are added automatically).
+
+const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+/** Revenue and expenses for each of the `count` months ending at (year, month). */
+export async function monthlySeries(year: number, month: number, count: number) {
+  const start = new Date(Date.UTC(year, month - count, 1))
+  const end = new Date(Date.UTC(year, month, 1))
+  const [income, expenses] = await Promise.all([
+    prisma.incomeEntry.findMany({ where: { date: { gte: start, lt: end } }, select: { date: true, amount: true } }),
+    prisma.expenseEntry.findMany({ where: { date: { gte: start, lt: end } }, select: { date: true, amount: true } }),
+  ])
+  const buckets = Array.from({ length: count }, (_, i) => {
+    const d = new Date(Date.UTC(year, month - count + i, 1))
+    return { key: `${d.getUTCFullYear()}-${d.getUTCMonth()}`, month: MONTH_LABELS[d.getUTCMonth()], year: d.getUTCFullYear(), revenue: 0, expenses: 0 }
+  })
+  const index = new Map(buckets.map(b => [b.key, b]))
+  for (const r of income) index.get(`${r.date.getUTCFullYear()}-${r.date.getUTCMonth()}`)!.revenue += r.amount
+  for (const r of expenses) index.get(`${r.date.getUTCFullYear()}-${r.date.getUTCMonth()}`)!.expenses += r.amount
+  return buckets.map(({ key: _key, ...b }) => b)
+}
 
 export async function getPL(req: AuthRequest, res: Response): Promise<void> {
   try {
-    const { month, year } = req.query
-    const y = parseInt(String(year)) || new Date().getFullYear()
-    const m = parseInt(String(month))
+    const now = new Date()
+    const y = parseInt(String(req.query.year)) || now.getFullYear()
+    const m = parseInt(String(req.query.month)) || 0
+    const date = periodFilter(m || undefined, y)!
 
-    const startDate = m
-      ? new Date(y, m - 1, 1)
-      : new Date(y, 0, 1)
-    const endDate = m
-      ? new Date(y, m, 0, 23, 59, 59)
-      : new Date(y, 11, 31, 23, 59, 59)
-
-    const [revenueAgg, expensesAgg, invoices] = await Promise.all([
-      prisma.invoice.aggregate({
-        where: { status: 'PAID', issueDate: { gte: startDate, lte: endDate } },
-        _sum: { totalAmount: true }
-      }),
-      prisma.salaryRecord.aggregate({
-        where: { isPaid: true, year: y, ...(m ? { month: m } : {}) },
-        _sum: { netSalary: true }
-      }),
-      prisma.invoice.findMany({
-        where: { status: { notIn: ['PAID', 'CANCELLED'] }, dueDate: { lte: new Date() } },
-        select: { totalAmount: true, paidAmount: true }
-      })
+    const [incomeByCat, expenseByCat, openInvoices, series] = await Promise.all([
+      prisma.incomeEntry.groupBy({ by: ['category'], where: { date }, _sum: { amount: true }, orderBy: { _sum: { amount: 'desc' } } }),
+      prisma.expenseEntry.groupBy({ by: ['category'], where: { date }, _sum: { amount: true }, orderBy: { _sum: { amount: 'desc' } } }),
+      prisma.invoice.findMany({ where: { status: { notIn: ['PAID', 'CANCELLED', 'DRAFT'] } }, select: { totalAmount: true, paidAmount: true } }),
+      monthlySeries(y, m || 12, 6),
     ])
 
-    const totalRevenue = Number(revenueAgg._sum.totalAmount ?? 0)
-    const totalExpenses = Number(expensesAgg._sum.netSalary ?? 0)
-    const outstanding = invoices.reduce((s, i) => s + (Number(i.totalAmount) - Number(i.paidAmount)), 0)
+    const revenueByCategory = incomeByCat.map(r => ({ category: r.category, amount: r._sum.amount ?? 0 }))
+    const expensesByCategory = expenseByCat.map(r => ({ category: r.category, amount: r._sum.amount ?? 0 }))
+    const totalRevenue = revenueByCategory.reduce((s, r) => s + r.amount, 0)
+    const totalExpenses = expensesByCategory.reduce((s, r) => s + r.amount, 0)
+    const outstanding = openInvoices.reduce((s, i) => s + (i.totalAmount - i.paidAmount), 0)
 
     res.json({
       success: true,
@@ -215,23 +347,29 @@ export async function getPL(req: AuthRequest, res: Response): Promise<void> {
         grossProfit: totalRevenue - totalExpenses,
         netIncome: totalRevenue - totalExpenses,
         outstandingReceivables: outstanding,
-      }
+        revenueByCategory,
+        expensesByCategory,
+        monthly: series,
+      },
     })
-  } catch (error) {
-    res.status(500).json({ success: false, message: 'Internal server error' })
-  }
+  } catch (error) { fail(res, error, 'getPL') }
 }
 
 // ── OPPORTUNITIES (Sales Pipeline) ────────────────────────────────────────────
 
+const oppInclude = {
+  client: { select: { id: true, companyName: true, phone: true, category: true, contactPersonName: true, contactPersonPhone: true } },
+  assignedTo: userName,
+}
+
 export async function getOpportunities(req: AuthRequest, res: Response): Promise<void> {
   try {
-    const { page = 1, limit = 50, stage, search, assignedToId } = req.query
+    const { page = 1, limit = 200, stage, search, assignedToId } = req.query
     const skip = (Number(page) - 1) * Number(limit)
 
-    const where: Record<string, unknown> = {}
-    if (stage) where.stage = stage
-    if (assignedToId) where.assignedToId = assignedToId
+    const where: Prisma.OpportunityWhereInput = {}
+    if (stage) where.stage = stage as Prisma.OpportunityWhereInput['stage']
+    if (assignedToId) where.assignedToId = String(assignedToId)
     if (search) {
       where.OR = [
         { name: { contains: String(search), mode: 'insensitive' } },
@@ -240,37 +378,24 @@ export async function getOpportunities(req: AuthRequest, res: Response): Promise
     }
 
     const [opps, total] = await Promise.all([
-      prisma.opportunity.findMany({
-        where, skip, take: Number(limit),
-        include: {
-          client: { select: { id: true, companyName: true, phone: true, category: true } },
-          assignedTo: { select: { id: true, firstName: true, lastName: true } },
-        },
-        orderBy: { createdAt: 'desc' }
-      }),
-      prisma.opportunity.count({ where })
+      prisma.opportunity.findMany({ where, skip, take: Number(limit), include: oppInclude, orderBy: { createdAt: 'desc' } }),
+      prisma.opportunity.count({ where }),
     ])
 
     res.json({
       success: true,
       data: opps,
-      pagination: { page: Number(page), limit: Number(limit), total, totalPages: Math.ceil(total / Number(limit)) }
+      pagination: { page: Number(page), limit: Number(limit), total, totalPages: Math.ceil(total / Number(limit)) },
     })
-  } catch (error) {
-    res.status(500).json({ success: false, message: 'Internal server error' })
-  }
+  } catch (error) { fail(res, error, 'getOpportunities') }
 }
 
 export async function createOpportunity(req: AuthRequest, res: Response): Promise<void> {
   try {
-    const {
-      name, clientId, stage, estimatedValue, currency,
-      probability, expectedCloseDate, assignedToId,
-      notes, nextAction, followUpDate
-    } = req.body
+    const { name, clientId, stage, estimatedValue, currency, probability, expectedCloseDate, assignedToId, notes, nextAction, followUpDate } = req.body
 
-    if (!name || !clientId || !assignedToId) {
-      res.status(400).json({ success: false, message: 'name, clientId and assignedToId are required' }); return
+    if (!name || !clientId) {
+      res.status(400).json({ success: false, message: 'Deal name and client are required' }); return
     }
 
     const opp = await prisma.opportunity.create({
@@ -279,66 +404,80 @@ export async function createOpportunity(req: AuthRequest, res: Response): Promis
         stage: stage || 'NEW_LEAD',
         estimatedValue: parseFloat(estimatedValue) || 0,
         currency: currency || 'RWF',
-        probability: parseFloat(probability) || 10,
+        probability: probability !== undefined ? parseFloat(probability) : 10,
         expectedCloseDate: expectedCloseDate ? new Date(expectedCloseDate) : null,
-        assignedToId,
+        assignedToId: assignedToId || req.user!.id,
         notes: notes || null,
         nextAction: nextAction || null,
         followUpDate: followUpDate ? new Date(followUpDate) : null,
       },
-      include: {
-        client: { select: { id: true, companyName: true } },
-        assignedTo: { select: { id: true, firstName: true, lastName: true } },
-      }
+      include: oppInclude,
     })
 
-    res.status(201).json({ success: true, data: opp, message: 'Opportunity created successfully' })
-  } catch (error) {
-    res.status(500).json({ success: false, message: 'Internal server error' })
-  }
+    await logAudit(req, {
+      action: 'CREATE', entity: 'Deal', entityId: opp.id, entityName: opp.name,
+      description: `Added deal ${opp.name} worth RWF ${opp.estimatedValue.toLocaleString('en-US')}`,
+      newValue: { stage: opp.stage, estimatedValue: opp.estimatedValue },
+    })
+    res.status(201).json({ success: true, data: opp, message: 'Deal created successfully' })
+  } catch (error) { fail(res, error, 'createOpportunity') }
 }
 
 export async function updateOpportunity(req: AuthRequest, res: Response): Promise<void> {
   try {
-    const {
-      name, stage, estimatedValue, probability,
-      expectedCloseDate, notes, nextAction, followUpDate, lostReason
-    } = req.body
+    const { name, clientId, stage, estimatedValue, probability, expectedCloseDate, assignedToId, notes, nextAction, followUpDate, lostReason } = req.body
+
+    const before = await prisma.opportunity.findUnique({ where: { id: req.params.id } })
+    if (!before) { res.status(404).json({ success: false, message: 'Deal not found' }); return }
 
     const opp = await prisma.opportunity.update({
       where: { id: req.params.id },
       data: {
         ...(name !== undefined && { name }),
+        ...(clientId !== undefined && { clientId }),
         ...(stage !== undefined && { stage }),
         ...(estimatedValue !== undefined && { estimatedValue: parseFloat(estimatedValue) }),
         ...(probability !== undefined && { probability: parseFloat(probability) }),
-        ...(expectedCloseDate !== undefined && { expectedCloseDate: new Date(expectedCloseDate) }),
+        ...(expectedCloseDate !== undefined && { expectedCloseDate: expectedCloseDate ? new Date(expectedCloseDate) : null }),
+        ...(assignedToId !== undefined && { assignedToId }),
         ...(notes !== undefined && { notes }),
         ...(nextAction !== undefined && { nextAction }),
-        ...(followUpDate !== undefined && { followUpDate: new Date(followUpDate) }),
+        ...(followUpDate !== undefined && { followUpDate: followUpDate ? new Date(followUpDate) : null }),
         ...(lostReason !== undefined && { lostReason }),
       },
-      include: {
-        client: { select: { id: true, companyName: true } },
-        assignedTo: { select: { id: true, firstName: true, lastName: true } },
-      }
+      include: oppInclude,
     })
-    res.json({ success: true, data: opp, message: 'Opportunity updated successfully' })
-  } catch (error) {
-    res.status(500).json({ success: false, message: 'Internal server error' })
-  }
+
+    const stageChanged = stage !== undefined && stage !== before.stage
+    await logAudit(req, {
+      action: stageChanged ? 'STATUS_CHANGE' : 'UPDATE',
+      entity: 'Deal', entityId: opp.id, entityName: opp.name,
+      description: stageChanged ? `Moved deal ${opp.name} from ${before.stage} to ${opp.stage}` : `Updated deal ${opp.name}`,
+      oldValue: { stage: before.stage, estimatedValue: before.estimatedValue },
+      newValue: { stage: opp.stage, estimatedValue: opp.estimatedValue },
+    })
+    res.json({ success: true, data: opp, message: 'Deal updated successfully' })
+  } catch (error) { fail(res, error, 'updateOpportunity') }
 }
 
 // ── CONTRACTS ─────────────────────────────────────────────────────────────────
 
+const contractInclude = {
+  client: { select: { id: true, companyName: true, category: true } },
+  responsibleManager: userName,
+  _count: { select: { projects: true, invoices: true } },
+}
+
+interface Signatory { name: string; status: 'PENDING' | 'SIGNED'; signedAt?: string }
+
 export async function getContracts(req: AuthRequest, res: Response): Promise<void> {
   try {
-    const { page = 1, limit = 50, status, clientId, search } = req.query
+    const { page = 1, limit = 200, status, clientId, search } = req.query
     const skip = (Number(page) - 1) * Number(limit)
 
-    const where: Record<string, unknown> = {}
-    if (status) where.status = status
-    if (clientId) where.clientId = clientId
+    const where: Prisma.ContractWhereInput = {}
+    if (status) where.status = status as ContractStatus
+    if (clientId) where.clientId = String(clientId)
     if (search) {
       where.OR = [
         { contractNumber: { contains: String(search), mode: 'insensitive' } },
@@ -348,48 +487,33 @@ export async function getContracts(req: AuthRequest, res: Response): Promise<voi
     }
 
     const [contracts, total] = await Promise.all([
-      prisma.contract.findMany({
-        where, skip, take: Number(limit),
-        include: {
-          client: { select: { id: true, companyName: true } },
-          responsibleManager: { select: { id: true, firstName: true, lastName: true } },
-          _count: { select: { projects: true, invoices: true } }
-        },
-        orderBy: { createdAt: 'desc' }
-      }),
-      prisma.contract.count({ where })
+      prisma.contract.findMany({ where, skip, take: Number(limit), include: contractInclude, orderBy: { createdAt: 'desc' } }),
+      prisma.contract.count({ where }),
     ])
 
     res.json({
       success: true,
       data: contracts,
-      pagination: { page: Number(page), limit: Number(limit), total, totalPages: Math.ceil(total / Number(limit)) }
+      pagination: { page: Number(page), limit: Number(limit), total, totalPages: Math.ceil(total / Number(limit)) },
     })
-  } catch (error) {
-    res.status(500).json({ success: false, message: 'Internal server error' })
-  }
+  } catch (error) { fail(res, error, 'getContracts') }
 }
 
 export async function createContract(req: AuthRequest, res: Response): Promise<void> {
   try {
     const {
-      contractNumber, clientId, projectName, value, currency,
-      startDate, endDate, paymentTerms, deliverables, status, responsibleManagerId
+      contractNumber, clientId, projectName, value, currency, startDate, endDate,
+      paymentTerms, deliverables, responsibleManagerId, signatories, notes, sourceQuotationNumber,
     } = req.body
 
     if (!clientId || !value || !startDate || !endDate) {
-      res.status(400).json({ success: false, message: 'clientId, value, startDate and endDate are required' }); return
-    }
-
-    let ctNumber = contractNumber
-    if (!ctNumber) {
-      const count = await prisma.contract.count()
-      ctNumber = `CT-${new Date().getFullYear()}-${String(count + 1).padStart(3, '0')}`
+      res.status(400).json({ success: false, message: 'Client, value, start date and end date are required' }); return
     }
 
     const contract = await prisma.contract.create({
       data: {
-        contractNumber: ctNumber, clientId,
+        contractNumber: contractNumber || await nextDocumentNumber('CT'),
+        clientId,
         projectName: projectName || null,
         value: parseFloat(value),
         currency: currency || 'RWF',
@@ -397,45 +521,101 @@ export async function createContract(req: AuthRequest, res: Response): Promise<v
         endDate: new Date(endDate),
         paymentTerms: paymentTerms || null,
         deliverables: deliverables || null,
-        status: status || 'DRAFT',
+        status: 'DRAFT',
         responsibleManagerId: responsibleManagerId || null,
+        signatories: Array.isArray(signatories) ? (signatories as Signatory[]) as unknown as Prisma.InputJsonValue : undefined,
+        notes: notes || null,
+        sourceQuotationNumber: sourceQuotationNumber || null,
       },
-      include: { client: { select: { id: true, companyName: true } } }
+      include: contractInclude,
+    })
+
+    await logAudit(req, {
+      action: 'CREATE', entity: 'Contract', entityId: contract.id,
+      entityName: `${contract.contractNumber} — ${contract.client.companyName ?? ''}`,
+      description: `Created contract ${contract.contractNumber} worth RWF ${contract.value.toLocaleString('en-US')}`,
+      newValue: { value: contract.value, status: contract.status },
     })
     res.status(201).json({ success: true, data: contract, message: 'Contract created successfully' })
   } catch (error: unknown) {
-    const e = error as { code?: string }
-    if (e.code === 'P2002') {
+    if ((error as { code?: string }).code === 'P2002') {
       res.status(409).json({ success: false, message: 'Contract number already exists' }); return
     }
-    res.status(500).json({ success: false, message: 'Internal server error' })
+    fail(res, error, 'createContract')
   }
 }
+
+const CONTRACT_FLOW: ContractStatus[] = ['DRAFT', 'REVIEW', 'APPROVAL', 'SIGNING', 'ACTIVE', 'COMPLETED']
 
 export async function updateContract(req: AuthRequest, res: Response): Promise<void> {
   try {
     const {
-      projectName, value, startDate, endDate,
-      paymentTerms, deliverables, status, signedAt, signedDocumentUrl
+      clientId, projectName, value, startDate, endDate, paymentTerms, deliverables, status,
+      responsibleManagerId, signatories, signedDocumentName, approvalNote, notes,
     } = req.body
+
+    const before = await prisma.contract.findUnique({ where: { id: req.params.id } })
+    if (!before) { res.status(404).json({ success: false, message: 'Contract not found' }); return }
+
+    const nextSignatories: Signatory[] = Array.isArray(signatories)
+      ? signatories
+      : ((before.signatories as unknown as Signatory[] | null) ?? [])
+    const nextDocName = signedDocumentName !== undefined ? signedDocumentName : before.signedDocumentName
+
+    // Workflow rules
+    if (status !== undefined && status !== before.status) {
+      const leavingApproval = before.status === 'APPROVAL' && (status === 'SIGNING' || status === 'REVIEW')
+      if (leavingApproval && !hasRole(req.user?.role, ADMINS)) {
+        res.status(403).json({ success: false, message: 'Only management can approve contracts' }); return
+      }
+      if (status === 'REVIEW' && before.status === 'APPROVAL' && !(approvalNote ?? '').trim()) {
+        res.status(400).json({ success: false, message: 'A reason is required when requesting changes' }); return
+      }
+      if (status === 'ACTIVE' && (!nextSignatories.length || nextSignatories.some(s => s.status !== 'SIGNED') || !nextDocName)) {
+        res.status(400).json({ success: false, message: 'All signatories must sign and the signed document must be attached before activation' }); return
+      }
+      const from = CONTRACT_FLOW.indexOf(before.status)
+      const to = CONTRACT_FLOW.indexOf(status)
+      if (from >= 0 && to >= 0 && to > from + 1) {
+        res.status(400).json({ success: false, message: `Contract must go through ${CONTRACT_FLOW[from + 1]} first` }); return
+      }
+    }
 
     const contract = await prisma.contract.update({
       where: { id: req.params.id },
       data: {
+        ...(clientId !== undefined && { clientId }),
         ...(projectName !== undefined && { projectName }),
         ...(value !== undefined && { value: parseFloat(value) }),
         ...(startDate !== undefined && { startDate: new Date(startDate) }),
         ...(endDate !== undefined && { endDate: new Date(endDate) }),
         ...(paymentTerms !== undefined && { paymentTerms }),
         ...(deliverables !== undefined && { deliverables }),
+        ...(responsibleManagerId !== undefined && { responsibleManagerId: responsibleManagerId || null }),
+        ...(Array.isArray(signatories) && { signatories: signatories as unknown as Prisma.InputJsonValue }),
+        ...(signedDocumentName !== undefined && { signedDocumentName }),
+        ...(approvalNote !== undefined && { approvalNote }),
+        ...(notes !== undefined && { notes }),
         ...(status !== undefined && { status }),
-        ...(signedAt !== undefined && { signedAt: new Date(signedAt) }),
-        ...(signedDocumentUrl !== undefined && { signedDocumentUrl }),
+        ...(status === 'ACTIVE' && before.status !== 'ACTIVE' && { signedAt: new Date() }),
       },
-      include: { client: { select: { id: true, companyName: true } } }
+      include: contractInclude,
+    })
+
+    const statusChanged = status !== undefined && status !== before.status
+    const approved = before.status === 'APPROVAL' && status === 'SIGNING'
+    const rejected = before.status === 'APPROVAL' && status === 'REVIEW'
+    await logAudit(req, {
+      action: approved ? 'APPROVE' : rejected ? 'REJECT' : statusChanged ? 'STATUS_CHANGE' : 'UPDATE',
+      entity: 'Contract', entityId: contract.id,
+      entityName: `${contract.contractNumber} — ${contract.client.companyName ?? ''}`,
+      description: approved ? `Approved contract ${contract.contractNumber} for signing`
+        : rejected ? `Requested changes on contract ${contract.contractNumber}: ${approvalNote}`
+        : statusChanged ? `Advanced contract ${contract.contractNumber} from ${before.status} to ${contract.status}`
+        : `Updated contract ${contract.contractNumber}`,
+      oldValue: { status: before.status, value: before.value },
+      newValue: { status: contract.status, value: contract.value, ...(approvalNote ? { note: approvalNote } : {}) },
     })
     res.json({ success: true, data: contract, message: 'Contract updated successfully' })
-  } catch (error) {
-    res.status(500).json({ success: false, message: 'Internal server error' })
-  }
+  } catch (error) { fail(res, error, 'updateContract') }
 }

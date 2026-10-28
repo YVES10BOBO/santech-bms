@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react'
 import { Plus, Search, X, AlertCircle, CheckCircle2, Clock, DollarSign } from 'lucide-react'
 import { cn, formatDate, formatCurrency } from '@/lib/utils'
 import { financeService } from '@/lib/services/financeService'
+import { useLookups, apiError } from '@/lib/services/lookupService'
 import PageLoader from '@/components/shared/PageLoader'
+import toast from 'react-hot-toast'
 
 type InvoiceStatus = 'DRAFT' | 'SENT' | 'DUE' | 'PARTIALLY_PAID' | 'PAID' | 'OVERDUE' | 'CANCELLED'
 
@@ -33,21 +35,6 @@ interface Payment {
   reference: string
 }
 
-const mockInvoices: Invoice[] = [
-  { id: '1', invoiceNumber: 'INV-2026-001', clientName: 'East African Seed Ltd', contractNumber: 'CT-2026-001', projectName: 'SANTRACK Implementation', amount: 750000, taxAmount: 0, totalAmount: 750000, paidAmount: 750000, currency: 'RWF', issueDate: '2026-10-01', dueDate: '2026-10-15', status: 'PAID', notes: '50% upfront payment' },
-  { id: '2', invoiceNumber: 'INV-2026-002', clientName: 'East African Seed Ltd', contractNumber: 'CT-2026-001', projectName: 'SANTRACK Implementation', amount: 750000, taxAmount: 0, totalAmount: 750000, paidAmount: 0, currency: 'RWF', issueDate: '2026-12-01', dueDate: '2026-12-15', status: 'DUE', notes: '50% on delivery payment' },
-  { id: '3', invoiceNumber: 'INV-2026-003', clientName: 'Rwanda Mountain Ride', contractNumber: 'CT-2025-012', projectName: 'Company Website', amount: 800000, taxAmount: 0, totalAmount: 800000, paidAmount: 800000, currency: 'RWF', issueDate: '2026-01-28', dueDate: '2026-02-07', status: 'PAID', notes: 'Full payment received on website launch' },
-  { id: '4', invoiceNumber: 'INV-2026-004', clientName: 'N&T PLASTIC INDUSTRIES', contractNumber: 'CT-2026-003', projectName: 'SANTRACK Stock Management', amount: 3000000, taxAmount: 0, totalAmount: 3000000, paidAmount: 1500000, currency: 'RWF', issueDate: '2026-10-15', dueDate: '2026-10-30', status: 'PARTIALLY_PAID', notes: 'Partial payment received. Balance due Oct 30.' },
-  { id: '5', invoiceNumber: 'INV-2026-005', clientName: 'ECOBANK', contractNumber: 'CT-2026-004', projectName: 'EVS + SANHR IMS', amount: 2000000, taxAmount: 0, totalAmount: 2000000, paidAmount: 0, currency: 'RWF', issueDate: '2026-10-08', dueDate: '2026-10-22', status: 'OVERDUE', notes: 'Signing payment — overdue by 3 days' },
-  { id: '6', invoiceNumber: 'INV-2026-006', clientName: 'SABBAN ABATTOIR', contractNumber: 'CT-2026-002', projectName: 'EVS System — 90 Employees', amount: 3600000, taxAmount: 0, totalAmount: 3600000, paidAmount: 0, currency: 'RWF', issueDate: '2026-11-01', dueDate: '2026-11-15', status: 'DRAFT', notes: '30% on signing — draft invoice' },
-]
-
-const mockPayments: Payment[] = [
-  { id: 'p1', invoiceId: '1', amount: 750000, paymentDate: '2026-10-02', paymentMethod: 'Bank Transfer', reference: 'BNK-2026-1001' },
-  { id: 'p2', invoiceId: '3', amount: 800000, paymentDate: '2026-01-30', paymentMethod: 'Mobile Money', reference: 'MTN-20260130' },
-  { id: 'p3', invoiceId: '4', amount: 1500000, paymentDate: '2026-10-18', paymentMethod: 'Bank Transfer', reference: 'BNK-2026-1045' },
-]
-
 const STATUS_CONFIG: Record<InvoiceStatus, { label: string; color: string; icon: React.ElementType }> = {
   DRAFT:         { label: 'Draft',          color: 'bg-gray-100 text-gray-600',     icon: Clock },
   SENT:          { label: 'Sent',           color: 'bg-blue-100 text-blue-600',     icon: Clock },
@@ -59,16 +46,17 @@ const STATUS_CONFIG: Record<InvoiceStatus, { label: string; color: string; icon:
 }
 
 const emptyForm = {
-  invoiceNumber: '', clientName: '', contractNumber: '',
-  projectName: '', amount: '', taxAmount: '0',
+  invoiceNumber: '', clientId: '', contractId: '',
+  projectId: '', amount: '', taxAmount: '0',
   issueDate: new Date().toISOString().split('T')[0],
   dueDate: '', status: 'DRAFT' as InvoiceStatus, notes: '',
 }
 
 export default function InvoicesPage() {
-  const [invoices, setInvoices] = useState<Invoice[]>(mockInvoices)
-  const [payments, setPayments] = useState<Payment[]>(mockPayments)
+  const [invoices, setInvoices] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const lookups = useLookups()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<InvoiceStatus | 'ALL'>('ALL')
   const [showModal, setShowModal] = useState(false)
@@ -76,14 +64,14 @@ export default function InvoicesPage() {
   const [form, setForm] = useState(emptyForm)
   const [payForm, setPayForm] = useState({ amount: '', paymentDate: new Date().toISOString().split('T')[0], paymentMethod: 'Bank Transfer', reference: '' })
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null)
-  const [editId, setEditId] = useState<string | null>(null)
+  const [viewInvoice, setViewInvoice] = useState<Invoice | null>(null)
   const [error, setError] = useState('')
   const [rowsPerPage, setRowsPerPage] = useState(5)
   const [page, setPage] = useState(1)
 
-  // Load invoices from backend, fall back to mock data if unavailable
-  useEffect(() => {
-    financeService.getInvoices()
+  // Load invoices from the database
+  const loadInvoices = () =>
+    financeService.getInvoices({ limit: '500' })
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .then((res: any) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -92,7 +80,7 @@ export default function InvoicesPage() {
           invoiceNumber: inv.invoiceNumber,
           clientName: inv.client?.companyName ?? '',
           contractNumber: inv.contract?.contractNumber ?? '',
-          projectName: inv.project?.name ?? '',
+          projectName: inv.project?.name ?? inv.contract?.projectName ?? '',
           amount: Number(inv.amount),
           taxAmount: Number(inv.taxAmount),
           totalAmount: Number(inv.totalAmount),
@@ -102,6 +90,7 @@ export default function InvoicesPage() {
           dueDate: inv.dueDate ? String(inv.dueDate).slice(0, 10) : '',
           status: inv.status as InvoiceStatus,
           notes: inv.notes ?? '',
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           payments: (inv.payments ?? []).map((p: any) => ({
             id: p.id, invoiceId: inv.id,
             amount: Number(p.amount),
@@ -110,13 +99,12 @@ export default function InvoicesPage() {
             reference: p.reference ?? '',
           })),
         }))
-        if (mapped.length > 0) {
-          setInvoices(mapped)
-          setPayments(mapped.flatMap(inv => inv.payments ?? []))
-        }
+        setInvoices(mapped)
       })
-      .catch(() => { /* keep mock data on error */ })
-      .finally(() => setLoading(false))
+      .catch(err => toast.error(apiError(err, 'Failed to load invoices')))
+
+  useEffect(() => {
+    loadInvoices().finally(() => setLoading(false))
   }, [])
 
   const filtered = invoices.filter(inv => {
@@ -133,40 +121,54 @@ export default function InvoicesPage() {
     setForm(p => ({ ...p, [e.target.name]: e.target.value }))
   }
 
-  const openAdd = () => { setForm(emptyForm); setEditId(null); setError(''); setShowModal(true) }
+  const openAdd = () => { setForm(emptyForm); setError(''); setShowModal(true) }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!form.clientName || !form.amount || !form.dueDate) { setError('Client, amount and due date are required.'); return }
-    const amount = parseFloat(form.amount)
-    const tax = parseFloat(form.taxAmount) || 0
-    const inv: Invoice = {
-      id: editId || String(Date.now()),
-      invoiceNumber: form.invoiceNumber || `INV-${new Date().getFullYear()}-${String(invoices.length + 1).padStart(3, '0')}`,
-      clientName: form.clientName, contractNumber: form.contractNumber,
-      projectName: form.projectName, amount, taxAmount: tax,
-      totalAmount: amount + tax, paidAmount: 0, currency: 'RWF',
-      issueDate: form.issueDate, dueDate: form.dueDate,
-      status: form.status, notes: form.notes,
+    if (!form.clientId || !form.amount || !form.dueDate) { setError('Client, amount and due date are required.'); return }
+    setSaving(true)
+    try {
+      const created = await financeService.createInvoice({
+        invoiceNumber: form.invoiceNumber || undefined,
+        clientId: form.clientId,
+        contractId: form.contractId || undefined,
+        projectId: form.projectId || undefined,
+        amount: parseFloat(form.amount),
+        taxAmount: parseFloat(form.taxAmount) || 0,
+        issueDate: form.issueDate,
+        dueDate: form.dueDate,
+        status: form.status,
+        notes: form.notes,
+      })
+      toast.success(`Invoice ${created.invoiceNumber} created`)
+      setShowModal(false)
+      await loadInvoices()
+    } catch (err) {
+      setError(apiError(err, 'Failed to create invoice'))
+    } finally {
+      setSaving(false)
     }
-    if (editId) setInvoices(prev => prev.map(x => x.id === editId ? inv : x))
-    else setInvoices(prev => [inv, ...prev])
-    setShowModal(false)
   }
 
-  const recordPayment = () => {
+  const recordPayment = async () => {
     if (!selectedInvoice || !payForm.amount) return
-    const amount = parseFloat(payForm.amount)
-    const payment: Payment = { id: String(Date.now()), invoiceId: selectedInvoice.id, amount, paymentDate: payForm.paymentDate, paymentMethod: payForm.paymentMethod, reference: payForm.reference }
-    setPayments(prev => [...prev, payment])
-    setInvoices(prev => prev.map(inv => {
-      if (inv.id !== selectedInvoice.id) return inv
-      const newPaid = inv.paidAmount + amount
-      const status: InvoiceStatus = newPaid >= inv.totalAmount ? 'PAID' : 'PARTIALLY_PAID'
-      return { ...inv, paidAmount: newPaid, status }
-    }))
-    setShowPayModal(false)
-    setPayForm({ amount: '', paymentDate: new Date().toISOString().split('T')[0], paymentMethod: 'Bank Transfer', reference: '' })
+    setSaving(true)
+    try {
+      await financeService.recordPayment(selectedInvoice.id, {
+        amount: parseFloat(payForm.amount),
+        paymentDate: payForm.paymentDate,
+        paymentMethod: payForm.paymentMethod,
+        reference: payForm.reference,
+      })
+      toast.success('Payment recorded — added to Finance income')
+      setShowPayModal(false)
+      setPayForm({ amount: '', paymentDate: new Date().toISOString().split('T')[0], paymentMethod: 'Bank Transfer', reference: '' })
+      await loadInvoices()
+    } catch (err) {
+      toast.error(apiError(err, 'Failed to record payment'))
+    } finally {
+      setSaving(false)
+    }
   }
 
   const totalOutstanding = invoices.filter(i => i.status !== 'PAID' && i.status !== 'CANCELLED').reduce((s, i) => s + (i.totalAmount - i.paidAmount), 0)
@@ -255,7 +257,7 @@ export default function InvoicesPage() {
                         {['DUE', 'PARTIALLY_PAID', 'OVERDUE', 'SENT'].includes(inv.status) && (
                           <button onClick={() => { setSelectedInvoice(inv); setShowPayModal(true) }} className="text-xs bg-green-50 text-green-600 px-2 py-1 rounded-lg hover:bg-green-100 font-medium whitespace-nowrap">Record Payment</button>
                         )}
-                        <button className="text-xs text-gray-500 hover:underline font-medium">View</button>
+                        <button onClick={() => setViewInvoice(inv)} className="text-xs text-gray-500 hover:underline font-medium">View</button>
                       </div>
                     </td>
                   </tr>
@@ -281,6 +283,47 @@ export default function InvoicesPage() {
           </div>
         </div>
       </div>
+
+      {/* Invoice details */}
+      {viewInvoice && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/40" onClick={() => setViewInvoice(null)}>
+          <div className="bg-white w-full max-w-md h-full overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b">
+              <div>
+                <p className="font-mono text-xs text-santech-600 font-semibold">{viewInvoice.invoiceNumber}</p>
+                <h2 className="font-semibold text-gray-800">{viewInvoice.clientName}</h2>
+              </div>
+              <button onClick={() => setViewInvoice(null)}><X className="w-5 h-5 text-gray-400" /></button>
+            </div>
+            <div className="px-6 py-5 space-y-4 text-sm">
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  ['Project', viewInvoice.projectName || '—'],
+                  ['Contract', viewInvoice.contractNumber || '—'],
+                  ['Issue date', formatDate(viewInvoice.issueDate)],
+                  ['Due date', formatDate(viewInvoice.dueDate)],
+                  ['Total', formatCurrency(viewInvoice.totalAmount)],
+                  ['Balance', formatCurrency(viewInvoice.totalAmount - viewInvoice.paidAmount)],
+                ].map(([label, value]) => (
+                  <div key={label}><p className="text-xs text-gray-400">{label}</p><p className="font-medium text-gray-700">{value}</p></div>
+                ))}
+              </div>
+              {viewInvoice.notes && <p className="text-sm text-gray-600 bg-gray-50 rounded-lg p-3">{viewInvoice.notes}</p>}
+              <div>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Payments</p>
+                {(viewInvoice.payments ?? []).length === 0 ? (
+                  <p className="text-sm text-gray-400">No payments yet.</p>
+                ) : (viewInvoice.payments ?? []).map(p => (
+                  <div key={p.id} className="flex items-center justify-between rounded-lg bg-green-50 px-3 py-2 mb-2">
+                    <div><p className="text-sm font-medium text-green-800">{formatCurrency(p.amount)}</p><p className="text-xs text-green-700">{p.paymentMethod}{p.reference ? ` · ${p.reference}` : ''}</p></div>
+                    <span className="text-xs text-green-700">{formatDate(p.paymentDate)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Record Payment Modal */}
       {showPayModal && selectedInvoice && (
@@ -316,7 +359,7 @@ export default function InvoicesPage() {
             </div>
             <div className="flex gap-3 mt-4">
               <button onClick={() => setShowPayModal(false)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
-              <button onClick={recordPayment} disabled={!payForm.amount} className="flex-1 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 font-medium disabled:opacity-40">Record Payment</button>
+              <button onClick={recordPayment} disabled={!payForm.amount || saving} className="flex-1 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 font-medium disabled:opacity-40">Record Payment</button>
             </div>
           </div>
         </div>
@@ -345,17 +388,26 @@ export default function InvoicesPage() {
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Client Name *</label>
-                <input name="clientName" value={form.clientName} onChange={handleChange} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500" />
+                <label className="block text-xs font-medium text-gray-700 mb-1">Client *</label>
+                <select name="clientId" value={form.clientId} onChange={e => setForm(p => ({ ...p, clientId: e.target.value, contractId: '', projectId: '' }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500">
+                  <option value="">Select client…</option>
+                  {lookups.clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Contract Number</label>
-                  <input name="contractNumber" value={form.contractNumber} onChange={handleChange} placeholder="CT-2026-001" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500" />
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Contract</label>
+                  <select name="contractId" value={form.contractId} onChange={handleChange} disabled={!form.clientId} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500 disabled:bg-gray-50">
+                    <option value="">None</option>
+                    {lookups.contracts.filter(c => c.clientId === form.clientId).map(c => <option key={c.id} value={c.id}>{c.contractNumber}</option>)}
+                  </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Project Name</label>
-                  <input name="projectName" value={form.projectName} onChange={handleChange} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500" />
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Project</label>
+                  <select name="projectId" value={form.projectId} onChange={handleChange} disabled={!form.clientId} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500 disabled:bg-gray-50">
+                    <option value="">None</option>
+                    {lookups.projects.filter(p => p.clientId === form.clientId).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -384,7 +436,7 @@ export default function InvoicesPage() {
               </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 font-medium">Cancel</button>
-                <button type="submit" className="flex-1 py-2.5 bg-santech-600 text-white rounded-lg text-sm hover:bg-santech-700 font-medium">Create Invoice</button>
+                <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-santech-600 text-white rounded-lg text-sm hover:bg-santech-700 font-medium disabled:opacity-50">{saving ? 'Saving…' : 'Create Invoice'}</button>
               </div>
             </form>
           </div>

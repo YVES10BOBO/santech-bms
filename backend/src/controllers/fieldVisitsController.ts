@@ -1,6 +1,7 @@
 import { Response } from 'express'
 import { PrismaClient } from '@prisma/client'
 import type { AuthRequest } from '../middleware/auth'
+import { logAudit } from '../lib/audit'
 
 const prisma = new PrismaClient()
 
@@ -72,6 +73,11 @@ export async function createFieldVisit(req: AuthRequest, res: Response): Promise
     const visit = await prisma.fieldVisit.create({
       data: { ...req.body, recordedById: req.user!.id }
     })
+    await logAudit(req, {
+      action: 'CREATE', entity: 'FieldVisit', entityId: visit.id, entityName: visit.companyName,
+      description: `Recorded field visit to ${visit.companyName}`,
+      newValue: { product: visit.whatSantechCanSell, outcome: visit.outcome },
+    })
     res.status(201).json({ success: true, data: visit, message: 'Field visit recorded successfully' })
   } catch (error) {
     res.status(500).json({ success: false, message: 'Internal server error' })
@@ -83,6 +89,10 @@ export async function updateFieldVisit(req: AuthRequest, res: Response): Promise
     const visit = await prisma.fieldVisit.update({
       where: { id: req.params.id },
       data: req.body
+    })
+    await logAudit(req, {
+      action: 'UPDATE', entity: 'FieldVisit', entityId: visit.id, entityName: visit.companyName,
+      description: `Updated field visit to ${visit.companyName}`, newValue: { outcome: visit.outcome },
     })
     res.json({ success: true, data: visit, message: 'Field visit updated successfully' })
   } catch (error) {

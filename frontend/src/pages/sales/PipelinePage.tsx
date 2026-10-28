@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
-import { Plus, X, ChevronDown, Building2, Phone, User, DollarSign, Calendar, TrendingUp, Search, Loader2 } from 'lucide-react'
+import { Plus, X, Building2, User, DollarSign, Calendar, TrendingUp, Search } from 'lucide-react'
 import { cn, formatCurrency, formatDate } from '@/lib/utils'
 import { opportunityService } from '@/lib/services/opportunityService'
+import { useLookups, apiError } from '@/lib/services/lookupService'
 import PageLoader from '@/components/shared/PageLoader'
+import toast from 'react-hot-toast'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type Stage =
@@ -18,6 +20,8 @@ type Stage =
 interface Deal {
   id: string
   name: string
+  clientId: string
+  assignedToId: string
   company: string
   category: string
   contactName: string
@@ -52,14 +56,38 @@ const PROBABILITY: Record<Stage, number> = {
   WON: 100, LOST: 0,
 }
 
-const EMPLOYEES = ['Alice Uwimana', 'Bob Nkurunziza', 'Eve Ingabire']
 const PRODUCTS = ['EVS', 'SANTRACK', 'REVIXSAN', 'SANBOOK', 'SANHUB', 'Website', 'Mobile App', 'CRM', 'Other']
 
 const emptyForm = {
-  name: '', company: '', category: 'Self Employed', contactName: '',
-  contactPhone: '', stage: 'NEW_LEAD' as Stage, estimatedValue: '',
-  expectedCloseDate: '', assignedTo: EMPLOYEES[0],
+  name: '', clientId: '', stage: 'NEW_LEAD' as Stage, estimatedValue: '',
+  expectedCloseDate: '', assignedToId: '',
   product: PRODUCTS[0], notes: '', nextAction: '', followUpDate: '',
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toDeal(o: any): Deal {
+  const nameParts = o.name?.split('—')[0]?.trim() ?? ''
+  const product = PRODUCTS.find(p => nameParts.toUpperCase().includes(p.toUpperCase())) ?? (nameParts.split(' ')[0] || 'Other')
+  return {
+    id: o.id,
+    name: o.name,
+    clientId: o.clientId ?? o.client?.id ?? '',
+    assignedToId: o.assignedToId ?? o.assignedTo?.id ?? '',
+    company: o.client?.companyName ?? '',
+    category: o.client?.category ?? '',
+    contactName: o.client?.contactPersonName ?? '',
+    contactPhone: o.client?.contactPersonPhone ?? o.client?.phone ?? '',
+    stage: o.stage as Stage,
+    estimatedValue: Number(o.estimatedValue),
+    probability: Number(o.probability),
+    expectedCloseDate: o.expectedCloseDate ? String(o.expectedCloseDate).slice(0, 10) : '',
+    assignedTo: o.assignedTo ? `${o.assignedTo.firstName} ${o.assignedTo.lastName}` : '',
+    product,
+    notes: o.notes ?? '',
+    nextAction: o.nextAction ?? '',
+    followUpDate: o.followUpDate ? String(o.followUpDate).slice(0, 10) : '',
+    createdAt: String(o.createdAt).slice(0, 10),
+  }
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -76,41 +104,33 @@ export default function PipelinePage() {
   const [editId, setEditId] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [dragId, setDragId] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const lookups = useLookups()
+  const salespeople = lookups.users.filter(u => ['SUPER_ADMIN', 'ADMIN', 'SALES_MANAGER', 'SALES_STAFF', 'MARKETING_MANAGER'].includes(u.role))
 
   // ── Load from backend ───────────────────────────────────────────────────────
   useEffect(() => {
-    opportunityService.getAll({ limit: '100' })
+    opportunityService.getAll({ limit: '500' })
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .then((res: any) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const mapped: Deal[] = (res.data ?? []).map((o: any) => ({
-          id: o.id,
-          name: o.name,
-          company: o.client?.companyName ?? '',
-          category: o.client?.category ?? '',
-          contactName: o.client?.contactPersonName ?? '',
-          contactPhone: o.client?.phone ?? '',
-          stage: o.stage as Stage,
-          estimatedValue: Number(o.estimatedValue),
-          probability: Number(o.probability),
-          expectedCloseDate: o.expectedCloseDate ? String(o.expectedCloseDate).slice(0, 10) : '',
-          assignedTo: o.assignedTo ? `${o.assignedTo.firstName} ${o.assignedTo.lastName}` : '',
-          product: (() => {
-            // Try to extract product from opportunity name (e.g. "EVS System — SABBAN" → "EVS")
-            const nameParts = o.name?.split('—')[0]?.trim() ?? ''
-            const product = PRODUCTS.find(p => nameParts.toUpperCase().includes(p.toUpperCase()))
-            return product ?? nameParts.split(' ')[0] ?? 'EVS'
-          })(),
-          notes: o.notes ?? '',
-          nextAction: o.nextAction ?? '',
-          followUpDate: o.followUpDate ? String(o.followUpDate).slice(0, 10) : '',
-          createdAt: String(o.createdAt).slice(0, 10),
-        }))
-        setDeals(mapped)
-      })
-      .catch((err: unknown) => console.error('Pipeline load failed:', err))
+      .then((res: any) => setDeals((res.data ?? []).map(toDeal)))
+      .catch(err => toast.error(apiError(err, 'Failed to load pipeline')))
       .finally(() => setLoading(false))
   }, [])
+
+  /** Saves a stage change; the card moves at once and moves back if saving fails. */
+  const saveStage = async (id: string, stage: Stage) => {
+    const previous = deals.find(d => d.id === id)
+    if (!previous || previous.stage === stage) return
+    setDeals(prev => prev.map(d => d.id === id ? { ...d, stage, probability: PROBABILITY[stage] } : d))
+    try {
+      const updated = await opportunityService.update(id, { stage, probability: PROBABILITY[stage] })
+      setDeals(prev => prev.map(d => d.id === id ? toDeal(updated) : d))
+      toast.success(`Moved to ${STAGES.find(s => s.value === stage)?.label}`)
+    } catch (err) {
+      setDeals(prev => prev.map(d => d.id === id ? previous : d))
+      toast.error(apiError(err, 'Failed to move deal'))
+    }
+  }
 
   // ── Filtering ──────────────────────────────────────────────────────────────
   const filtered = deals.filter(d => {
@@ -131,17 +151,14 @@ export default function PipelinePage() {
   const onDragStart = (id: string) => setDragId(id)
   const onDrop = (stage: Stage) => {
     if (!dragId) return
-    setDeals(prev => prev.map(d => d.id === dragId
-      ? { ...d, stage, probability: PROBABILITY[stage] }
-      : d
-    ))
+    saveStage(dragId, stage)
     setDragId(null)
   }
 
   // ── Form ───────────────────────────────────────────────────────────────────
-  const openAdd = () => { setForm(emptyForm); setEditId(null); setError(''); setShowModal(true) }
+  const openAdd = () => { setForm({ ...emptyForm, assignedToId: salespeople[0]?.id ?? '' }); setEditId(null); setError(''); setShowModal(true) }
   const openEdit = (deal: Deal) => {
-    setForm({ name: deal.name, company: deal.company, category: deal.category, contactName: deal.contactName, contactPhone: deal.contactPhone, stage: deal.stage, estimatedValue: String(deal.estimatedValue), expectedCloseDate: deal.expectedCloseDate, assignedTo: deal.assignedTo, product: deal.product, notes: deal.notes, nextAction: deal.nextAction, followUpDate: deal.followUpDate })
+    setForm({ name: deal.name, clientId: deal.clientId, stage: deal.stage, estimatedValue: String(deal.estimatedValue), expectedCloseDate: deal.expectedCloseDate, assignedToId: deal.assignedToId, product: deal.product, notes: deal.notes, nextAction: deal.nextAction, followUpDate: deal.followUpDate })
     setEditId(deal.id); setError(''); setShowModal(true); setSelectedDeal(null)
   }
 
@@ -149,48 +166,50 @@ export default function PipelinePage() {
     setForm(p => ({ ...p, [e.target.name]: e.target.value }))
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!form.company || !form.product || !form.estimatedValue) { setError('Company, product and value are required.'); return }
-    const deal: Deal = {
-      id: editId || String(Date.now()),
-      name: form.name || `${form.product} — ${form.company}`,
-      company: form.company, category: form.category,
-      contactName: form.contactName, contactPhone: form.contactPhone,
-      stage: form.stage, estimatedValue: parseFloat(form.estimatedValue),
+    if (!form.clientId || !form.product || !form.estimatedValue) { setError('Client, product and value are required.'); return }
+    const company = lookups.clients.find(c => c.id === form.clientId)?.name ?? ''
+    const payload = {
+      name: form.name || `${form.product} — ${company}`,
+      clientId: form.clientId,
+      stage: form.stage,
+      estimatedValue: parseFloat(form.estimatedValue),
       probability: PROBABILITY[form.stage],
-      expectedCloseDate: form.expectedCloseDate,
-      assignedTo: form.assignedTo, product: form.product,
+      expectedCloseDate: form.expectedCloseDate || null,
+      assignedToId: form.assignedToId || undefined,
       notes: form.notes, nextAction: form.nextAction,
-      followUpDate: form.followUpDate,
-      createdAt: new Date().toISOString().split('T')[0],
+      followUpDate: form.followUpDate || null,
     }
-    if (editId) setDeals(prev => prev.map(d => d.id === editId ? deal : d))
-    else setDeals(prev => [deal, ...prev])
-    setShowModal(false); setForm(emptyForm); setError('')
+    setSaving(true)
+    try {
+      if (editId) {
+        const updated = await opportunityService.update(editId, payload)
+        setDeals(prev => prev.map(d => d.id === editId ? toDeal(updated) : d))
+        toast.success('Deal updated')
+      } else {
+        const created = await opportunityService.create(payload)
+        setDeals(prev => [toDeal(created), ...prev])
+        toast.success('Deal added')
+      }
+      setShowModal(false); setForm(emptyForm); setError('')
+    } catch (err) {
+      setError(apiError(err, 'Failed to save deal'))
+    } finally {
+      setSaving(false)
+    }
   }
 
   const moveStage = (id: string, direction: 'forward' | 'back') => {
     const stageOrder = STAGES.map(s => s.value)
-    setDeals(prev => prev.map(d => {
-      if (d.id !== id) return d
-      const idx = stageOrder.indexOf(d.stage)
-      const newIdx = direction === 'forward' ? Math.min(idx + 1, stageOrder.length - 1) : Math.max(idx - 1, 0)
-      const newStage = stageOrder[newIdx]
-      return { ...d, stage: newStage, probability: PROBABILITY[newStage] }
-    }))
+    const deal = deals.find(d => d.id === id)
+    if (!deal) return
+    const idx = stageOrder.indexOf(deal.stage)
+    const newIdx = direction === 'forward' ? Math.min(idx + 1, stageOrder.length - 1) : Math.max(idx - 1, 0)
+    saveStage(id, stageOrder[newIdx])
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-santech-600" />
-        <span className="ml-3 text-gray-500">Loading pipeline data...</span>
-      </div>
-    )
-  }
-
   if (loading) return <PageLoader />
 
   return (
@@ -251,7 +270,7 @@ export default function PipelinePage() {
         </select>
         <select value={assigneeFilter} onChange={e => setAssigneeFilter(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500">
           <option value="ALL">All Salespeople</option>
-          {EMPLOYEES.map(e => <option key={e}>{e}</option>)}
+          {salespeople.map(u => <option key={u.id}>{u.name}</option>)}
         </select>
       </div>
 
@@ -476,8 +495,12 @@ export default function PipelinePage() {
             <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
               {error && <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-2 rounded-lg">{error}</div>}
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Company / Client Name *</label>
-                <input name="company" value={form.company} onChange={handleChange} placeholder="e.g. SABBAN ABATTOIR" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500" />
+                <label className="block text-xs font-medium text-gray-700 mb-1">Client *</label>
+                <select name="clientId" value={form.clientId} onChange={handleChange} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500">
+                  <option value="">Select client…</option>
+                  {lookups.clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+                <p className="text-xs text-gray-400 mt-1">Not in the list? Register it first in CRM → Customers.</p>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -505,19 +528,9 @@ export default function PipelinePage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Contact Name</label>
-                  <input name="contactName" value={form.contactName} onChange={handleChange} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Contact Phone</label>
-                  <input name="contactPhone" value={form.contactPhone} onChange={handleChange} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Assigned To</label>
-                  <select name="assignedTo" value={form.assignedTo} onChange={handleChange} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500">
-                    {EMPLOYEES.map(e => <option key={e}>{e}</option>)}
+                  <select name="assignedToId" value={form.assignedToId} onChange={handleChange} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500">
+                    {salespeople.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                   </select>
                 </div>
                 <div>
@@ -535,7 +548,7 @@ export default function PipelinePage() {
               </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 font-medium">Cancel</button>
-                <button type="submit" className="flex-1 py-2.5 bg-santech-600 text-white rounded-lg text-sm hover:bg-santech-700 font-medium">{editId ? 'Save Changes' : 'Add Deal'}</button>
+                <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-santech-600 text-white rounded-lg text-sm hover:bg-santech-700 font-medium disabled:opacity-50">{saving ? 'Saving…' : editId ? 'Save Changes' : 'Add Deal'}</button>
               </div>
             </form>
           </div>

@@ -1,9 +1,9 @@
 import { Response } from 'express'
-import { PrismaClient } from '@prisma/client'
 import bcrypt from 'bcryptjs'
+import prisma from '../lib/prisma'
+import { logAudit } from '../lib/audit'
+import { PAYROLL, hasRole } from '../lib/roles'
 import type { AuthRequest } from '../middleware/auth'
-
-const prisma = new PrismaClient()
 
 export async function getEmployees(req: AuthRequest, res: Response): Promise<void> {
   try {
@@ -38,6 +38,7 @@ export async function getEmployees(req: AuthRequest, res: Response): Promise<voi
       prisma.employee.count({ where })
     ])
 
+    const canSeePay = hasRole(req.user?.role, PAYROLL)
     const formatted = employees.map(e => ({
       id: e.id,
       userId: e.userId,
@@ -51,7 +52,8 @@ export async function getEmployees(req: AuthRequest, res: Response): Promise<voi
       position: e.position,
       hireDate: e.hireDate,
       employmentStatus: e.employmentStatus,
-      baseSalary: e.baseSalary,
+      // Salary is confidential: only HR / finance roles receive it
+      ...(canSeePay ? { baseSalary: e.baseSalary } : {}),
       currency: e.currency,
       performanceScore: e.performanceScore,
       skills: e.skills,
@@ -78,6 +80,11 @@ export async function getEmployee(req: AuthRequest, res: Response): Promise<void
       }
     })
     if (!employee) { res.status(404).json({ success: false, message: 'Employee not found' }); return }
+    const canSeePay = hasRole(req.user?.role, PAYROLL) || employee.userId === req.user?.id
+    if (!canSeePay) {
+      const { baseSalary: _b, salaryRecords: _s, ...publicProfile } = employee
+      res.json({ success: true, data: publicProfile }); return
+    }
     res.json({ success: true, data: employee })
   } catch (error) {
     res.status(500).json({ success: false, message: 'Internal server error' })
@@ -123,6 +130,11 @@ export async function createEmployee(req: AuthRequest, res: Response): Promise<v
       }
     })
 
+    await logAudit(req, {
+      action: 'CREATE', entity: 'Employee', entityId: employee.id, entityName: `${firstName} ${lastName}`,
+      description: `Created employee ${firstName} ${lastName} (${position}, ${department})`,
+      newValue: { email: email.toLowerCase(), role: role || 'EMPLOYEE', department, position },
+    })
     res.status(201).json({ success: true, data: employee, message: 'Employee created successfully' })
   } catch (error: unknown) {
     const e = error as { code?: string }
@@ -143,7 +155,7 @@ export async function updateEmployee(req: AuthRequest, res: Response): Promise<v
 
     const employee = await prisma.employee.findUnique({
       where: { id: req.params.id },
-      select: { userId: true }
+      include: { user: { select: { firstName: true, lastName: true } } }
     })
     if (!employee) { res.status(404).json({ success: false, message: 'Employee not found' }); return }
 
@@ -174,6 +186,20 @@ export async function updateEmployee(req: AuthRequest, res: Response): Promise<v
       include: { user: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } } }
     })
 
+    const changed: Record<string, [unknown, unknown]> = {}
+    for (const [k, v] of Object.entries({ department, position, employmentStatus, baseSalary, performanceScore })) {
+      const prev = (employee as unknown as Record<string, unknown>)[k]
+      if (v !== undefined && String(v) !== String(prev)) changed[k] = [prev, v]
+    }
+    await logAudit(req, {
+      action: 'UPDATE', entity: 'Employee', entityId: employee.id,
+      entityName: `${employee.user.firstName} ${employee.user.lastName}`,
+      description: Object.keys(changed).length
+        ? `Updated ${Object.keys(changed).join(', ')} for ${employee.user.firstName} ${employee.user.lastName}`
+        : `Updated profile of ${employee.user.firstName} ${employee.user.lastName}`,
+      oldValue: Object.fromEntries(Object.entries(changed).map(([k, [o]]) => [k, o as string])),
+      newValue: Object.fromEntries(Object.entries(changed).map(([k, [, n]]) => [k, n as string])),
+    })
     res.json({ success: true, data: updated, message: 'Employee updated successfully' })
   } catch (error) {
     res.status(500).json({ success: false, message: 'Internal server error' })

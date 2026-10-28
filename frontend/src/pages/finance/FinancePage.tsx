@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
-import { financeService } from '@/lib/services/financeService'
+import { financeService, type PLReport } from '@/lib/services/financeService'
+import { useLookups, apiError } from '@/lib/services/lookupService'
+import toast from 'react-hot-toast'
 import {
   TrendingUp,
   TrendingDown,
@@ -35,75 +37,28 @@ type ExpenseCategory =
   | 'Other'
 
 interface IncomeRecord {
-  id: number
+  id: string
   date: string
   desc: string
-  cat: IncomeCategory
+  cat: string
   amount: number
   client: string
   by: string
+  invoice: string
 }
 
 interface ExpenseRecord {
-  id: number
+  id: string
   date: string
   desc: string
-  cat: ExpenseCategory
+  cat: string
   amount: number
   by: string
   notes: string
 }
 
-// ─── Mock Data ────────────────────────────────────────────────────────────────
-const initialIncomes: IncomeRecord[] = [
-  { id: 1, date: '2026-10-03', desc: 'SANTRACK license payment',   cat: 'SANTRACK',     amount: 3000000, client: 'East African Seed Ltd',     by: 'Admin' },
-  { id: 2, date: '2026-10-05', desc: 'EVS installation Phase 1',   cat: 'EVS',          amount: 5000000, client: 'SABBAN ABATTOIR',            by: 'Admin' },
-  { id: 3, date: '2026-10-08', desc: 'Website final payment',      cat: 'Website',      amount: 800000,  client: 'Rwanda Mountain Ride',       by: 'Admin' },
-  { id: 4, date: '2026-10-10', desc: 'Custom software milestone 1', cat: 'Software Dev', amount: 2500000, client: 'Capital Transport Agency',  by: 'Alice' },
-  { id: 5, date: '2026-10-14', desc: 'Staff training session',     cat: 'Training',     amount: 600000,  client: 'N&T PLASTIC INDUSTRIES',    by: 'Bob'   },
-  { id: 6, date: '2026-10-18', desc: 'EVS maintenance contract',   cat: 'Maintenance',  amount: 1200000, client: 'NYARUGENGE HOSPITAL',        by: 'Admin' },
-  { id: 7, date: '2026-10-22', desc: 'Custom software milestone 2', cat: 'Software Dev', amount: 2000000, client: 'Capital Transport Agency', by: 'Alice' },
-  { id: 8, date: '2026-10-28', desc: 'EVS expansion modules',      cat: 'EVS',          amount: 3500000, client: 'ECOBANK',                    by: 'Admin' },
-]
-
-const initialExpenses: ExpenseRecord[] = [
-  { id: 1, date: '2026-10-01', desc: 'Monthly salaries',        cat: 'Salaries',   amount: 3500000, by: 'HR',         notes: 'October payroll'           },
-  { id: 2, date: '2026-10-02', desc: 'Office rent',             cat: 'Rent',       amount: 400000,  by: 'Admin',      notes: 'October rent'              },
-  { id: 3, date: '2026-10-05', desc: 'Internet & utilities',    cat: 'Internet',   amount: 150000,  by: 'Admin',      notes: ''                          },
-  { id: 4, date: '2026-10-10', desc: 'Laptop purchase',         cat: 'Equipment',  amount: 800000,  by: 'IT',         notes: 'Dell laptop for dev team'  },
-  { id: 5, date: '2026-10-15', desc: 'Marketing materials',     cat: 'Marketing',  amount: 300000,  by: 'Sales',      notes: 'Brochures and banners'     },
-  { id: 6, date: '2026-10-20', desc: 'Field visit transport',   cat: 'Transport',  amount: 200000,  by: 'Operations', notes: 'Client site visits'        },
-]
-
-// ─── P&L mock values for Oct 2026 ────────────────────────────────────────────
-const plRevenue = {
-  'Software Development': 4500000,
-  'EVS Systems':          8500000,
-  'SANTRACK':             3000000,
-  'Websites':             800000,
-  'Training':             600000,
-  'Maintenance/Support':  1200000,
-}
-
-const plExpenses = {
-  'Salaries':             3500000,
-  'Rent':                 400000,
-  'Internet & Utilities': 150000,
-  'Equipment':            800000,
-  'Marketing':            300000,
-  'Transport':            200000,
-  'Other':                250000,
-}
-
-// ─── Bar chart data (last 6 months) ─────────────────────────────────────────
-const barData = [
-  { month: 'May',  rev: 8_000_000,  exp: 4_500_000 },
-  { month: 'Jun',  rev: 9_000_000,  exp: 5_000_000 },
-  { month: 'Jul',  rev: 7_000_000,  exp: 4_800_000 },
-  { month: 'Aug',  rev: 12_000_000, exp: 5_500_000 },
-  { month: 'Sep',  rev: 10_000_000, exp: 5_200_000 },
-  { month: 'Oct',  rev: 18_600_000, exp: 5_600_000 },
-]
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const byName = (u: any) => (u ? `${u.firstName} ${u.lastName}` : '')
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const INCOME_CATEGORIES: IncomeCategory[] = [
@@ -131,6 +86,8 @@ const MONTHS = [
 ]
 
 // ─── Small helpers ────────────────────────────────────────────────────────────
+const NOW = new Date()
+const todayISO = () => new Date().toISOString().slice(0, 10)
 function fmt(n: number) {
   return formatCurrency(n)
 }
@@ -141,8 +98,9 @@ function pct(a: number, b: number) {
 }
 
 // ─── CSS-only Bar Chart ───────────────────────────────────────────────────────
-function BarChart() {
-  const maxVal = Math.max(...barData.flatMap(d => [d.rev, d.exp]))
+function BarChart({ data }: { data: { month: string; rev: number; exp: number }[] }) {
+  const barData = data
+  const maxVal = Math.max(1, ...barData.flatMap(d => [d.rev, d.exp]))
 
   return (
     <div>
@@ -151,7 +109,7 @@ function BarChart() {
           const revH = Math.round((d.rev / maxVal) * 100)
           const expH = Math.round((d.exp / maxVal) * 100)
           return (
-            <div key={d.month} className="flex-1 flex flex-col items-center gap-1">
+            <div key={`${d.month}`} className="flex-1 flex flex-col items-center gap-1">
               {/* bars */}
               <div className="flex items-end gap-0.5 w-full h-32">
                 {/* Revenue bar */}
@@ -324,23 +282,25 @@ function PaginationBar({ total, page, pageSize, totalPages, rowsPerPage, onRowsC
 
 // ─── Tab: Overview ────────────────────────────────────────────────────────────
 function OverviewTab() {
-  const [month, setMonth] = useState(10)
-  const [year, setYear]   = useState(2026)
-
-  // P&L data — fetched from backend, fallback to initial hardcoded values
-  const [totalRevenue, setTotalRevenue]   = useState(Object.values(plRevenue).reduce((a, b) => a + b, 0))
-  const [totalExpenses, setTotalExpenses] = useState(Object.values(plExpenses).reduce((a, b) => a + b, 0))
+  const [month, setMonth] = useState(NOW.getMonth() + 1)
+  const [year, setYear]   = useState(NOW.getFullYear())
+  const [pl, setPl] = useState<PLReport | null>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    setLoading(true)
     financeService.getPL(month, year)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .then((data: any) => {
-        if (data?.totalRevenue !== undefined) setTotalRevenue(Number(data.totalRevenue))
-        if (data?.totalExpenses !== undefined) setTotalExpenses(Number(data.totalExpenses))
-      })
-      .catch(() => { /* silently keep hardcoded fallback */ })
+      .then(setPl)
+      .catch(err => toast.error(apiError(err, 'Failed to load P&L')))
+      .finally(() => setLoading(false))
   }, [month, year])
 
+  const totalRevenue  = pl?.totalRevenue ?? 0
+  const totalExpenses = pl?.totalExpenses ?? 0
+  const plRevenue  = Object.fromEntries((pl?.revenueByCategory ?? []).map(r => [r.category, r.amount]))
+  const plExpenses = Object.fromEntries((pl?.expensesByCategory ?? []).map(r => [r.category, r.amount]))
+  const barData = (pl?.monthly ?? []).map(m => ({ month: m.month, rev: m.revenue, exp: m.expenses }))
+  const chartRange = pl?.monthly?.length ? `${pl.monthly[0].month} ${pl.monthly[0].year} – ${pl.monthly[pl.monthly.length - 1].month} ${pl.monthly[pl.monthly.length - 1].year}` : ''
   const grossProfit   = totalRevenue - totalExpenses
   const netMargin     = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0
 
@@ -397,14 +357,14 @@ function OverviewTab() {
             onChange={e => setYear(Number(e.target.value))}
             className={cn(inputCls, 'pr-8 appearance-none w-28')}
           >
-            {[2024, 2025, 2026, 2027].map(y => (
+            {[NOW.getFullYear() - 2, NOW.getFullYear() - 1, NOW.getFullYear(), NOW.getFullYear() + 1].map(y => (
               <option key={y} value={y}>{y}</option>
             ))}
           </select>
           <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
         </div>
         <span className="text-sm text-gray-400">
-          Showing data for {MONTHS.find(m => m.value === month)?.label} {year}
+          {loading ? 'Loading…' : `Showing data for ${MONTHS.find(m => m.value === month)?.label} ${year}`}
         </span>
       </div>
 
@@ -448,6 +408,9 @@ function OverviewTab() {
                   Revenue
                 </td>
               </tr>
+              {Object.keys(plRevenue).length === 0 && (
+                <tr><td colSpan={2} className="px-8 py-2.5 text-gray-400 text-xs">No income recorded for this month.</td></tr>
+              )}
               {Object.entries(plRevenue).map(([name, value]) => (
                 <tr key={name} className="border-b border-gray-50 hover:bg-gray-50">
                   <td className="px-5 py-2.5 text-gray-700 pl-8">{name}</td>
@@ -465,6 +428,9 @@ function OverviewTab() {
                   Expenses
                 </td>
               </tr>
+              {Object.keys(plExpenses).length === 0 && (
+                <tr><td colSpan={2} className="px-8 py-2.5 text-gray-400 text-xs">No expenses recorded for this month.</td></tr>
+              )}
               {Object.entries(plExpenses).map(([name, value]) => (
                 <tr key={name} className="border-b border-gray-50 hover:bg-gray-50">
                   <td className="px-5 py-2.5 text-gray-700 pl-8">{name}</td>
@@ -498,9 +464,9 @@ function OverviewTab() {
       <div className="bms-card p-5">
         <div className="mb-4">
           <h2 className="font-semibold text-gray-800">Revenue vs Expenses — Last 6 Months</h2>
-          <p className="text-xs text-gray-400 mt-0.5">May – Oct 2026</p>
+          <p className="text-xs text-gray-400 mt-0.5">{chartRange}</p>
         </div>
-        <BarChart />
+        <BarChart data={barData} />
       </div>
     </div>
   )
@@ -508,28 +474,47 @@ function OverviewTab() {
 
 // ─── Tab: Income ──────────────────────────────────────────────────────────────
 function IncomeTab() {
-  const [incomes, setIncomes] = useState<IncomeRecord[]>(initialIncomes)
+  const [incomes, setIncomes] = useState<IncomeRecord[]>([])
   const [search, setSearch]   = useState('')
   const [catFilter, setCatFilter] = useState<IncomeCategory | 'ALL'>('ALL')
   const [page, setPage]         = useState(1)
   const [rowsPerPage, setRowsPerPage] = useState<RowsOption>(5)
   const [showModal, setShowModal] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const lookups = useLookups()
 
   // Form state
   const emptyIncomeForm = {
-    date: '2026-10-01',
+    date: todayISO(),
     desc: '',
     cat: 'Software Dev' as IncomeCategory,
     amount: '',
-    client: '',
+    clientId: '',
   }
   const [form, setForm]   = useState(emptyIncomeForm)
   const [formError, setFormError] = useState('')
 
+  const load = () =>
+    financeService.getIncome()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then((res: any) => setIncomes((res.data ?? []).map((r: any) => ({
+        id: r.id,
+        date: String(r.date).slice(0, 10),
+        desc: r.description,
+        cat: r.category,
+        amount: Number(r.amount),
+        client: r.clientName ?? '',
+        by: byName(r.recordedBy),
+        invoice: r.payment?.invoice?.invoiceNumber ?? '',
+      }))))
+      .catch(err => toast.error(apiError(err, 'Failed to load income')))
+
+  useEffect(() => { load() }, [])
+
   // Derived stats
   const totalIncome     = incomes.reduce((a, b) => a + b.amount, 0)
   const thisMonthIncome = incomes
-    .filter(i => i.date.startsWith('2026-10'))
+    .filter(i => i.date.startsWith(todayISO().slice(0, 7)))
     .reduce((a, b) => a + b.amount, 0)
 
   // Filtering
@@ -557,27 +542,30 @@ function IncomeTab() {
     setForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!form.date)                  { setFormError('Date is required.'); return }
     if (!form.desc.trim())           { setFormError('Description is required.'); return }
     if (!form.amount || isNaN(Number(form.amount)) || Number(form.amount) <= 0) {
       setFormError('A valid amount is required.'); return
     }
-    const newRecord: IncomeRecord = {
-      id:     Date.now(),
-      date:   form.date,
-      desc:   form.desc,
-      cat:    form.cat,
-      amount: Number(form.amount),
-      client: form.client,
-      by:     'Admin',
+    setSaving(true)
+    try {
+      await financeService.createIncome({
+        date: form.date, description: form.desc, category: form.cat,
+        amount: Number(form.amount), clientId: form.clientId || undefined,
+      })
+      toast.success('Income recorded')
+      setShowModal(false)
+      setForm(emptyIncomeForm)
+      setFormError('')
+      setPage(1)
+      await load()
+    } catch (err) {
+      setFormError(apiError(err, 'Failed to save income'))
+    } finally {
+      setSaving(false)
     }
-    setIncomes(prev => [newRecord, ...prev])
-    setShowModal(false)
-    setForm(emptyIncomeForm)
-    setFormError('')
-    setPage(1)
   }
 
   return (
@@ -641,7 +629,7 @@ function IncomeTab() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
-                {['Date', 'Description', 'Category', 'Amount (RWF)', 'Client', 'Recorded By'].map(col => (
+                {['Date', 'Description', 'Category', 'Amount (RWF)', 'Client', 'Recorded By', 'Source'].map(col => (
                   <th key={col} className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">
                     {col}
                   </th>
@@ -651,7 +639,7 @@ function IncomeTab() {
             <tbody className="divide-y divide-gray-50">
               {paginated.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="text-center py-10 text-gray-400 text-sm">No income records found.</td>
+                  <td colSpan={7} className="text-center py-10 text-gray-400 text-sm">No income records found.</td>
                 </tr>
               ) : paginated.map(r => (
                 <tr key={r.id} className="hover:bg-gray-50 transition-colors">
@@ -661,8 +649,13 @@ function IncomeTab() {
                     <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">{r.cat}</span>
                   </td>
                   <td className="px-4 py-3 font-mono text-green-700 font-semibold whitespace-nowrap">{fmt(r.amount)}</td>
-                  <td className="px-4 py-3 text-gray-600 text-xs">{r.client}</td>
+                  <td className="px-4 py-3 text-gray-600 text-xs">{r.client || '—'}</td>
                   <td className="px-4 py-3 text-gray-500 text-xs">{r.by}</td>
+                  <td className="px-4 py-3 text-xs">
+                    {r.invoice
+                      ? <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full font-mono">{r.invoice}</span>
+                      : <span className="text-gray-400">Direct</span>}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -725,15 +718,15 @@ function IncomeTab() {
               />
             </Field>
             <Field label="Client">
-              <input
-                type="text"
-                name="client"
-                value={form.client}
-                onChange={handleChange}
-                placeholder="e.g. ECOBANK"
-                className={inputCls}
-              />
+              <div className="relative">
+                <select name="clientId" value={form.clientId} onChange={handleChange} className={cn(inputCls, 'appearance-none pr-8')}>
+                  <option value="">No client / other</option>
+                  {lookups.clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              </div>
             </Field>
+            <p className="text-xs text-gray-400">Invoice payments are added here automatically — use this for other income.</p>
             <div className="flex gap-3 pt-2">
               <button
                 type="button"
@@ -744,9 +737,10 @@ function IncomeTab() {
               </button>
               <button
                 type="submit"
-                className="flex-1 px-4 py-2 text-sm bg-santech-600 text-white rounded-lg hover:bg-santech-700 transition-colors font-medium"
+                disabled={saving}
+                className="flex-1 px-4 py-2 text-sm bg-santech-600 text-white rounded-lg hover:bg-santech-700 transition-colors font-medium disabled:opacity-50"
               >
-                Save
+                {saving ? 'Saving…' : 'Save'}
               </button>
             </div>
           </form>
@@ -758,23 +752,40 @@ function IncomeTab() {
 
 // ─── Tab: Expenses ────────────────────────────────────────────────────────────
 function ExpensesTab() {
-  const [expenses, setExpenses] = useState<ExpenseRecord[]>(initialExpenses)
+  const [expenses, setExpenses] = useState<ExpenseRecord[]>([])
   const [search, setSearch]     = useState('')
   const [catFilter, setCatFilter] = useState<ExpenseCategory | 'ALL'>('ALL')
   const [page, setPage]           = useState(1)
   const [rowsPerPage, setRowsPerPage] = useState<RowsOption>(5)
   const [showModal, setShowModal] = useState(false)
+  const [saving, setSaving] = useState(false)
 
   // Form state
   const emptyExpenseForm = {
-    date: '2026-10-01',
+    date: todayISO(),
     desc: '',
-    cat: 'Salaries' as ExpenseCategory,
+    cat: 'Rent' as ExpenseCategory,
     amount: '',
     notes: '',
   }
   const [form, setForm]     = useState(emptyExpenseForm)
   const [formError, setFormError] = useState('')
+
+  const load = () =>
+    financeService.getExpenses()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then((res: any) => setExpenses((res.data ?? []).map((r: any) => ({
+        id: r.id,
+        date: String(r.date).slice(0, 10),
+        desc: r.description,
+        cat: r.category,
+        amount: Number(r.amount),
+        by: byName(r.recordedBy),
+        notes: r.notes ?? '',
+      }))))
+      .catch(err => toast.error(apiError(err, 'Failed to load expenses')))
+
+  useEffect(() => { load() }, [])
 
   // Stats
   const totalExpenses = expenses.reduce((a, b) => a + b.amount, 0)
@@ -809,27 +820,30 @@ function ExpensesTab() {
     setForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!form.date)                  { setFormError('Date is required.'); return }
     if (!form.desc.trim())           { setFormError('Description is required.'); return }
     if (!form.amount || isNaN(Number(form.amount)) || Number(form.amount) <= 0) {
       setFormError('A valid amount is required.'); return
     }
-    const newRecord: ExpenseRecord = {
-      id:     Date.now(),
-      date:   form.date,
-      desc:   form.desc,
-      cat:    form.cat,
-      amount: Number(form.amount),
-      by:     'Admin',
-      notes:  form.notes,
+    setSaving(true)
+    try {
+      await financeService.createExpense({
+        date: form.date, description: form.desc, category: form.cat,
+        amount: Number(form.amount), notes: form.notes,
+      })
+      toast.success('Expense recorded')
+      setShowModal(false)
+      setForm(emptyExpenseForm)
+      setFormError('')
+      setPage(1)
+      await load()
+    } catch (err) {
+      setFormError(apiError(err, 'Failed to save expense'))
+    } finally {
+      setSaving(false)
     }
-    setExpenses(prev => [newRecord, ...prev])
-    setShowModal(false)
-    setForm(emptyExpenseForm)
-    setFormError('')
-    setPage(1)
   }
 
   return (
@@ -953,7 +967,7 @@ function ExpensesTab() {
                 name="desc"
                 value={form.desc}
                 onChange={handleChange}
-                placeholder="e.g. Monthly salaries"
+                placeholder="e.g. Office rent"
                 className={inputCls}
               />
             </Field>
@@ -986,6 +1000,7 @@ function ExpensesTab() {
                 className={cn(inputCls, 'resize-none')}
               />
             </Field>
+            <p className="text-xs text-gray-400">Salaries are added here automatically when payroll is marked as paid.</p>
             <div className="flex gap-3 pt-2">
               <button
                 type="button"
@@ -996,9 +1011,10 @@ function ExpensesTab() {
               </button>
               <button
                 type="submit"
-                className="flex-1 px-4 py-2 text-sm bg-santech-600 text-white rounded-lg hover:bg-santech-700 transition-colors font-medium"
+                disabled={saving}
+                className="flex-1 px-4 py-2 text-sm bg-santech-600 text-white rounded-lg hover:bg-santech-700 transition-colors font-medium disabled:opacity-50"
               >
-                Save
+                {saving ? 'Saving…' : 'Save'}
               </button>
             </div>
           </form>

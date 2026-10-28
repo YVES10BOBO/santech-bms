@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Plus, Search, X, Eye, Edit2, Loader2, CheckCircle2, Clock } from 'lucide-react'
+import { Plus, Search, X, Eye, Edit2, CheckCircle2, Clock } from 'lucide-react'
 import { cn, formatDate, formatCurrency } from '@/lib/utils'
 import { projectService } from '@/lib/services/projectService'
+import { useLookups, apiError } from '@/lib/services/lookupService'
 import PageLoader from '@/components/shared/PageLoader'
 import toast from 'react-hot-toast'
 
@@ -32,6 +33,9 @@ interface Project {
   description: string
   milestones: ({ name: string; isCompleted: boolean } | string)[]
   contractId?: string | null
+  clientId?: string
+  projectManagerId?: string
+  contract?: { contractNumber: string } | null
   // legacy local fields (kept for backward compat)
   contractRef?: string
 }
@@ -99,31 +103,29 @@ function progressColor(progress: number, status: ProjectStatus): string {
 // ─── Form type ─────────────────────────────────────────────────────────────────
 interface ProjectForm {
   name: string
-  client: string
-  manager: string
+  clientId: string
+  managerId: string
+  contractId: string
   budget: string
   startDate: string
   endDate: string
   priority: Priority
   status: ProjectStatus
   description: string
-  contractRef: string
   milestonePlan: string
 }
 
-const MANAGERS = ['Alice Uwimana', 'Bob Nkurunziza', 'Carol Ingabire']
-
 const emptyForm: ProjectForm = {
   name: '',
-  client: '',
-  manager: MANAGERS[0],
+  clientId: '',
+  managerId: '',
+  contractId: '',
   budget: '',
   startDate: '',
   endDate: '',
   priority: 'MEDIUM',
   status: 'PLANNING',
   description: '',
-  contractRef: '',
   milestonePlan: '',
 }
 
@@ -160,9 +162,12 @@ export default function ProjectsPage() {
   const [priorityFilter, setPriorityFilter] = useState<Priority | 'ALL'>('ALL')
   const [rowsPerPage, setRowsPerPage] = useState<number | 'All'>(10)
   const [page, setPage] = useState(1)
+  const [saving, setSaving] = useState(false)
+  const lookups = useLookups()
+  const managers = lookups.users.filter(u => ['SUPER_ADMIN', 'ADMIN', 'PROJECT_MANAGER', 'EMPLOYEE', 'SALES_STAFF', 'SALES_MANAGER'].includes(u.role))
 
   useEffect(() => {
-    projectService.getAll()
+    projectService.getAll({ limit: '200' })
       .then(res => setProjects(res.data ?? []))
       .catch(() => toast.error('Failed to load projects'))
       .finally(() => setLoading(false))
@@ -182,10 +187,15 @@ export default function ProjectsPage() {
   }, [projects])
 
   useEffect(() => {
-    const contract = (location.state as { contract?: { contractRef: string; name: string; client: string; manager: string; budget: number; startDate: string; endDate: string; description: string } } | null)?.contract
+    const contract = (location.state as { contract?: { contractId: string; clientId: string; managerId: string; name: string; budget: number; startDate: string; endDate: string; description: string } } | null)?.contract
     if (!contract) return
     const milestonePlan = contract.description.split('\n').map(item => item.trim()).filter(Boolean).map(item => item.replace(/^[-•]\s*/, '')).join('\n')
-    setForm({ ...emptyForm, ...contract, budget: String(contract.budget), status: 'PLANNING', priority: 'MEDIUM', milestonePlan })
+    setForm({
+      ...emptyForm,
+      name: contract.name, clientId: contract.clientId, managerId: contract.managerId, contractId: contract.contractId,
+      budget: String(contract.budget), startDate: contract.startDate, endDate: contract.endDate,
+      description: contract.description, status: 'PLANNING', priority: 'MEDIUM', milestonePlan,
+    })
     setFormErrors({})
     setShowAdd(true)
     navigate(location.pathname, { replace: true, state: null })
@@ -236,14 +246,17 @@ export default function ProjectsPage() {
   const validateForm = (): boolean => {
     const errors: Partial<Record<keyof ProjectForm, string>> = {}
     if (!form.name.trim()) errors.name = 'Project name is required.'
-    if (!form.client.trim()) errors.client = 'Client is required.'
+    if (!form.clientId) errors.clientId = 'Client is required.'
+    if (!form.managerId) errors.managerId = 'Project manager is required.'
+    if (!form.startDate) errors.startDate = 'Start date is required.'
+    if (!form.endDate) errors.endDate = 'End date is required.'
     return Object.keys(errors).length === 0
       ? true
       : (setFormErrors(errors), false)
   }
 
   const openAdd = () => {
-    setForm(emptyForm)
+    setForm({ ...emptyForm, managerId: managers.find(m => m.role === 'PROJECT_MANAGER')?.id ?? '' })
     setFormErrors({})
     setShowAdd(true)
   }
@@ -251,15 +264,15 @@ export default function ProjectsPage() {
   const openEdit = (p: Project) => {
     setForm({
       name: p.name,
-      client: getClientName(p),
-      manager: getManagerName(p),
+      clientId: p.clientId ?? '',
+      managerId: p.projectManagerId ?? '',
+      contractId: p.contractId ?? '',
       budget: String(p.budget),
-      startDate: p.startDate,
-      endDate: p.endDate,
+      startDate: p.startDate ? String(p.startDate).slice(0, 10) : '',
+      endDate: p.endDate ? String(p.endDate).slice(0, 10) : '',
       priority: p.priority,
       status: p.status,
-      description: p.description,
-      contractRef: p.contractRef ?? '',
+      description: p.description ?? '',
       milestonePlan: getMilestones(p).map(m => m.name).join('\n'),
     })
     setFormErrors({})
@@ -279,20 +292,28 @@ export default function ProjectsPage() {
       .split('\n').map(item => item.trim()).filter(Boolean)
       .map(name => ({ name, deadline: form.endDate || new Date().toISOString().split('T')[0] }))
 
+    const contract = lookups.contracts.find(c => c.id === form.contractId)
     const payload: Record<string, unknown> = {
       name: form.name,
+      clientId: form.clientId,
+      projectManagerId: form.managerId,
+      contractId: form.contractId || null,
       budget: Number(form.budget) || 0,
+      contractValue: contract?.value ?? (Number(form.budget) || 0),
       startDate: form.startDate || undefined,
       endDate: form.endDate || undefined,
       priority: form.priority,
       status: form.status,
       description: form.description || undefined,
-      milestones: milestonesList.length > 0 ? milestonesList : undefined,
+      // Milestones are only created with a new project; edit them on the Milestones page
+      milestones: !editProject && milestonesList.length > 0 ? milestonesList : undefined,
     }
 
+    setSaving(true)
     try {
       if (editProject) {
-        const updated = await projectService.update(String(editProject.id), payload)
+        const { milestones: _m, ...changes } = payload
+        const updated = await projectService.update(String(editProject.id), changes)
         setProjects(prev => prev.map(p => p.id === editProject.id ? { ...p, ...updated } : p))
         toast.success('Project updated')
       } else {
@@ -300,9 +321,12 @@ export default function ProjectsPage() {
         setProjects(prev => [created, ...prev])
         toast.success('Project created')
       }
+      lookups.reload()
       closeModal()
-    } catch {
-      toast.error('Failed to save project')
+    } catch (err) {
+      toast.error(apiError(err, 'Failed to save project'))
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -617,18 +641,20 @@ export default function ProjectsPage() {
                 <label className="block text-xs font-medium text-gray-700 mb-1">
                   Client <span className="text-red-500">*</span>
                 </label>
-                <input
-                  name="client"
-                  value={form.client}
-                  onChange={handleChange}
-                  placeholder="e.g. East African Seed Ltd"
+                <select
+                  name="clientId"
+                  value={form.clientId}
+                  onChange={e => { handleChange(e); setForm(prev => ({ ...prev, contractId: '' })) }}
                   className={cn(
-                    'w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500',
-                    formErrors.client ? 'border-red-400' : 'border-gray-200',
+                    'w-full px-3 py-2 border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500',
+                    formErrors.clientId ? 'border-red-400' : 'border-gray-200',
                   )}
-                />
-                {formErrors.client && (
-                  <p className="text-xs text-red-500 mt-1">{formErrors.client}</p>
+                >
+                  <option value="">Select client…</option>
+                  {lookups.clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+                {formErrors.clientId && (
+                  <p className="text-xs text-red-500 mt-1">{formErrors.clientId}</p>
                 )}
               </div>
 
@@ -636,18 +662,23 @@ export default function ProjectsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">
-                    Project Manager
+                    Project Manager <span className="text-red-500">*</span>
                   </label>
                   <select
-                    name="manager"
-                    value={form.manager}
+                    name="managerId"
+                    value={form.managerId}
                     onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500"
+                    className={cn(
+                      'w-full px-3 py-2 border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500',
+                      formErrors.managerId ? 'border-red-400' : 'border-gray-200',
+                    )}
                   >
-                    {MANAGERS.map(m => (
-                      <option key={m}>{m}</option>
-                    ))}
+                    <option value="">Select manager…</option>
+                    {managers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                   </select>
+                  {formErrors.managerId && (
+                    <p className="text-xs text-red-500 mt-1">{formErrors.managerId}</p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">
@@ -665,16 +696,21 @@ export default function ProjectsPage() {
                 </div>
               </div>
 
-              {/* Contract reference */}
+              {/* Contract */}
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Contract Reference</label>
-                <input
-                  name="contractRef"
-                  value={form.contractRef}
+                <label className="block text-xs font-medium text-gray-700 mb-1">Contract</label>
+                <select
+                  name="contractId"
+                  value={form.contractId}
                   onChange={handleChange}
-                  placeholder="Optional contract number"
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500"
-                />
+                  disabled={!form.clientId}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500 disabled:bg-gray-50"
+                >
+                  <option value="">No contract yet</option>
+                  {lookups.contracts.filter(c => c.clientId === form.clientId).map(c => (
+                    <option key={c.id} value={c.id}>{c.contractNumber}{c.projectName ? ` — ${c.projectName}` : ''}</option>
+                  ))}
+                </select>
               </div>
 
               {/* Start Date + End Date */}
@@ -866,7 +902,7 @@ export default function ProjectsPage() {
                 <div>
                   <p className="text-gray-400 font-medium uppercase tracking-wide">Contract Ref</p>
                   <p className="text-gray-700 font-medium mt-0.5">
-                    {viewProject.contractRef || '—'}
+                    {viewProject.contract?.contractNumber || viewProject.contractRef || '—'}
                   </p>
                 </div>
                 <div>

@@ -128,6 +128,15 @@ enum Priority {
   URGENT
 }
 
+enum MilestoneStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  PENDING_APPROVAL
+  COMPLETED
+  APPROVED
+  INVOICED
+}
+
 enum EmploymentStatus {
   ACTIVE
   ON_LEAVE
@@ -182,6 +191,8 @@ model User {
   opportunitiesAssigned Opportunity[]  @relation("OpportunityAssignedTo")
   contractsManaged      Contract[]     @relation("ContractManager")
   auditLogs             AuditLog[]
+  incomeRecorded        IncomeEntry[]  @relation("IncomeRecordedBy")
+  expensesRecorded      ExpenseEntry[] @relation("ExpenseRecordedBy")
 
   @@map("users")
 }
@@ -228,6 +239,8 @@ model SalaryRecord {
   paidAt      DateTime?
   notes       String?
   createdAt   DateTime @default(now())
+
+  expenseEntry ExpenseEntry?
 
   @@unique([employeeId, month, year])
   @@map("salary_records")
@@ -291,6 +304,7 @@ model Client {
   contracts    Contract[]
   invoices     Invoice[]
   projects     Project[]
+  incomeEntries IncomeEntry[]
 
   @@map("clients")
 }
@@ -421,6 +435,11 @@ model Contract {
   responsibleManager  User?          @relation("ContractManager", fields: [responsibleManagerId], references: [id])
   signedAt            DateTime?
   signedDocumentUrl   String?
+  signedDocumentName  String?
+  signatories         Json?          // [{ name, status: PENDING|SIGNED, signedAt }]
+  approvalNote        String?
+  sourceQuotationNumber String?
+  notes               String?        @db.Text
   createdAt           DateTime       @default(now())
   updatedAt           DateTime       @updatedAt
 
@@ -442,6 +461,8 @@ model Invoice {
   contractId    String?
   contract      Contract?     @relation(fields: [contractId], references: [id])
   projectId     String?
+  project       Project?      @relation(fields: [projectId], references: [id])
+  milestone     Milestone?
   amount        Float
   taxAmount     Float         @default(0)
   totalAmount   Float
@@ -469,6 +490,8 @@ model Payment {
   reference     String?
   notes         String?
   createdAt     DateTime @default(now())
+
+  incomeEntry   IncomeEntry?
 
   @@map("payments")
 }
@@ -498,6 +521,7 @@ model Project {
   risks            String?
   tasks            Task[]
   milestones       Milestone[]
+  invoices         Invoice[]
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 
@@ -509,11 +533,17 @@ model Milestone {
   projectId         String
   project           Project  @relation(fields: [projectId], references: [id])
   name              String
+  milestoneNumber   Int             @default(1)
+  description       String?         @db.Text
   deadline          DateTime
   deliverables      String?
   paymentPercentage Float    @default(0)
+  status            MilestoneStatus @default(NOT_STARTED)
   isCompleted       Boolean  @default(false)
   completedAt       DateTime?
+  approvedAt        DateTime?
+  invoiceId         String?         @unique
+  invoice           Invoice?        @relation(fields: [invoiceId], references: [id])
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -560,6 +590,8 @@ model AuditLog {
   action     String
   entity     String
   entityId   String
+  entityName  String?
+  description String?
   oldValue   Json?
   newValue   Json?
   ipAddress  String?
@@ -567,4 +599,44 @@ model AuditLog {
   createdAt  DateTime @default(now())
 
   @@map("audit_logs")
+}
+
+// ===========================
+// INCOME & EXPENSES (simple accounting layer)
+// ===========================
+
+model IncomeEntry {
+  id           String   @id @default(cuid())
+  date         DateTime
+  description  String
+  category     String   // Software Dev, EVS, SANTRACK, Website, Training, Maintenance, Other
+  amount       Float
+  currency     String   @default("RWF")
+  clientId     String?
+  client       Client?  @relation(fields: [clientId], references: [id])
+  clientName   String?
+  paymentId    String?  @unique // set when the income comes from an invoice payment
+  payment      Payment? @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  recordedById String
+  recordedBy   User     @relation("IncomeRecordedBy", fields: [recordedById], references: [id])
+  createdAt    DateTime @default(now())
+
+  @@map("income_entries")
+}
+
+model ExpenseEntry {
+  id             String        @id @default(cuid())
+  date           DateTime
+  description    String
+  category       String        // Salaries, Rent, Internet, Equipment, Marketing, Transport, Other
+  amount         Float
+  currency       String        @default("RWF")
+  notes          String?
+  salaryRecordId String?       @unique // set when the expense comes from paying a salary
+  salaryRecord   SalaryRecord? @relation(fields: [salaryRecordId], references: [id], onDelete: Cascade)
+  recordedById   String
+  recordedBy     User          @relation("ExpenseRecordedBy", fields: [recordedById], references: [id])
+  createdAt      DateTime      @default(now())
+
+  @@map("expense_entries")
 }
