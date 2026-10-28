@@ -24,9 +24,16 @@ export default function MainLayout() {
           onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
         />
 
-        {/* Page content */}
-        <main className="flex-1 min-h-0 overflow-y-auto" style={{ padding: '0.75rem 0.85rem' }}>
-          <Outlet />
+        {/* Page content — fixed height, always scrollable so layout never shifts */}
+        <main
+          className="flex-1 overflow-y-scroll"
+          style={{ padding: '0.75rem 0.85rem', minHeight: 0 }}
+        >
+          {/* Inner wrapper always fills full height — prevents content-height changes
+              from bubbling up and shaking the layout */}
+          <div style={{ minHeight: '100%' }}>
+            <Outlet />
+          </div>
         </main>
         <footer className="shrink-0 border-t border-[#d8e0ef] bg-[#e8edf8] px-4 py-2 text-center text-xs text-[#596d89]">
           © 2026 SAN TECH. All rights reserved.
