@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Plus, Search, X, AlertCircle, CheckCircle2, Clock, DollarSign } from 'lucide-react'
 import { cn, formatDate, formatCurrency } from '@/lib/utils'
 import { financeService } from '@/lib/services/financeService'
+import PageLoader from '@/components/shared/PageLoader'
 
 type InvoiceStatus = 'DRAFT' | 'SENT' | 'DUE' | 'PARTIALLY_PAID' | 'PAID' | 'OVERDUE' | 'CANCELLED'
 
@@ -67,6 +68,7 @@ const emptyForm = {
 export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<Invoice[]>(mockInvoices)
   const [payments, setPayments] = useState<Payment[]>(mockPayments)
+  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<InvoiceStatus | 'ALL'>('ALL')
   const [showModal, setShowModal] = useState(false)
@@ -114,6 +116,7 @@ export default function InvoicesPage() {
         }
       })
       .catch(() => { /* keep mock data on error */ })
+      .finally(() => setLoading(false))
   }, [])
 
   const filtered = invoices.filter(inv => {
@@ -169,6 +172,8 @@ export default function InvoicesPage() {
   const totalOutstanding = invoices.filter(i => i.status !== 'PAID' && i.status !== 'CANCELLED').reduce((s, i) => s + (i.totalAmount - i.paidAmount), 0)
   const totalPaid = invoices.reduce((s, i) => s + i.paidAmount, 0)
   const overdueCount = invoices.filter(i => i.status === 'OVERDUE').length
+
+  if (loading) return <PageLoader />
 
   return (
     <div className="space-y-5">

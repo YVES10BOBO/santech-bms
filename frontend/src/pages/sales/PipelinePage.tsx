@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Plus, X, ChevronDown, Building2, Phone, User, DollarSign, Calendar, TrendingUp, Search, Loader2 } from 'lucide-react'
 import { cn, formatCurrency, formatDate } from '@/lib/utils'
 import { opportunityService } from '@/lib/services/opportunityService'
+import PageLoader from '@/components/shared/PageLoader'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type Stage =
@@ -189,6 +190,8 @@ export default function PipelinePage() {
       </div>
     )
   }
+
+  if (loading) return <PageLoader />
 
   return (
     <div className="space-y-5">

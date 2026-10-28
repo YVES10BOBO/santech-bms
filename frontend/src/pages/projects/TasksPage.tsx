@@ -3,6 +3,7 @@ import { Plus, Search, X, CheckCircle2, XCircle, Clock, Loader2 } from 'lucide-r
 import { cn, formatDate, getStatusColor } from '@/lib/utils'
 import { taskService } from '@/lib/services/taskService'
 import { employeeService } from '@/lib/services/employeeService'
+import PageLoader from '@/components/shared/PageLoader'
 import toast from 'react-hot-toast'
 
 type TaskStatus = 'CREATED' | 'ASSIGNED' | 'IN_PROGRESS' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'COMPLETED'
@@ -212,6 +213,8 @@ export default function TasksPage() {
     { label: 'Completed This Month', value: tasks.filter(t => t.status === 'COMPLETED' || t.status === 'APPROVED').length, color: 'text-green-600' },
     { label: 'Overdue', value: tasks.filter(t => t.deadline < new Date().toISOString().split('T')[0] && !['COMPLETED', 'APPROVED'].includes(t.status)).length, color: 'text-red-600' },
   ]
+
+  if (loading) return <PageLoader />
 
   return (
     <div className="space-y-5">

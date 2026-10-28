@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Plus, Search, X, Building2, User, Users, Globe, ChevronLeft, ChevronRight, Trash2, CheckCircle2 } from 'lucide-react'
 import { cn, formatDate } from '@/lib/utils'
 import { clientService } from '@/lib/services/clientService'
+import PageLoader from '@/components/shared/PageLoader'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type ClientKind = 'INDIVIDUAL' | 'BUSINESS' | 'TEAM' | 'DELEGATION'
@@ -199,7 +200,7 @@ const sectionHeadingCls = 'text-sm font-semibold text-gray-700 mb-3 pb-1 border-
 export default function CustomersPage() {
   const navigate = useNavigate()
   const [clients, setClients]         = useState<Client[]>([])
-  const [loading, setLoading]         = useState(false)
+  const [loading, setLoading]         = useState(true)
   const [error, setError]             = useState<string | null>(null)
   const [search, setSearch]           = useState('')
   const [kindFilter, setKindFilter]   = useState<ClientKind | 'ALL'>('ALL')
@@ -557,6 +558,8 @@ export default function CustomersPage() {
   ]
 
   // ─────────────────────────────────────────────────────────────────────────
+  if (loading) return <PageLoader />
+
   return (
     <div className="space-y-5">
 

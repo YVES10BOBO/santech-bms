@@ -5,6 +5,7 @@ import DateRangePicker from '@/components/shared/DateRangePicker'
 import { cn, getStatusColor, getCategoryLabel, formatDate } from '@/lib/utils'
 import type { ClientCategory, VisitOutcome } from '@/types'
 import { fieldVisitService } from '@/lib/services/fieldVisitService'
+import PageLoader from '@/components/shared/PageLoader'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface VisitRecord {
@@ -70,7 +71,7 @@ const emptyForm = {
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function FieldVisitsPage() {
   const [visits, setVisits] = useState<VisitRecord[]>([])
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   // Filters
@@ -224,6 +225,8 @@ export default function FieldVisitsPage() {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
+  if (loading) return <PageLoader />
+
   return (
     <div className="space-y-5">
 

@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { Plus, Search, X, FileText, Eye, AlertCircle, CheckCircle2, Clock, ThumbsUp, ThumbsDown, FolderPlus, Upload, Loader2 } from 'lucide-react'
 import { cn, formatDate, formatCurrency } from '@/lib/utils'
 import { contractService } from '@/lib/services/contractService'
+import PageLoader from '@/components/shared/PageLoader'
 
 type ContractStatus = 'DRAFT' | 'REVIEW' | 'APPROVAL' | 'SIGNING' | 'ACTIVE' | 'RENEWAL' | 'COMPLETED' | 'CANCELLED'
 type SignatureStatus = 'PENDING' | 'SIGNED'
@@ -258,6 +259,8 @@ export default function ContractsPage() {
       </div>
     )
   }
+
+  if (loading) return <PageLoader />
 
   return (
     <div className="space-y-5">

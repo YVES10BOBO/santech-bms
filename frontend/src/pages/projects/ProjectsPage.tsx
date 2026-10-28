@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { Plus, Search, X, Eye, Edit2, Loader2, CheckCircle2, Clock } from 'lucide-react'
 import { cn, formatDate, formatCurrency } from '@/lib/utils'
 import { projectService } from '@/lib/services/projectService'
+import PageLoader from '@/components/shared/PageLoader'
 import toast from 'react-hot-toast'
 
 type ProjectStatus =
@@ -308,6 +309,8 @@ export default function ProjectsPage() {
   // ── Modal title ────────────────────────────────────────────────────────────
   const modalTitle = editProject ? 'Edit Project' : 'Add Project'
   const showModal = showAdd || editProject !== null
+
+  if (loading) return <PageLoader />
 
   return (
     <div className="space-y-5">

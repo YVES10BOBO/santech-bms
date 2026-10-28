@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Plus, Search, X, CheckCircle2, FileText, Eye, Loader2 } from 'lucide-react'
 import { cn, formatDate, formatCurrency } from '@/lib/utils'
 import { milestoneService } from '@/lib/services/milestoneService'
+import PageLoader from '@/components/shared/PageLoader'
 
 type MilestoneStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'PENDING_APPROVAL' | 'COMPLETED' | 'APPROVED' | 'OVERDUE' | 'INVOICED'
 
@@ -336,6 +337,8 @@ export default function MilestonesPage() {
 
   const inputCls = 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500'
   const labelCls = 'block text-xs font-medium text-gray-700 mb-1'
+
+  if (loading) return <PageLoader />
 
   return (
     <div className="space-y-5">

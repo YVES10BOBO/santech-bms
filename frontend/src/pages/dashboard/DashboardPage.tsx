@@ -13,6 +13,7 @@ import { useAuthStore } from '@/store/authStore'
 import type { DashboardKPIs } from '@/types'
 import { dashboardService } from '@/lib/services/dashboardService'
 import { fieldVisitService } from '@/lib/services/fieldVisitService'
+import PageLoader from '@/components/shared/PageLoader'
 
 // TODO: wire to aggregation endpoints (follow-up slice — not in scope now)
 const revenueData = [
@@ -102,11 +103,13 @@ export default function DashboardPage() {
   const { user } = useAuthStore()
 
   const [kpiData, setKpiData] = useState<DashboardKPIs | null>(null)
+  const [kpiLoading, setKpiLoading] = useState(true)
 
   useEffect(() => {
     dashboardService.getKPIs()
       .then(res => setKpiData(res.data))
       .catch(err => console.error('Dashboard KPI fetch failed:', err))
+      .finally(() => setKpiLoading(false))
   }, [])
 
   const [recentVisits, setRecentVisits] = useState<RecentVisitRow[]>([])
@@ -126,6 +129,8 @@ export default function DashboardPage() {
       })
       .catch((err: unknown) => console.error('Recent visits fetch failed:', err))
   }, [])
+
+  if (kpiLoading) return <PageLoader />
 
   return (
     <div className="space-y-3">
