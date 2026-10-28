@@ -21,12 +21,23 @@ app.use(cors({
   credentials: true,
 }))
 
-// Rate limiting
+// Rate limiting — generous limits for a business app (not a public API)
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100,
+  max: 1000,                 // 1000 requests per 15 min per IP (was 100 — too low)
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => req.path === '/health', // health/keep-alive never counts
 })
 app.use('/api', limiter)
+
+// Stricter limit on login only (prevent brute force)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20, // 20 login attempts per 15 min
+  standardHeaders: true,
+  legacyHeaders: false,
+})
 
 // Body parsing
 app.use(express.json({ limit: '10mb' }))
@@ -50,7 +61,7 @@ import projectsRouter from './routes/projects'
 import financeRouter from './routes/finance'
 import dashboardRouter from './routes/dashboard'
 
-app.use('/api/auth', authRouter)
+app.use('/api/auth', authLimiter, authRouter)
 app.use('/api/clients', clientsRouter)
 app.use('/api/field-visits', fieldVisitsRouter)
 app.use('/api/employees', employeesRouter)
