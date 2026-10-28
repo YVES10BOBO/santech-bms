@@ -211,8 +211,8 @@ export default function Sidebar({ collapsed, mobileOpen, onMobileClose }: Sideba
   return (
     <aside
       className={cn(
-        'flex flex-col h-screen sidebar-transition z-30',
-        'fixed lg:relative lg:translate-x-0',
+        'flex flex-col h-full sidebar-transition z-30',
+        'fixed lg:static lg:translate-x-0',
         collapsed ? 'w-16' : 'w-64',
         mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
       )}
