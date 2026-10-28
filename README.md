@@ -39,11 +39,12 @@ This system serves as Santech's internal **ERP + CRM platform**.
 
 | Role | Email | Password | Access |
 |---|---|---|---|
-| Super Admin | `admin@santech.rw` | `Admin@2026` | Full system |
-| Admin (HR) | `hr@santech.rw` | `Hr@2026` | All except promotions |
-| Sales Staff | `sales@santech.rw` | `Sales@2026` | CRM, Sales, My Tasks |
-| Finance Manager | `finance@santech.rw` | `Finance@2026` | Finance, Contracts, Reports |
-| Employee | `employee@santech.rw` | `Employee@2026` | My Tasks only |
+| Super Admin | `admin@santech.rw` | `Santech@2026` | Full system |
+| Admin (HR) | `claire@santech.rw` | `Santech@2026` | All except promotions |
+| Sales Staff | `alice@santech.rw` | `Santech@2026` | CRM, Sales, My Tasks |
+| Finance Manager | `david@santech.rw` | `Santech@2026` | Finance, Contracts, Reports |
+| Project Manager | `bob@santech.rw` | `Santech@2026` | Projects, Tasks, Team |
+| Employee | `frank@santech.rw` | `Santech@2026` | My Tasks only |
 
 ---
 

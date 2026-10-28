@@ -34,10 +34,12 @@ const features = [
 ]
 
 const demoAccounts = [
-  { role: 'Super Admin', email: 'admin@santech.rw', password: 'Admin@2026' },
-  { role: 'Admin (HR)', email: 'hr@santech.rw', password: 'Hr@2026' },
-  { role: 'Sales Staff', email: 'sales@santech.rw', password: 'Sales@2026' },
-  { role: 'Employee', email: 'employee@santech.rw', password: 'Employee@2026' },
+  { role: 'Super Admin',      email: 'admin@santech.rw',  password: 'Santech@2026' },
+  { role: 'HR Manager',       email: 'claire@santech.rw', password: 'Santech@2026' },
+  { role: 'Sales Staff',      email: 'alice@santech.rw',  password: 'Santech@2026' },
+  { role: 'Finance Manager',  email: 'david@santech.rw',  password: 'Santech@2026' },
+  { role: 'Project Manager',  email: 'bob@santech.rw',    password: 'Santech@2026' },
+  { role: 'Employee',         email: 'frank@santech.rw',  password: 'Santech@2026' },
 ]
 
 export default function LoginPage() {
