@@ -13,7 +13,11 @@ const PORT = process.env.PORT || 5000
 // Security middleware
 app.use(helmet())
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:3000',
+  origin: [
+    process.env.CLIENT_URL || 'http://localhost:3000',
+    'http://localhost:3000',
+    'https://santech-bms.vercel.app',
+  ],
   credentials: true,
 }))
 
@@ -87,8 +91,20 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
   res.status(500).json({ success: false, message: 'Internal server error' })
 })
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`🚀 SAN-BMS API running on http://localhost:${PORT}`)
+  // Warm up Neon on startup so the first user request is fast
+  try {
+    await prisma.$queryRaw`SELECT 1`
+    console.log('✅ Database connection warmed up')
+  } catch (e) {
+    console.warn('⚠️  DB warm-up failed (will retry on first request):', e)
+  }
 })
+
+// Keep Neon alive — ping every 4 minutes to prevent cold starts (Neon sleeps after 5 min)
+setInterval(async () => {
+  try { await prisma.$queryRaw`SELECT 1` } catch { /* silent */ }
+}, 4 * 60 * 1000)
 
 export default app
