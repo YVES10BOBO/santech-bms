@@ -4,6 +4,7 @@ import { cn, formatDate, formatCurrency, getInitials } from '@/lib/utils'
 import { employeeService } from '@/lib/services/employeeService'
 import { taskService } from '@/lib/services/taskService'
 import toast from 'react-hot-toast'
+import PageLoader from '@/components/shared/PageLoader'
 
 type WorkloadStatus = 'AVAILABLE' | 'BUSY' | 'OVERLOADED'
 type Priority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'
@@ -192,11 +193,7 @@ export default function WorkloadPage() {
     }
   }
 
-  if (loading) return (
-    <div className="flex items-center justify-center h-64">
-      <Loader2 className="w-8 h-8 animate-spin text-santech-600" />
-    </div>
-  )
+  if (loading) return <PageLoader />
 
   return (
     <div className="space-y-5">

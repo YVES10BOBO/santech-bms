@@ -4,6 +4,7 @@ import PhoneInput from '@/components/shared/PhoneInput'
 import { cn, formatDate, formatCurrency, getInitials } from '@/lib/utils'
 import { employeeService } from '@/lib/services/employeeService'
 import toast from 'react-hot-toast'
+import PageLoader from '@/components/shared/PageLoader'
 
 type EmploymentStatus = 'ACTIVE' | 'ON_LEAVE' | 'SUSPENDED' | 'TERMINATED'
 
@@ -120,11 +121,7 @@ export default function EmployeesPage() {
     { label: 'Avg Performance', value: employees.length ? `${Math.round(employees.reduce((a, e) => a + e.performanceScore, 0) / employees.length)}%` : '0%', color: 'text-purple-600' },
   ]
 
-  if (loading) return (
-    <div className="flex items-center justify-center h-64">
-      <Loader2 className="w-8 h-8 animate-spin text-santech-600" />
-    </div>
-  )
+  if (loading) return <PageLoader />
 
   return (
     <div className="space-y-5">

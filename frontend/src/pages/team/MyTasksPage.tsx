@@ -3,6 +3,7 @@ import { CheckCircle2, Clock, AlertCircle, ListTodo, Loader2 } from 'lucide-reac
 import { cn, formatDate, getStatusColor } from '@/lib/utils'
 import { taskService } from '@/lib/services/taskService'
 import toast from 'react-hot-toast'
+import PageLoader from '@/components/shared/PageLoader'
 
 type TaskStatus = 'CREATED' | 'ASSIGNED' | 'IN_PROGRESS' | 'PENDING_APPROVAL' | 'REVIEW' | 'APPROVED' | 'REJECTED' | 'COMPLETED'
 type Priority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'
@@ -85,11 +86,7 @@ export default function MyTasksPage() {
     { label: 'Completed', value: tasks.filter(t => ['APPROVED', 'COMPLETED'].includes(t.status)).length, icon: CheckCircle2, color: 'text-green-600', bg: 'bg-green-50' },
   ]
 
-  if (loading) return (
-    <div className="flex items-center justify-center h-64">
-      <Loader2 className="w-8 h-8 animate-spin text-santech-600" />
-    </div>
-  )
+  if (loading) return <PageLoader />
 
   return (
     <div className="space-y-5">

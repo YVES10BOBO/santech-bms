@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Plus, Search, X, TrendingUp, CheckCircle, Loader2 } from 'lucide-react'
 import { cn, formatCurrency } from '@/lib/utils'
 import { employeeService } from '@/lib/services/employeeService'
+import PageLoader from '@/components/shared/PageLoader'
 
 interface SalaryRecord {
   id: string
@@ -138,11 +139,7 @@ export default function SalaryPage() {
     setShowPromoModal(false); setPromoForm({ newPosition: '', salaryRaise: '', reason: '' })
   }
 
-  if (loading) return (
-    <div className="flex items-center justify-center h-64">
-      <Loader2 className="w-8 h-8 animate-spin text-santech-600" />
-    </div>
-  )
+  if (loading) return <PageLoader />
 
   return (
     <div className="space-y-5">
