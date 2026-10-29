@@ -1,8 +1,10 @@
 # SAN-BMS — Santech Business Management System
 
-> **Version:** 1.1.0 | **Status:** All pages connected to the live API and PostgreSQL (Neon) database
-> **Live Frontend:** https://santech-bms.vercel.app
-> **Live Backend API:** https://santech-bms-api.onrender.com
+> **Version:** 1.2.0 · **Status:** all pages connected to the live API and PostgreSQL (Neon) database
+>
+> **Live app:** https://santech-bms.vercel.app · **API:** https://santech-bms-api.onrender.com
+>
+> **What's new:** see [CHANGELOG.md](CHANGELOG.md) — every change, newest first
 
 ---
 
@@ -54,6 +56,9 @@ All demo accounts use the password **`Santech@2026`**.
 | Employee | `frank@santech.rw` | My Tasks, own attendance, timesheets |
 | (inactive) | `eric@santech.rw` | Deactivated account — cannot log in |
 
+Every demo login has tasks on **My Tasks**. After 10 wrong passwords within 15 minutes, logins from
+that network pause for 15 minutes; successful logins never count.
+
 ---
 
 ## Tech Stack
@@ -71,6 +76,8 @@ All demo accounts use the password **`Santech@2026`**.
 | Database | PostgreSQL (Neon) | Relational data storage |
 | ORM | Prisma | Type-safe database queries |
 | Auth | JWT + bcrypt | Secure login + role-based access |
+| File storage | PostgreSQL (`stored_files` table) | Uploaded documents and signed contracts, 5 MB per file |
+| PDF | Browser print → Save as PDF | Branded A4 quotations and invoices |
 | Frontend Deploy | Vercel | Automatic GitHub deployment |
 | Backend Deploy | Render | Node.js hosting |
 | Database Host | Neon.tech | Serverless PostgreSQL |
@@ -86,14 +93,16 @@ santech-bms-current/
 │       ├── pages/                    ← one folder per module (crm, sales, finance, projects, team, …)
 │       ├── components/layout/        ← sidebar, top bar (live notification bell), page shell
 │       ├── lib/api.ts                ← Axios client (JWT header, 401 → login)
+│       ├── lib/printDocument.ts      ← branded A4 quotation / invoice → Save as PDF
 │       ├── lib/services/             ← one small client per API area
 │       │   ├── lookupService.ts      ← shared dropdown data (clients, staff, contracts, projects)
-│       │   └── operationsService.ts  ← leads, quotations, tickets, HR, reception, …
+│       │   ├── fileService.ts        ← upload, open and download stored files
+│       │   └── operationsService.ts  ← leads, quotations, tickets, HR, documents, reception, …
 │       └── store/authStore.ts        ← login state + role → module access rules
 │
 ├── backend/                          ← Node.js + Express + Prisma
 │   ├── src/
-│   │   ├── routes/                   ← auth, clients, finance, projects, tasks, salary, reports, …
+│   │   ├── routes/                   ← auth, clients, finance, projects, tasks, salary, reports, files, …
 │   │   ├── controllers/              ← business rules (approvals, totals, workflows)
 │   │   ├── lib/
 │   │   │   ├── roles.ts              ← role groups used by every route guard
@@ -107,8 +116,9 @@ santech-bms-current/
 │       ├── seed.ts                   ← demo data entry point
 │       └── seeds/                    ← demo data per area (+ data/*.json)
 │
-├── README.md
-└── SETUP.md
+├── README.md                         ← what the system does (this file)
+├── CHANGELOG.md                      ← every change, newest first
+└── SETUP.md                          ← run it on your own computer
 ```
 
 ### How the modules feed each other
@@ -118,29 +128,36 @@ santech-bms-current/
 | Lead → **Convert to Deal** | Client registered (if new) + qualified deal added to the pipeline |
 | Quotation → approvals | Salesperson → Manager → CEO, each step notifies the next approver |
 | Accepted quotation → **Convert** | Draft contract created with the same value and line items |
-| Contract **Active** | Requires all signatories signed + signed document attached |
+| Contract **Active** | Requires all signatories signed + signed contract file attached |
 | Milestone approved → **Generate Invoice** | Invoice created for the milestone's share of the contract |
 | Invoice **payment recorded** | Income entry in Finance (P&L, dashboard, reports update) |
 | Salary **Mark Paid** | Salaries expense in Finance |
 | Client service **Mark Paid** | Maintenance income in Finance |
 | Purchase **Delivered** | Expense in Finance |
 | Training fee **paid** | Training income in Finance |
+| Unpaid invoice / approved purchase / unpaid salary | Listed under Accounts Receivable or Accounts Payable on Finance → Statements |
+| Document linked to a client | Shown in that client's Client 360° profile, ready to download |
 | Task / timesheet / leave **approved** | Employee notified; task approval raises performance score |
 | Visitor **checked in** | Host notified |
 | Every important action | Written to the Audit Trail (who, what, before/after, IP, device) |
 
 ---
 
-## System Modules — Built
+## System Modules
 
-### 1. Authentication & Access Control
-- Login page with professional split-panel design (Imigongo pattern background)
-- JWT-based authentication
-- 5 roles: Super Admin, Admin, Finance Manager, Sales Staff, Employee
-- Role-based sidebar — each role sees only their permitted modules
-- Quick demo login buttons on login page
+Grouped as they appear in the sidebar. **Where** shows how to get to each page. Every page reads and
+saves through the API.
 
-### 2. Executive Dashboard
+### Login & Access Control
+**Where:** `/login`
+- Professional split-panel login page (Imigongo pattern) with quick demo login buttons
+- JWT login; 8 staff roles, each with its own sidebar (see [Role-Based Access](#role-based-access))
+- The API checks the role on every route, so hiding a menu item is never the only protection
+- Clear messages when login fails: wrong email or password, too many failed attempts, or the server
+  still waking up (Render free plan)
+
+### Dashboard
+**Where:** Dashboard
 - 8 KPI cards: total customers, active, new this month, leads, conversion rate, active/completed/delayed projects, pending invoices, overdue payments
 - Revenue vs Expenses area chart (6 months)
 - Service revenue pie chart (EVS, SANTRACK, Websites, etc.)
@@ -148,21 +165,11 @@ santech-bms-current/
 - Recent field visits list
 - P&L summary card (Revenue, Expenses, Net Income)
 
-### 3. CRM — Field Visits
-- Direct migration from Excel data (all 14 columns preserved)
-- Record new visits with full modal form
-- Filters: category, outcome, product, date range, contract won
-- Rows per page: 5/10/20/All with pagination
-- Categories: Self Employed, Institution, Industry, Distributor
+### CRM
 
-### 4. CRM — Leads Management
-- Lead journey: New → Contacted → Qualified → Converted → Lost
-- Advance status button (one click to move forward)
-- Convert to Deal button (Qualified leads only)
-- Detail side panel
-- Filters: status, category, product, search
+#### Customers
+**Where:** CRM → Customers
 
-### 5. CRM — Customer Management (Enhanced)
 **4 client types with different required fields:**
 
 | Type | Key Required Fields |
@@ -174,170 +181,306 @@ santech-bms-current/
 
 - Multi-step registration form (4 steps: Type → Info → Services → Review)
 - Services selection with descriptions (13 services + Other)
-- File upload option
-- View side panel with all details
-- PRIMARY CONTACT badge for delegation representative
+- View side panel with all details; PRIMARY CONTACT badge for the delegation representative
+- **View Profile** opens the Client 360° profile
+- The form's *Attach Document* field keeps only the file name. To store a client's files, upload them
+  in **Documents** and link them to the client.
 
-### 6. CRM — Client 360° Profile
-- Full client history timeline with colored icons
-- Financial summary (invoiced, paid, outstanding, profit margin)
-- Services used with status (Active/Expired/Pending)
-- Contracts and documents list
-- Add Interaction modal (Call, Meeting, Email, Note, Status Change)
-- Works for prospects too — history preserved even if deal was lost
-- Navigate from Customers page → View Profile button
+#### Client 360° Profile
+**Where:** CRM → Customers → **View Profile**
+- One timeline of everything with the client: field visits, calls/emails/notes, meetings, quotations,
+  contracts, invoices and support tickets
+- Financial summary (invoiced, paid, outstanding, profit margin) from all of the client's invoices
+- Services used with status (Active/Expired/Pending) and contracts
+- **Documents:** the client's uploaded documents and signed contracts (**Download**), plus its
+  quotations and invoices (**PDF**)
+- **Add Interaction** (call, meeting, email, note, status change) saves to the Communication Log
+- Works for prospects too — history is kept even if the deal was lost
 
-### 7. Sales — Deal Pipeline
-- Kanban board (drag & drop between stages) + List view toggle
+#### Leads
+**Where:** CRM → Leads
+- Lead journey: New → Contacted → Qualified → Converted → Lost
+- Advance status button (one click to move forward)
+- **Convert to Deal** (Qualified leads): registers the client if new and adds a deal to the pipeline
+- Detail side panel; filters: status, category, product, search
+
+#### Field Visits
+**Where:** CRM → Field Visits
+- Direct migration from the Excel sheets (all columns preserved)
+- Record new visits with a full form
+- Filters: category, outcome, product, date range, contract won
+- Rows per page: 5/10/20/All with pagination
+- Categories: Self Employed, Institution, Industry, Distributor
+
+### Sales
+
+#### Deal Pipeline
+**Where:** Sales → Deal Pipeline
+- Kanban board (drag & drop between stages) + list view
 - 8 stages: New Lead → Contacted → Qualified → Requirements → Proposal → Negotiation → Won/Lost
-- Probability bars per deal
-- KPI cards: active deals, total value, weighted value, won value
-- Deal detail side panel with next action
-- Move forward/back buttons on each card
+- Probability bars per deal; KPI cards: active deals, total value, weighted value, won value
+- Deal detail side panel with next action; move forward/back buttons on each card
 
-### 8. Sales — Quotations
-- Multi-line item quotation builder
-- Auto-calculate subtotal, VAT, total
-- Quotation workflow: Draft → Sent → Viewed → Accepted → Converted
-- Convert to Contract button (Accepted quotations)
-- Detail side panel with full line items table
-- 4-step workflow advance buttons
+#### Quotations
+**Where:** Sales → Quotations
+- Multi-line quotation builder; subtotal, VAT and total calculated by the server
+- Approval chain: Salesperson → Sales Manager → CEO; each step notifies the next approver, who can
+  send it back with a reason
+- After approval: Sent → Viewed → Negotiation → Accepted, or Rejected by the client; quotations past
+  their *valid until* date expire automatically
+- **Convert** an accepted quotation into a draft contract with the same value and line items
+- **PDF:** open a quotation → **PDF** → the print window opens → *Save as PDF*. The page carries the
+  company details from Settings → Company Profile.
 
-### 9. Contracts — Contract Management
-- Full lifecycle: Draft → Review → Approval → Signing → Active → Completed
-- Advance status button on each row
-- Contract lifecycle bar at top
-- Stats: Total, Active, Pending Signature, Active Value
-- View side panel with all details
+#### Tenders
+**Where:** Sales → Tenders
+- Bid tracking: Open → Submitted → Under review → Won / Lost (or Cancelled)
+- Assigned person, deadline and value; KPI cards include won bids and won value
+- Deadline reminders in Notifications
 
-### 10. Contracts — Client Services & Renewals
-- Track hosting, domains, maintenance contracts
+### Marketing
+
+#### Campaigns
+**Where:** Marketing → Campaigns
+- Campaign cards with ROI from the recorded results (leads, clients won, revenue)
+- Grid + list view; stats: total, active, total leads, best ROI
+- New Campaign form (name, type, budget, dates, channels, team); detail side panel
+- Types: Expo/Event, Field Visits, Social Media, Email, Referral, Cold Outreach
+- Status: Planning → Active → Paused / Completed / Cancelled
+
+#### Training (SANHUB)
+**Where:** Marketing → Training (SANHUB)
+- Training sessions with type, trainer, venue, dates, maximum attendees and fee per person
+- Status: Upcoming → In progress → Completed (or Cancelled)
+- Attendees: Registered → Attended → Certified (or Absent); certificates only after attendance
+- A paid attendee fee is booked as Training income in Finance; total training revenue is shown
+- Grid + list view
+
+### Contracts
+
+#### All Contracts
+**Where:** Contracts → All Contracts
+- Lifecycle: Draft → Review → Approval → Signing → Active → Completed (also Renewal, Cancelled)
+- Signatories tracked one by one
+- A contract becomes **Active** only when every signatory has signed **and** the signed contract file
+  is attached
+- **Attach signed contract file** (PDF, Word or image, up to 5 MB) and **Open signed document** from
+  the contract panel
+- Stats: total, active, pending signature, active value
+
+#### Client Services & Renewals
+**Where:** Contracts → Client Services
+- Hosting, domains and maintenance per client
 - Hosting providers: Spaceship, AOS Rwanda, Namecheap, Santech Server, Cloudflare
 - Service types: Hosting Only, Maintenance Only, Hosting + Maintenance, Domain Only, Domain + Hosting
-- **Renewal alert banners** — appear automatically when services expire or are expiring soon:
+- **Renewal alert banners:**
   - 🔴 Expired — immediate action required
   - 🟠 Expiring in 15 days — critical
   - 🟡 Expiring in 30 days — warning
-- Tax tracking (with/without VAT)
-- Profit calculation (amount charged − actual cost)
-- Renew +1 year button
-- Mark Paid button
-- Detail panel shows notification schedule (30d/15d/7d triggers)
+- Reminders 30, 15 and 7 days before renewal and on expiry
+- **Mark Paid** books the payment as income in Finance; **Renew** moves the renewal date one billing
+  cycle forward; unpaid services past renewal become overdue
+- Tax tracking (with/without VAT) and profit (amount charged − actual cost)
 
-### 11. Finance — Invoices & Payments
+### Finance
+
+#### Overview & P&L
+**Where:** Finance → Overview & P&L — 4 tabs:
+- **Overview:** P&L (Revenue − Expenses = Profit), KPI cards, 6-month chart
+- **Income:** income by category (EVS, SANTRACK, Website, Training, …) with Add Income
+- **Expenses:** expenses by category (Salaries, Rent, Internet, Equipment, …) with Add Expense
+- **Statements:** see the next section
+
+#### Financial Statements
+**Where:** Finance → Overview & P&L → **Statements** (Super Admin, Admin, Finance Manager)
+- **Balance sheet:** cash & bank, accounts receivable and equipment, against accounts payable and
+  equity (capital & retained earnings)
+- **Cash flow** by month: opening cash, cash received, operating payments, equipment purchases
+  (investing), net cash flow, closing cash
+- **Accounts payable:** approved or ordered purchases not yet delivered, plus unpaid salaries
+- **Accounts receivable:** what clients still owe on issued invoices
+- **Opening cash** is set on the same tab (demo data starts at RWF 15,000,000)
+- Simplified statements built from the system's own records
+
+#### Invoices & Payments
+**Where:** Finance → Invoices & Payments
 - Invoice table with status badges (Draft/Sent/Due/Partial/Paid/Overdue)
-- Record Payment modal (amount, date, method, reference)
-- Automatic status update when payment recorded
-- Outstanding balance tracking
-- Stats: Total Invoiced, Total Collected, Outstanding, Overdue count
+- **Record Payment** (amount, date, method, reference); overpayment is refused
+- Each payment is booked as income in Finance and the status updates automatically
+- **PDF:** open an invoice → **PDF** → *Save as PDF*
+- Stats: total invoiced, total collected, outstanding, overdue count
 
-### 12. Finance — P&L / Income / Expenses
-**3 tabs:**
-- **Overview tab:** P&L table (Revenue − Expenses = Profit), KPI cards, CSS bar chart (6 months)
-- **Income tab:** Log income by category (EVS, SANTRACK, Website, Training, etc.), Add Income modal
-- **Expenses tab:** Log expenses by category (Salaries, Rent, Internet, etc.), Add Expense modal
+### Procurement
+**Where:** Procurement → Purchases & Stock
+- Purchase requests: item, category, quantity, unit price, supplier, notes
+- Pending → Approved → Ordered → Delivered (or Cancelled); nobody approves their own request
+- **Delivered** books the expense in Finance; approved and ordered purchases show in Accounts Payable
 
-### 13. Projects
+### Reports
+**Where:** Reports → All Reports — 4 tabs, calculated from live data:
+- **Sales:** salesperson performance, leads, conversions, win rate
+- **Finance:** revenue, expenses, profit, income by service, top clients by revenue
+- **Team:** employee performance, tasks completed, completion rates
+- **Clients:** breakdown by category, contractors vs prospects
+
+### Support
+
+#### Support Tickets
+**Where:** Support → Support Tickets
+- Lifecycle: New → Assigned → In Progress → Waiting Customer → Resolved → Closed
+- Priority badges: Low, Medium, High, Urgent
+- New Ticket form (client, subject, description, product, priority, assignee)
+- Side panel with Mark Resolved and Close Ticket
+- Stats: total, open, in progress, resolved today
+
+#### Knowledge Base
+**Where:** Support → Knowledge Base
+- Articles by category, saved as Draft or Published
+- Drafts are visible only to their author; published articles count their views
+
+### Reception — Visitor Log
+**Where:** Reception → Visitor Log
+- Register visitors (name, phone, email, company, host, expected time, notes)
+- **Check in**, **Check out** or **No-show**; the host is notified on check-in
+- Today's visitors at a glance
+
+### Communication
+
+#### Meetings
+**Where:** Communication → Meetings
+- Client, project, internal, sales, contract and training meetings — in person or online (with link)
+- Agenda, participants, decisions made, action items, follow-up date
+- Status: Scheduled → In progress → Completed (or Cancelled / Postponed)
+- Participants are notified; today's meetings appear in Notifications
+
+#### Communication Log
+**Where:** Communication → Communication Log
+- Calls, emails, WhatsApp, SMS, meetings and notes — inbound or outbound — with summary and duration
+- Follow-up dates create reminders in Notifications
+- Every entry appears on the client's Client 360° timeline
+
+### Documents
+**Where:** Documents → All Documents (Super Admin and Admin)
+- **Upload Document:** PDF, Word, Excel, images, text/CSV or zip, up to 5 MB. Files are stored in
+  the database, so they survive redeploys.
+- Each document has a **category** (Contract, Invoice, Proposal, Report, Policy, Other), an optional
+  **client** and **project** (no client = company document) and a description
+- **Search** by name, description, client or project; **filter** by category, client, project,
+  status (Active / Archived / All) and date range
+- **Download** from the table, or **Open file** from the document view
+- **Edit Document** (uploader or admin): change the details or replace the file
+- **Archive** hides a document without deleting it; **Restore** brings it back
+- **Delete** (admins only, archived documents only) removes the document and its file for good,
+  unless another document or a signed contract uses the same file. Recorded in the Audit Trail.
+- Documents linked to a client also appear in that client's Client 360° profile
+
+### Projects
+
+#### All Projects
+**Where:** Projects → All Projects
 - Project table with progress bars, status/priority badges
-- Stats: Total, Active, Completed, Delayed
-- Add/Edit modal with all project fields
-- View side panel with milestones and contract reference
+- Stats: total, active, completed, delayed
+- Add/Edit form with all project fields; side panel with milestones and contract reference
 - Filters: status, priority, search
 
-### 14. Tasks
+#### Tasks
+**Where:** Projects → Tasks
 - **All Tasks** view (Admin) + **My Tasks** view (Employee) toggle
-- Assign Task modal (title, description, employee, priority, deadline, period)
-- Task approval workflow:
-  - Employee clicks "Mark Complete" → Status: Pending Approval
-  - Admin clicks "Approve" → Status: Approved (performance score increases)
-  - Admin clicks "Reject" → Must type reason → Status: Rejected (employee sees reason)
-- Overdue tasks highlighted in red
-- Filters: status, priority, employee
+- Assign Task form (title, description, employee, priority, deadline, period)
+- Approval workflow (see [Task Completion Workflow](#task-completion-workflow)): Mark Complete →
+  Approve (performance score rises) or Reject with a reason
+- Overdue tasks highlighted in red; filters: status, priority, employee
 
-### 15. Team — Employees
-- Grid view (cards) and List view (table) — toggle like Google Drive
+#### Milestones
+**Where:** Projects → Milestones
+- Milestones per project with number, deliverables, deadline and days left / overdue
+- Complete → approve → **Generate Invoice** for the milestone's share of the contract value
+
+#### Timesheets
+**Where:** Projects → Timesheets
+- Staff log their own hours per project and task
+- Project leads approve or reject entries (never their own)
+- **Project profitability:** payments received − staff time cost from approved hours
+
+### Team
+
+#### Employees
+**Where:** Team → Employees
+- Grid view (cards) and List view (table)
 - Performance bar (green ≥80%, yellow ≥50%, red <50%)
 - Employment status badges: Active, On Leave, Suspended, Terminated
-- Stats: Total, Active, On Leave, Avg Performance
-- Add/Edit modal with all fields
-- Skills display
+- Stats: total, active, on leave, average performance
+- Add/Edit form with all fields; skills display
 
-### 16. Team — Departments
-- Grid view (cards) and List view (table) — toggle
-- Department stats: employees count, active projects, budget, avg performance
-- Color-coded department badges
-- View side panel with full details
-- Add/Edit modal with color picker
+#### Departments
+**Where:** Team → Departments
+- Grid view (cards) and List view (table)
+- Department stats: live staff count, active projects, budget, average performance
+- Color-coded department badges; view side panel; Add/Edit form with color picker
 
-### 17. Team — Workload View
-- Visual workload per employee:
-  - 🟢 Available (0–4 tasks)
-  - 🟡 Busy (5–8 tasks)
-  - 🔴 Overloaded (9+ tasks)
-- Task breakdown: Assigned, In Progress, Pending Approval, Overdue counts
-- Grid + List view toggle
-- Assign Task directly from workload view
-- Filters: department, workload status
+#### Workload
+**Where:** Team → Workload
+- Workload per employee: 🟢 Available (0–4 tasks), 🟡 Busy (5–8), 🔴 Overloaded (9+)
+- Task breakdown: assigned, in progress, pending approval, overdue
+- Grid + list view; assign a task directly; filters: department, workload status
 
-### 18. Team — Salary Management
-- Monthly salary table per employee
-- Add Bonus / Add Deduction modal
-- Mark as Paid button
-- Promotion modal (new position + salary raise + reason) — Super Admin only
-- Month/Year selector to view different periods
+#### My Tasks
+**Where:** Team → My Tasks
+- Each person's own tasks with deadlines; overdue tasks flagged
+- **Mark Complete** sends a task for approval; approved and rejected tasks show the outcome and reason
+
+#### Salary
+**Where:** Team → Salary (amounts visible to HR and finance roles only)
+- Monthly salary table per employee; month/year selector
+- Add Bonus / Add Deduction; **Mark Paid** (books the salary expense in Finance)
+- Promotion (new position + salary raise + reason) — Super Admin only
 - Performance score bars with colors
 
-### 19. Marketing — Campaigns
-- Campaign cards with ROI calculation
-  - 🟢 Positive ROI (e.g. TechForward Expo: 740%)
-  - 🔴 Negative ROI (campaigns with no revenue yet)
-- Grid + List view toggle
-- Stats: Total, Active, Total Leads, Best ROI
-- New Campaign modal (name, type, budget, dates, channels, team)
-- Detail side panel with full metrics
-- Campaign types: Expo/Event, Field Visits, Social Media, Email, Referral, Cold Outreach
+#### Attendance & Leave
+**Where:** Team → Attendance & Leave
+- Daily attendance: Present, Late, Absent or Half day, with check-in and check-out times
+- Checking yourself in after 08:30 is marked **Late**; admins can record attendance for anyone
+- Leave requests: Annual, Sick, Maternity, Paternity, Emergency, Unpaid
+- Approve or reject; the employee is notified and shows as *On Leave* when the leave covers today
 
-### 20. Reports
-**4 tabs:**
-- **Sales:** Salesperson performance, leads, conversions, win rate
-- **Finance:** Revenue, expenses, profit, top clients by revenue
-- **Team:** Employee performance, tasks completed, completion rates
-- **Clients:** Breakdown by category, contractors vs prospects
+### Settings
 
-### 21. Notifications
-- 10 notification types with colored icons
-- Types: Payment Overdue, Follow-Up Due, Contract Expiry, Task Deadline, System
-- Filter tabs: All, Unread, Payment, Follow-up, Tasks
-- Mark all as read / click to mark individual
-- Unread count badge
+#### User Management
+**Where:** Settings → User Management
+- Create, edit, activate and deactivate users; role badges; search + role filter
+- Only a Super Admin can create or change Super Admin accounts
 
-### 22. Support Tickets
-- Ticket lifecycle: New → Assigned → In Progress → Waiting Customer → Resolved → Closed
-- Priority badges: Low, Medium, High, Urgent
-- New Ticket modal (client, subject, description, product, priority, assignee)
-- View/Resolve side panel with Mark Resolved + Close Ticket actions
-- Stats: Total, Open, In Progress, Resolved Today
+#### Company Profile
+**Where:** Settings → Company Profile
+- Legal and trading name, registration number, TIN, address, city, country, phone, email, website,
+  industry, description
+- Used on the PDF quotations and invoices
 
-### 23. Settings — User Management
-- Full CRUD for system users
-- Role badges (Super Admin=purple, Admin=blue, Sales=green, Employee=gray)
-- Activate/Deactivate toggle
-- Add/Edit modal with password fields
-- Search + role filter
+#### Roles & Permissions
+**Where:** Settings → Roles & Permissions
+- Each role's accessible modules (the same rules the sidebar and API use) with live user counts
 
-### 24. Settings — Product Catalog
+#### Product Catalog
+**Where:** Settings → Product Catalog
 - 8 Santech products (EVS, SANTRACK, REVIXSAN, SANBOOK, SANHUB, Website, Mobile App, Training)
 - Card grid with active/inactive toggle
-- Add/Edit modal (name, category, description, price, cost, tax, SLA)
-- Filters: category, status, search
+- Add/Edit (name, category, description, price, cost, tax, SLA); filters: category, status, search
 
-### 25. Audit Trail
-- Complete log of every system action
-- Action types with colors: Created (green), Updated (blue), Deleted (red), Approved (emerald), Rejected (red), Payment (teal), Status Change (amber)
+#### Audit Trail
+**Where:** Settings → Audit Trail
+- Log of every important action: Created (green), Updated (blue), Deleted (red), Approved (emerald),
+  Rejected (red), Payment (teal), Status Change (amber)
 - Detail side panel showing Before (old value in red) and After (new value in green)
-- Read-only — cannot be edited or deleted by any user
-- Filters: action type, module, user, date range
-- Rows per page: 5/10/20/50/All
+- Read-only — no user can edit or delete it
+- Filters: action type, module, user, date range; rows per page: 5/10/20/50/All
+
+### Notifications
+**Where:** Notifications, or the bell on the top bar (live unread count)
+- Reminders for overdue and due invoices, contract expiry/signature/approval, task deadlines and
+  approvals, lead and deal follow-ups, service renewals, tender deadlines, meetings and communication
+  follow-ups
+- Filter tabs: All, Unread, Payment, Follow-up, Tasks
+- Mark one or all as read
 
 ---
 
@@ -380,11 +523,12 @@ santech-bms-current/
 ## Role-Based Access
 
 Sidebar access comes from `roleAccess` in `frontend/src/store/authStore.ts` (also shown on
-Settings → Roles). The API enforces the same rules, so hiding a menu item is never the only protection.
+Settings → Roles & Permissions). The API enforces the same rules, so hiding a menu item is never the
+only protection.
 
 | Role | Sidebar modules |
 |---|---|
-| **Super Admin** | Everything, including promotions and CEO approval of quotations |
+| **Super Admin** | Everything, including promotions, CEO approval of quotations and permanent document deletion |
 | **Admin (HR)** | Everything except Super Admin-only actions |
 | **Finance Manager** | Dashboard, Finance, Contracts, Reports, Notifications |
 | **Sales Manager** | Dashboard, CRM, Sales, Marketing, Reports, Notifications |
@@ -393,7 +537,8 @@ Settings → Roles). The API enforces the same rules, so hiding a menu item is n
 | **Sales Staff** | Dashboard, CRM, Sales, My Tasks, Notifications |
 | **Employee** | Dashboard, My Tasks, Team, Notifications |
 
-Salary figures are only returned by the API to HR and finance roles.
+Documents, Procurement, Support, Reception, Communication, Training and Settings are shown to
+Super Admin and Admin only. Salary figures are only returned by the API to HR and finance roles.
 
 ---
 
@@ -439,6 +584,9 @@ Performance score ++          Rejection reason shown
 | Backend API | https://santech-bms-api.onrender.com | Render |
 | Database | Neon PostgreSQL | Neon.tech |
 
+Pushing to `main` deploys both: Vercel rebuilds the frontend, and Render rebuilds the API and applies
+new database migrations.
+
 ### Environment Variables (Backend — Render)
 
 ```
@@ -450,6 +598,8 @@ JWT_EXPIRES_IN=7d
 CLIENT_URL=https://santech-bms.vercel.app
 PORT=5000
 ```
+
+Uploaded files are kept in the database, so no extra storage service or variable is needed.
 
 ### Seeding the database
 
@@ -473,38 +623,39 @@ VITE_API_URL=https://santech-bms-api.onrender.com/api
 
 ## Local Development Setup
 
-See **SETUP.md** for full local setup instructions.
+See **[SETUP.md](SETUP.md)** for full local setup instructions.
 
 **Quick start:**
 ```powershell
-# Frontend
-cd frontend
-pnpm install
-pnpm dev        # → http://localhost:3000
-
 # Backend
 cd backend
 pnpm install
 pnpm db:migrate
 pnpm db:seed
 pnpm dev        # → http://localhost:5000
+
+# Frontend
+cd frontend
+pnpm install
+pnpm dev        # → http://localhost:3000
 ```
 
 ---
 
 ## Database Schema
 
-PostgreSQL on Neon, managed with Prisma (see `backend/prisma/schema.prisma`).
+PostgreSQL on Neon, managed with Prisma (see `backend/prisma/schema.prisma`; 9 migrations).
 
 | Area | Models |
 |---|---|
 | Users & HR | User, Employee, SalaryRecord, Department, Attendance, LeaveRequest |
 | CRM | Client, ClientMember, FieldVisit, Lead, Communication, Meeting, Visitor |
-| Sales & marketing | Opportunity, Quotation, Tender, Campaign, Product |
+| Sales & marketing | Opportunity, OpportunityProduct, Quotation, Tender, Campaign, Product |
 | Contracts & services | Contract, ClientSubscription |
 | Finance | Invoice, Payment, IncomeEntry, ExpenseEntry, PurchaseRequest |
 | Projects | Project, Milestone, Task, Timesheet |
-| Support & knowledge | SupportTicket, KnowledgeArticle, Document, TrainingSession, TrainingAttendee |
+| Documents & files | Document (linked to a client and project), StoredFile (the uploaded file itself) |
+| Support & knowledge | SupportTicket, KnowledgeArticle, TrainingSession, TrainingAttendee |
 | System | Notification, AuditLog, Setting |
 
 ---
@@ -523,15 +674,21 @@ PostgreSQL on Neon, managed with Prisma (see `backend/prisma/schema.prisma`).
 - [x] Reports (sales, finance, team, clients) calculated from live data
 - [x] Audit trail of all important actions
 - [x] Project profitability (payments received − staff time cost from approved timesheets)
+- [x] File storage for documents and signed contracts (in the database, 5 MB per file)
+- [x] PDF quotations and invoices (branded A4, Save as PDF)
+- [x] Financial statements: balance sheet, cash flow, accounts payable and receivable
+- [x] Document library: client/project links, search and filters, edit, archive, admin delete
+- [x] Clear login errors; only failed logins count toward the login limit
 
 ### 📋 Possible next steps
 
-- [ ] File storage for documents and signed contracts (only file names are stored today)
-- [ ] PDF generation for quotations and invoices
-- [ ] Email / SMS / WhatsApp delivery of notifications (in-app only today)
+- [ ] Email / SMS / WhatsApp delivery of notifications (in-app only today). Render's free plan blocks
+      email (SMTP) ports, so email needs an HTTP email service such as Brevo; SMS and WhatsApp via Twilio.
 - [ ] Customer portal (client self-service login)
-- [ ] Supplier portal, accounts payable, balance sheet / cash-flow statements
+- [ ] Supplier portal
 - [ ] Multi-currency
+- [ ] Folder view for documents (automatic folders by client → project, or Drive-style folders)
+- [ ] Save the file from the customer form's *Attach Document* field (today only its name is kept)
 
 ---
 
@@ -546,9 +703,22 @@ The previous system used Excel sheets with 4 tabs. All data structure is preserv
 | Industries | INDUSTRY | Manufacturing companies |
 | Distributors | DISTRIBUTOR | Supply chain companies |
 
-All 13 Excel columns are mapped to database fields and displayed in the Field Visits page.
+All Excel columns are mapped to database fields and displayed in the Field Visits page.
+
+---
+
+## Documentation
+
+| File | What it covers |
+|---|---|
+| [README.md](README.md) | What the system does today (this file) |
+| [CHANGELOG.md](CHANGELOG.md) | Every change, newest first: what changed, where to find it, what changed underneath |
+| [SETUP.md](SETUP.md) | Running the project on your own computer |
+
+**For every change:** add an entry at the top of CHANGELOG.md in the same commit, and update this
+README when what the system does has changed.
 
 ---
 
 *SAN-BMS — Built for Santech Innovate, Kigali Rwanda 🇷🇼*
-*README last updated: 29 October 2026*
+*README last updated: 29 October 2026 (version 1.2.0)*
