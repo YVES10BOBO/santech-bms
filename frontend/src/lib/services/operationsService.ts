@@ -96,11 +96,13 @@ export const timesheetService = {
 }
 
 export const documentService = {
-  /** Filters: search, category, clientId ("none" = company documents), projectId, status, from, to */
+  /** Filters: search, category, clientId / projectId ("none" = not linked), status, from, to, limit */
   getAll: (filters: Record<string, string> = {}) => {
     const qs = new URLSearchParams(Object.entries(filters).filter(([, v]) => v)).toString()
     return get(`/documents${qs ? `?${qs}` : ''}`)
   },
+  /** Automatic folder tree: clients → projects, company documents, one folder per type, archive */
+  folders: () => get('/documents/folders'),
   create: (b: Body) => post('/documents', b),
   update: (id: string, b: Body) => put(`/documents/${id}`, b),
   /** Permanent delete — admins only, document must be archived first */

@@ -22,6 +22,50 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 
 ## 1.2.0 — 29 October 2026
 
+### Documents: Google Drive-style folders, grid and list views
+- **What:** The Documents page now works like Google Drive:
+  - **Folders** fill themselves from each document's client, project and type, so nobody has to file
+    anything by hand:
+    - *Clients* (one folder per client, then one per project inside it);
+    - *Company documents* (no client);
+    - one folder per type (*Contracts, Invoices, Proposals, Reports, Policies, Other documents*);
+    - *Archive*.
+  - **Grid or list layout,** switched with the list/grid button (top right), as in Drive. The page
+    remembers the choice.
+  - **Breadcrumbs** (*Documents › Clients › SABBAN ABATTOIR › EVS System*): click any part to go back
+    up. The browser's Back button works too.
+  - **Search** looks through all folders. Each result shows its location, and clicking it opens that
+    folder.
+  - **Filters:** type, modified date range, and sort (newest, oldest, name).
+  - **Each folder and file has a ⋮ menu:**
+    - folders: *Open*, *Upload here*;
+    - files: *Open*, *Download*, *Details*, *Show in folder*, *Edit*, *Move to archive*,
+      *Delete permanently* (admins).
+  - **New document** started inside a folder is linked to that client, project or type automatically.
+- **Where:** Documents → All Documents.
+- **Rules:**
+  - No change to who can do what: the uploader or an admin edits and archives; admins delete.
+  - The root shows the 8 most recent files.
+  - Archived documents only appear in *Archive*.
+- **Technical:**
+  - `GET /api/documents/folders` returns the folder tree with counts and last-modified dates.
+  - `GET /api/documents` accepts `projectId=none` (files directly in a client folder) and `limit`.
+  - `DocumentsPage.tsx` rewritten; `documentService.folders()`.
+- **Demo data:** 9 more documents with sample PDFs, so every folder has something to open:
+  - N&T contract and invoice;
+  - East African Seed training report;
+  - NYARUGENGE HOSPITAL site survey and quotation;
+  - KABUYE draft contract;
+  - Capital Transport requirements;
+  - company code of conduct and board minutes.
+
+  `prisma/seeds/documentFolders.ts`, created only when missing.
+- **Also fixed:** the "Santech" name in the sidebar logo was dark text on dark blue (invisible); it is
+  now white.
+- **Tested:** 20 API checks: every document sits in exactly one client or company folder, the type and
+  archive counts add up, the project and client folders list the right files, recent files, search,
+  login required. Screenshots of grid, list, folder and phone-width views were checked on a local copy.
+
 ### Sidebar: menu button moved onto the blue sidebar
 - **What:** The menu (hamburger) button that collapses and expands the sidebar is now white and sits in
   the top-right corner of the blue sidebar, instead of in the white top bar. When the sidebar is

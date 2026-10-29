@@ -243,7 +243,7 @@ export default function Sidebar({ collapsed, mobileOpen, onMobileClose, onToggle
               <Building2 className="w-4 h-4 text-santech-900" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-bold text-sm leading-tight">Santech</p>
+              <p className="font-bold text-sm leading-tight text-white">Santech</p>
               <p className="text-santech-300 text-xs">Business Management</p>
             </div>
           </>

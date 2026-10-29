@@ -371,19 +371,29 @@ again. On phones, the menu button in the top bar opens the sidebar, and its X bu
 - Every entry appears on the client's Client 360° timeline
 
 ### Documents
-**Where:** Documents → All Documents (Super Admin and Admin)
-- **Upload Document:** PDF, Word, Excel, images, text/CSV or zip, up to 5 MB. Files are stored in
-  the database, so they survive redeploys.
-- Each document has a **category** (Contract, Invoice, Proposal, Report, Policy, Other), an optional
-  **client** and **project** (no client = company document) and a description
-- **Search** by name, description, client or project; **filter** by category, client, project,
-  status (Active / Archived / All) and date range
-- **Download** from the table, or **Open file** from the document view
-- **Edit Document** (uploader or admin): change the details or replace the file
-- **Archive** hides a document without deleting it; **Restore** brings it back
-- **Delete** (Super Admin and Admin, on any document): after one confirmation the document is archived
-  and removed for good with its file, unless another document or a signed contract uses the same file.
-  Recorded in the Audit Trail.
+**Where:** Documents → All Documents (Super Admin and Admin). Works like Google Drive.
+- **Automatic folders.** Each document's client, project and type decide where it shows:
+  - **Clients** → one folder per client → one per project;
+  - **Company documents** (no client);
+  - one folder per type (**Contracts, Invoices, Proposals, Reports, Policies, Other documents**);
+  - **Archive** for archived documents.
+- **Grid or list layout,** switched with the list/grid button at the top right. The page remembers
+  your choice. **Breadcrumbs** (*Documents › Clients › client › project*) take you back up, and so
+  does the browser's Back button.
+- **Search** looks through every folder (name, description, client, project). Each result shows its
+  location; click it to open that folder. Filter by **type** and **modified date**, and sort by
+  newest, oldest or name.
+- **New document:** PDF, Word, Excel, images, text/CSV or zip, up to 5 MB. Files are stored in the
+  database, so they survive redeploys. When you start inside a folder, the document is linked to that
+  client, project or type automatically.
+- **Each folder and file has a ⋮ menu:**
+  - folders: **Open**, **Upload here**;
+  - files: **Open**, **Download**, **Details**, **Show in folder**, **Edit** (uploader or admin:
+    change the details or replace the file), **Move to archive** / **Restore**, and
+    **Delete permanently**.
+- **Delete permanently** (Super Admin and Admin, any document): after one confirmation, the document
+  is archived and removed for good with its file, unless another document or a signed contract uses
+  the same file. Recorded in the Audit Trail.
 - Documents linked to a client also appear in that client's Client 360° profile
 
 ### Projects

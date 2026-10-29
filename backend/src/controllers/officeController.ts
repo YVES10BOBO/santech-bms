@@ -33,7 +33,8 @@ const ONE_DAY = 24 * 60 * 60 * 1000
  *   ?search=   matches the name, description, client name or project name
  *   ?category= CONTRACT | INVOICE | PROPOSAL | REPORT | POLICY | OTHER
  *   ?clientId= a client id, or "none" for documents not linked to a client
- *   ?projectId= ?status=ACTIVE|ARCHIVED ?from=YYYY-MM-DD ?to=YYYY-MM-DD
+ *   ?projectId= a project id, or "none" for documents not linked to a project
+ *   ?status=ACTIVE|ARCHIVED ?from=YYYY-MM-DD ?to=YYYY-MM-DD ?limit= (newest first)
  * The totals always count the whole library, so the cards stay steady while filtering.
  */
 export async function getDocuments(req: AuthRequest, res: Response): Promise<void> {
@@ -43,7 +44,7 @@ export async function getDocuments(req: AuthRequest, res: Response): Promise<voi
     if (q.category && q.category !== 'ALL') where.category = String(q.category)
     if (q.status && q.status !== 'ALL') where.status = String(q.status)
     if (q.clientId) where.clientId = q.clientId === 'none' ? null : String(q.clientId)
-    if (q.projectId) where.projectId = String(q.projectId)
+    if (q.projectId) where.projectId = q.projectId === 'none' ? null : String(q.projectId)
     if (q.from || q.to) {
       where.date = {
         ...(q.from ? { gte: day(q.from) } : {}),
@@ -57,7 +58,7 @@ export async function getDocuments(req: AuthRequest, res: Response): Promise<voi
     }
 
     const [rows, groups] = await Promise.all([
-      prisma.document.findMany({ where, include: docInclude, orderBy: { date: 'desc' } }),
+      prisma.document.findMany({ where, include: docInclude, orderBy: { date: 'desc' }, ...(Number(q.limit) > 0 && { take: Math.min(Number(q.limit), 500) }) }),
       prisma.document.groupBy({ by: ['category', 'status'], _count: { _all: true } }),
     ])
     const count = (match: (g: { category: string; status: string }) => boolean) =>
@@ -74,6 +75,47 @@ export async function getDocuments(req: AuthRequest, res: Response): Promise<voi
       },
     })
   } catch (e) { fail(res, e, 'getDocuments') }
+}
+
+/**
+ * Folder tree for the Drive-style Documents page. Folders are automatic: every active
+ * document sits under Clients → its client → its project (or directly in the client folder),
+ * or under Company documents when it has no client. Each type (Contracts, Invoices, …) is also
+ * shown as a folder, and archived documents sit in Archive.
+ */
+export async function getDocumentFolders(_req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const docs = await prisma.document.findMany({
+      select: { status: true, category: true, date: true, client: { select: { id: true, companyName: true } }, project: { select: { id: true, name: true } } },
+    })
+    const latest = (a: Date | null, b: Date) => (!a || b > a ? b : a)
+    const clients = new Map<string, { id: string; name: string; count: number; files: number; lastDate: Date | null; projects: Map<string, { id: string; name: string; count: number; lastDate: Date | null }> }>()
+    const categories: Record<string, { count: number; lastDate: Date | null }> = Object.fromEntries(DOC_CATEGORIES.map(c => [c, { count: 0, lastDate: null }]))
+    const company = { count: 0, lastDate: null as Date | null }
+    const archive = { count: 0, lastDate: null as Date | null }
+    for (const d of docs) {
+      if (d.status !== 'ACTIVE') { archive.count++; archive.lastDate = latest(archive.lastDate, d.date); continue }
+      const cat = categories[d.category]
+      if (cat) { cat.count++; cat.lastDate = latest(cat.lastDate, d.date) }
+      if (!d.client) { company.count++; company.lastDate = latest(company.lastDate, d.date); continue }
+      const c = clients.get(d.client.id) ?? { id: d.client.id, name: d.client.companyName ?? 'Client', count: 0, files: 0, lastDate: null, projects: new Map() }
+      c.count++; c.lastDate = latest(c.lastDate, d.date)
+      if (d.project) {
+        const p = c.projects.get(d.project.id) ?? { id: d.project.id, name: d.project.name, count: 0, lastDate: null }
+        p.count++; p.lastDate = latest(p.lastDate, d.date)
+        c.projects.set(p.id, p)
+      } else c.files++
+      clients.set(c.id, c)
+    }
+    const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name)
+    res.json({
+      success: true,
+      data: {
+        clients: [...clients.values()].sort(byName).map(c => ({ ...c, projects: [...c.projects.values()].sort(byName) })),
+        company, categories, archive,
+      },
+    })
+  } catch (e) { fail(res, e, 'getDocumentFolders') }
 }
 
 export async function saveDocument(req: AuthRequest, res: Response): Promise<void> {
