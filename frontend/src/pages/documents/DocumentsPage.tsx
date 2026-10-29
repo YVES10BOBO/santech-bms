@@ -141,22 +141,32 @@ export default function DocumentsPage() {
     }
   }
 
-  /** Permanent delete: admins only, after archiving (the server checks both) */
+  /**
+   * Permanent delete, admins only. The server deletes archived documents only,
+   * so an active one is archived first, after the same single confirmation.
+   */
   const removeDoc = async (doc: Document) => {
+    const active = doc.status === 'ACTIVE'
     const ok = window.confirm(
       `Delete "${doc.name}" permanently?\n\n` +
-      'The document and its file will be removed and cannot be recovered.\n' +
-      'The Audit Trail keeps a record that it was deleted.',
+      (active ? 'It will be archived and then deleted, together with its file.\n' : 'The document and its file will be removed.\n') +
+      'This cannot be undone. The Audit Trail keeps a record of the deletion.',
     )
     if (!ok) return
+    let archived = false
     try {
+      if (active) {
+        await documentService.update(doc.id, { status: 'ARCHIVED' })
+        archived = true
+      }
       const res = await documentService.remove(doc.id)
       toast.success(res.message)
       setViewDoc(null)
-      await load()
     } catch (err) {
-      toast.error(apiError(err, 'Failed to delete document'))
+      toast.error(apiError(err, 'Failed to delete document') + (archived ? ' (it was archived instead)' : ''))
+      if (archived) setViewDoc(null)
     }
+    await load()
   }
 
   const openAdd = () => {
@@ -357,7 +367,7 @@ export default function DocumentsPage() {
                           </button>
                         </>
                       )}
-                      {isAdmin && doc.status === 'ARCHIVED' && (
+                      {isAdmin && (
                         <button onClick={() => removeDoc(doc)} className="flex items-center gap-1 text-xs bg-red-50 text-red-600 px-2 py-1 rounded-lg hover:bg-red-100 font-medium transition-colors">
                           <Trash2 className="w-3 h-3" /> Delete
                         </button>
@@ -372,7 +382,6 @@ export default function DocumentsPage() {
         <div className="px-4 py-3 border-t border-gray-100">
           <p className="text-xs text-gray-400">
             {fetching ? 'Searching…' : `${documents.length} document${documents.length !== 1 ? 's' : ''}${hasFilters ? ' match the filters' : ''}`}
-            {isAdmin && statusFilter !== 'ACTIVE' && ' · Archived documents can be deleted permanently by admins'}
           </p>
         </div>
       </div>
@@ -483,7 +492,7 @@ export default function DocumentsPage() {
                   Edit
                 </button>
               )}
-              {isAdmin && viewDoc.status === 'ARCHIVED' && (
+              {isAdmin && (
                 <button onClick={() => removeDoc(viewDoc)}
                   className="flex-1 py-2 border border-red-200 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50">
                   Delete

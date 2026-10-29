@@ -22,7 +22,25 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 
 ## 1.2.0 — 29 October 2026
 
+### Documents: Delete button on every document (admins)
+- **What:** Admins now see **Delete** on every document, not only on archived ones. Before, you had to
+  archive the document, switch the Status filter to *Archived* and only then find Delete, which was
+  easy to miss.
+- **Where:** Documents → All Documents → red **Delete** on the row (or in the document view) → confirm.
+- **Rules:**
+  - Still Super Admin and Admin only.
+  - One confirmation. For an active document it says the document will be archived and then deleted;
+    both happen together.
+  - The file is removed too, unless another document or a signed contract uses it.
+  - The Audit Trail records both steps: archived, then deleted.
+- **Technical:** frontend only (`DocumentsPage.tsx`). For an active document, `removeDoc` archives it
+  (`PUT /api/documents/:id`) and then deletes it (`DELETE /api/documents/:id`). The API still refuses
+  to delete an active document directly, as a safety net for any other caller.
+- **Tested:** frontend type check. The archive-then-delete API calls are the ones covered by the
+  9 delete checks of commit 7f820b3.
+
 ### My Tasks visible to every role
+*Commit b62614b*
 - **What:** Every role now has **Team → My Tasks**. Before, Admin (HR), Finance Managers, the Sales
   Manager, the Marketing Manager and Sales Staff had seeded tasks but no menu item to open them.
 - **Where:** sidebar → **Team** → **My Tasks**. Roles without the other Team pages see a Team menu

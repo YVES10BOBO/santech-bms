@@ -370,8 +370,9 @@ saves through the API.
 - **Download** from the table, or **Open file** from the document view
 - **Edit Document** (uploader or admin): change the details or replace the file
 - **Archive** hides a document without deleting it; **Restore** brings it back
-- **Delete** (admins only, archived documents only) removes the document and its file for good,
-  unless another document or a signed contract uses the same file. Recorded in the Audit Trail.
+- **Delete** (Super Admin and Admin, on any document): after one confirmation the document is archived
+  and removed for good with its file, unless another document or a signed contract uses the same file.
+  Recorded in the Audit Trail.
 - Documents linked to a client also appear in that client's Client 360° profile
 
 ### Projects
@@ -528,7 +529,7 @@ only protection.
 
 | Role | Sidebar modules |
 |---|---|
-| **Super Admin** | Everything, including promotions, CEO approval of quotations and permanent document deletion |
+| **Super Admin** | Everything, including promotions and CEO approval of quotations |
 | **Admin (HR)** | Everything except Super Admin-only actions |
 | **Finance Manager** | Dashboard, Finance, Contracts, My Tasks, Reports, Notifications |
 | **Sales Manager** | Dashboard, CRM, Sales, Marketing, My Tasks, Reports, Notifications |
@@ -539,7 +540,8 @@ only protection.
 
 Every role has **My Tasks** (Team → My Tasks), which shows only the person's own tasks.
 Documents, Procurement, Support, Reception, Communication, Training and Settings are shown to
-Super Admin and Admin only. Salary figures are only returned by the API to HR and finance roles.
+Super Admin and Admin only, and only they can delete documents permanently. Salary figures are only
+returned by the API to HR and finance roles.
 
 ---
 
