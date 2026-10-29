@@ -71,3 +71,25 @@ export const meetingService = {
   create: (b: Body) => post('/meetings', b),
   update: (id: string, b: Body) => put(`/meetings/${id}`, b),
 }
+
+export const subscriptionService = {
+  getAll: () => get('/client-services'),
+  create: (b: Body) => post('/client-services', b),
+  update: (id: string, b: Body) => put(`/client-services/${id}`, b),
+  /** Records the payment as Finance income */
+  pay: (id: string) => post(`/client-services/${id}/pay`),
+  /** Moves the renewal date forward one billing cycle */
+  renew: (id: string) => post(`/client-services/${id}/renew`),
+}
+
+export const campaignService = {
+  getAll: () => get('/campaigns'),
+  create: (b: Body) => post('/campaigns', b),
+  update: (id: string, b: Body) => put(`/campaigns/${id}`, b),
+}
+
+export const timesheetService = {
+  getAll: () => get('/timesheets'),
+  create: (b: Body) => post('/timesheets', b),
+  review: (id: string, decision: 'approve' | 'reject') => post(`/timesheets/${id}/${decision}`),
+}

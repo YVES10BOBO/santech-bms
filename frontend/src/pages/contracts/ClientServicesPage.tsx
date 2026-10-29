@@ -1,6 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Plus, Search, X, Globe, Server, Bell, RefreshCw, AlertCircle, CheckCircle2, Clock, Filter } from 'lucide-react'
 import { cn, formatDate, formatCurrency } from '@/lib/utils'
+import { subscriptionService } from '@/lib/services/operationsService'
+import { useLookups, apiError } from '@/lib/services/lookupService'
+import PageLoader from '@/components/shared/PageLoader'
+import toast from 'react-hot-toast'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type ServiceType = 'HOSTING_ONLY' | 'MAINTENANCE_ONLY' | 'HOSTING_AND_MAINTENANCE' | 'DOMAIN_ONLY' | 'DOMAIN_AND_HOSTING'
@@ -10,6 +14,7 @@ type RenewalStatus = 'ACTIVE' | 'EXPIRING_SOON' | 'EXPIRING_CRITICAL' | 'EXPIRED
 
 interface ClientService {
   id: string
+  clientId: string
   clientName: string
   systemName: string
   systemLink: string
@@ -49,80 +54,19 @@ function getDaysLeft(renewalDate: string): number {
 }
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
-const mockServices: ClientService[] = [
-  {
-    id: '1', clientName: 'Rwanda Mountain Ride', systemName: 'Company Website',
-    systemLink: 'www.rwandamountainride.com', serviceType: 'HOSTING_AND_MAINTENANCE',
-    hostingProvider: 'SPACESHIP', hostingAccountEmail: 'hosting@santech.rw',
-    hostingAccountInfo: 'Account: ST-SPACE-001 | Server: shared-us-01',
-    startDate: '2026-01-15', renewalDate: '2026-12-15',
-    amountChargedToClient: 180000, actualCostToSantech: 85000,
-    taxIncluded: true, taxRate: 18, taxAmount: 27458, totalWithTax: 207458,
-    paymentStatus: 'PAID', paymentDate: '2026-01-15',
-    notes: 'Annual hosting + maintenance. Client pays in January every year.',
-    createdAt: '2026-01-15',
-  },
-  {
-    id: '2', clientName: 'Bloom Kigali', systemName: 'Flower Shop Website',
-    systemLink: 'www.bloomkigali.rw', serviceType: 'HOSTING_ONLY',
-    hostingProvider: 'AOS_RWANDA', hostingAccountEmail: 'hosting@santech.rw',
-    hostingAccountInfo: 'Account: AOS-BK-002 | Plan: Business Hosting',
-    startDate: '2026-03-01', renewalDate: '2026-11-30',
-    amountChargedToClient: 120000, actualCostToSantech: 60000,
-    taxIncluded: false, taxRate: 0, taxAmount: 0, totalWithTax: 120000,
-    paymentStatus: 'PAID', paymentDate: '2026-03-01',
-    notes: 'Hosting only. No maintenance contract. AOS Rwanda hosting.',
-    createdAt: '2026-03-01',
-  },
-  {
-    id: '3', clientName: 'Food Supplements Shop', systemName: 'Business Website',
-    systemLink: 'www.foodsupplements.rw', serviceType: 'DOMAIN_AND_HOSTING',
-    hostingProvider: 'NAMECHEAP', hostingAccountEmail: 'domains@santech.rw',
-    hostingAccountInfo: 'Account: NC-FSS-003 | Domain registrar: Namecheap',
-    startDate: '2026-09-15', renewalDate: '2026-12-01',
-    amountChargedToClient: 95000, actualCostToSantech: 45000,
-    taxIncluded: true, taxRate: 18, taxAmount: 14492, totalWithTax: 109492,
-    paymentStatus: 'UNPAID', paymentDate: '',
-    notes: 'Domain + hosting package. Client has not paid yet.',
-    createdAt: '2026-09-15',
-  },
-  {
-    id: '4', clientName: 'East African Seed Ltd', systemName: 'SANTRACK System - Maintenance',
-    systemLink: 'internal-system', serviceType: 'MAINTENANCE_ONLY',
-    hostingProvider: 'SANTECH_SERVER', hostingAccountEmail: '',
-    hostingAccountInfo: 'Local installation at client premises. Remote support via TeamViewer.',
-    startDate: '2026-10-01', renewalDate: '2027-09-30',
-    amountChargedToClient: 300000, actualCostToSantech: 0,
-    taxIncluded: true, taxRate: 18, taxAmount: 45763, totalWithTax: 345763,
-    paymentStatus: 'PAID', paymentDate: '2026-10-01',
-    notes: 'Annual maintenance contract for SANTRACK. Includes updates, bug fixes, and support.',
-    createdAt: '2026-10-01',
-  },
-  {
-    id: '5', clientName: 'FRAMA Fashion', systemName: 'Fashion Business Website',
-    systemLink: 'www.framafashion.rw', serviceType: 'HOSTING_AND_MAINTENANCE',
-    hostingProvider: 'SPACESHIP', hostingAccountEmail: 'hosting@santech.rw',
-    hostingAccountInfo: 'Account: ST-SPACE-005 | Server: shared-us-03',
-    startDate: '2025-11-01', renewalDate: '2026-10-25',
-    amountChargedToClient: 200000, actualCostToSantech: 90000,
-    taxIncluded: true, taxRate: 18, taxAmount: 30508, totalWithTax: 230508,
-    paymentStatus: 'OVERDUE', paymentDate: '',
-    notes: 'OVERDUE — Client has not renewed. Follow up urgently.',
-    createdAt: '2025-11-01',
-  },
-  {
-    id: '6', clientName: 'KP Prime Rwanda LTD', systemName: 'Corporate Website',
-    systemLink: 'www.kpprime.rw', serviceType: 'HOSTING_ONLY',
-    hostingProvider: 'AOS_RWANDA', hostingAccountEmail: 'hosting@santech.rw',
-    hostingAccountInfo: 'Account: AOS-KP-006 | Plan: Professional',
-    startDate: '2026-10-05', renewalDate: '2026-11-05',
-    amountChargedToClient: 150000, actualCostToSantech: 70000,
-    taxIncluded: false, taxRate: 0, taxAmount: 0, totalWithTax: 150000,
-    paymentStatus: 'UNPAID', paymentDate: '',
-    notes: 'New client. Invoice sent. Awaiting payment.',
-    createdAt: '2026-10-05',
-  },
-]
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toService = (s: any): ClientService => {
+  const amount = Number(s.amount)
+  const taxAmount = s.taxIncluded ? Math.round(amount * Number(s.taxRate) / 100) : 0
+  return {
+    id: s.id, clientId: s.clientId, clientName: s.client?.companyName ?? '', systemName: s.systemName, systemLink: s.systemLink ?? '',
+    serviceType: s.serviceType, hostingProvider: s.hostingProvider, hostingAccountEmail: s.hostingAccountEmail ?? '',
+    hostingAccountInfo: s.hostingAccountInfo ?? '', startDate: String(s.startDate).slice(0, 10), renewalDate: String(s.renewalDate).slice(0, 10),
+    amountChargedToClient: amount, actualCostToSantech: Number(s.cost ?? 0), taxIncluded: !!s.taxIncluded, taxRate: Number(s.taxRate ?? 0),
+    taxAmount, totalWithTax: amount + taxAmount, paymentStatus: s.paymentStatus,
+    paymentDate: s.paymentDate ? String(s.paymentDate).slice(0, 10) : '', notes: s.notes ?? '', createdAt: String(s.createdAt).slice(0, 10),
+  }
+}
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const SERVICE_LABELS: Record<ServiceType, string> = {
@@ -165,7 +109,7 @@ const PAYMENT_CONFIG: Record<PaymentStatus, { label: string; color: string }> = 
 }
 
 const emptyForm = {
-  clientName: '', systemName: '', systemLink: '',
+  clientId: '', systemName: '', systemLink: '',
   serviceType: 'HOSTING_AND_MAINTENANCE' as ServiceType,
   hostingProvider: 'SPACESHIP' as HostingProvider,
   hostingAccountEmail: '', hostingAccountInfo: '',
@@ -180,7 +124,18 @@ const ROWS_OPTIONS = [5, 10, 20, 'All'] as const
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function ClientServicesPage() {
-  const [services, setServices] = useState<ClientService[]>(mockServices)
+  const [services, setServices] = useState<ClientService[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const lookups = useLookups()
+
+  useEffect(() => {
+    subscriptionService.getAll()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then((res: any) => setServices((res.data ?? []).map(toService)))
+      .catch(err => toast.error(apiError(err, 'Failed to load client services')))
+      .finally(() => setLoading(false))
+  }, [])
   const [search, setSearch] = useState('')
   const [providerFilter, setProviderFilter] = useState<HostingProvider | 'ALL'>('ALL')
   const [serviceTypeFilter, setServiceTypeFilter] = useState<ServiceType | 'ALL'>('ALL')
@@ -235,7 +190,7 @@ export default function ClientServicesPage() {
   const openAdd = () => { setForm(emptyForm); setEditId(null); setError(''); setShowModal(true) }
   const openEdit = (s: ClientService) => {
     setForm({
-      clientName: s.clientName, systemName: s.systemName, systemLink: s.systemLink,
+      clientId: s.clientId, systemName: s.systemName, systemLink: s.systemLink,
       serviceType: s.serviceType, hostingProvider: s.hostingProvider,
       hostingAccountEmail: s.hostingAccountEmail, hostingAccountInfo: s.hostingAccountInfo,
       startDate: s.startDate, renewalDate: s.renewalDate,
@@ -247,44 +202,47 @@ export default function ClientServicesPage() {
     setEditId(s.id); setError(''); setShowModal(true); setViewService(null)
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!form.clientName || !form.systemName || !form.renewalDate || !form.amountChargedToClient) {
-      setError('Client name, system name, renewal date and amount are required.'); return
+    if (!form.clientId || !form.systemName || !form.startDate || !form.renewalDate || !form.amountChargedToClient) {
+      setError('Client, system name, start date, renewal date and amount are required.'); return
     }
-    const amount = parseFloat(form.amountChargedToClient) || 0
-    const taxRate = form.taxIncluded ? parseFloat(form.taxRate) || 0 : 0
-    const taxAmount = calcTax(amount, taxRate)
-    const svc: ClientService = {
-      id: editId || String(Date.now()),
-      clientName: form.clientName, systemName: form.systemName, systemLink: form.systemLink,
+    const payload = {
+      clientId: form.clientId, systemName: form.systemName, systemLink: form.systemLink,
       serviceType: form.serviceType, hostingProvider: form.hostingProvider,
       hostingAccountEmail: form.hostingAccountEmail, hostingAccountInfo: form.hostingAccountInfo,
       startDate: form.startDate, renewalDate: form.renewalDate,
-      amountChargedToClient: amount,
-      actualCostToSantech: parseFloat(form.actualCostToSantech) || 0,
-      taxIncluded: form.taxIncluded, taxRate,
-      taxAmount, totalWithTax: amount + taxAmount,
-      paymentStatus: form.paymentStatus, paymentDate: form.paymentDate,
-      notes: form.notes, createdAt: new Date().toISOString().split('T')[0],
+      amount: parseFloat(form.amountChargedToClient) || 0, cost: parseFloat(form.actualCostToSantech) || 0,
+      taxIncluded: form.taxIncluded, taxRate: form.taxIncluded ? parseFloat(form.taxRate) || 0 : 0, notes: form.notes,
     }
-    if (editId) setServices(prev => prev.map(x => x.id === editId ? svc : x))
-    else setServices(prev => [svc, ...prev])
-    setShowModal(false)
+    setSaving(true)
+    try {
+      const res = editId ? await subscriptionService.update(editId, payload) : await subscriptionService.create(payload)
+      const saved = toService(res.data)
+      setServices(prev => editId ? prev.map(x => (x.id === editId ? saved : x)) : [saved, ...prev])
+      toast.success(res.message)
+      setShowModal(false)
+    } catch (err) {
+      setError(apiError(err, 'Failed to save service'))
+    } finally {
+      setSaving(false)
+    }
   }
 
-  const markPaid = (id: string) => {
-    setServices(prev => prev.map(s => s.id === id ? { ...s, paymentStatus: 'PAID', paymentDate: new Date().toISOString().split('T')[0] } : s))
+  const runAction = async (id: string, action: 'pay' | 'renew') => {
+    try {
+      const res = action === 'pay' ? await subscriptionService.pay(id) : await subscriptionService.renew(id)
+      const saved = toService(res.data)
+      setServices(prev => prev.map(s => (s.id === id ? saved : s)))
+      toast.success(res.message)
+    } catch (err) {
+      toast.error(apiError(err, 'Action failed'))
+    }
   }
+  const markPaid = (id: string) => runAction(id, 'pay')
+  const renewService = (id: string) => runAction(id, 'renew')
 
-  const renewService = (id: string) => {
-    setServices(prev => prev.map(s => {
-      if (s.id !== id) return s
-      const current = new Date(s.renewalDate)
-      current.setFullYear(current.getFullYear() + 1)
-      return { ...s, renewalDate: current.toISOString().split('T')[0], paymentStatus: 'UNPAID', paymentDate: '' }
-    }))
-  }
+  if (loading) return <PageLoader />
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
@@ -623,7 +581,10 @@ export default function ClientServicesPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Client Name *</label>
-                  <input name="clientName" value={form.clientName} onChange={handleChange} placeholder="e.g. Rwanda Mountain Ride" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500" />
+                  <select name="clientId" value={form.clientId} onChange={handleChange} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500">
+                    <option value="">Select client…</option>
+                    {lookups.clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">System / Website Name *</label>
@@ -706,20 +667,9 @@ export default function ClientServicesPage() {
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Payment Status</label>
-                  <select name="paymentStatus" value={form.paymentStatus} onChange={handleChange} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500">
-                    <option value="UNPAID">Unpaid</option>
-                    <option value="PAID">Paid</option>
-                    <option value="OVERDUE">Overdue</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Payment Date</label>
-                  <input name="paymentDate" type="date" value={form.paymentDate} onChange={handleChange} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500" />
-                </div>
-              </div>
+              <p className="text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2">
+                New services start as <strong>unpaid</strong>. Use <strong>Mark Paid</strong> when the client pays — the payment is added to Finance income automatically.
+              </p>
 
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Notes</label>
@@ -728,7 +678,7 @@ export default function ClientServicesPage() {
 
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 font-medium">Cancel</button>
-                <button type="submit" className="flex-1 py-2.5 bg-santech-600 text-white rounded-lg text-sm hover:bg-santech-700 font-medium">{editId ? 'Save Changes' : 'Add Service'}</button>
+                <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-santech-600 text-white rounded-lg text-sm hover:bg-santech-700 font-medium disabled:opacity-50">{saving ? 'Saving…' : editId ? 'Save Changes' : 'Add Service'}</button>
               </div>
             </form>
           </div>

@@ -262,6 +262,9 @@ model User {
   visitorsHosted        Visitor[]      @relation("VisitorHost")
   communicationsLogged  Communication[] @relation("CommunicationLoggedBy")
   meetingsCreated       Meeting[]      @relation("MeetingCreatedBy")
+  campaignsCreated      Campaign[]     @relation("CampaignCreatedBy")
+  timesheets            Timesheet[]    @relation("TimesheetUser")
+  timesheetsReviewed    Timesheet[]    @relation("TimesheetReviewer")
 
   @@map("users")
 }
@@ -378,6 +381,7 @@ model Client {
   tickets      SupportTicket[]
   communications Communication[]
   meetings     Meeting[]
+  subscriptions ClientSubscription[]
 
   @@map("clients")
 }
@@ -596,6 +600,7 @@ model Project {
   tasks            Task[]
   milestones       Milestone[]
   invoices         Invoice[]
+  timesheets       Timesheet[]
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 
@@ -922,4 +927,85 @@ model Meeting {
   updatedAt    DateTime  @updatedAt
 
   @@map("meetings")
+}
+
+// ===========================
+// CLIENT SERVICES & RENEWALS (hosting, domains, maintenance)
+// ===========================
+
+model ClientSubscription {
+  id                  String    @id @default(cuid())
+  clientId            String
+  client              Client    @relation(fields: [clientId], references: [id])
+  systemName          String
+  systemLink          String?
+  serviceType         String    // HOSTING_ONLY, MAINTENANCE_ONLY, HOSTING_AND_MAINTENANCE, DOMAIN_ONLY, DOMAIN_AND_HOSTING
+  hostingProvider     String    @default("OTHER")
+  hostingAccountEmail String?
+  hostingAccountInfo  String?
+  billingCycle        String    @default("ANNUAL") // MONTHLY, QUARTERLY, ANNUAL
+  startDate           DateTime
+  renewalDate         DateTime
+  amount              Float     // charged to the client per cycle (before tax)
+  cost                Float     @default(0) // what it costs Santech
+  taxIncluded         Boolean   @default(false)
+  taxRate             Float     @default(0)
+  paymentStatus       String    @default("UNPAID") // PAID, UNPAID, OVERDUE
+  paymentDate         DateTime?
+  notes               String?   @db.Text
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@map("client_subscriptions")
+}
+
+// ===========================
+// MARKETING CAMPAIGNS
+// ===========================
+
+model Campaign {
+  id               String   @id @default(cuid())
+  name             String
+  type             String   // EXPO_EVENT, FIELD_VISITS, SOCIAL_MEDIA, EMAIL_CAMPAIGN, REFERRAL, COLD_OUTREACH, OTHER
+  status           String   @default("PLANNING") // PLANNING, ACTIVE, PAUSED, COMPLETED, CANCELLED
+  objective        String?
+  targetAudience   String?
+  startDate        DateTime
+  endDate          DateTime
+  budget           Float
+  channel          String   @default("Other")
+  assignedTeam     String?
+  leadsGenerated   Int      @default(0)
+  clientsAcquired  Int      @default(0)
+  revenueGenerated Float    @default(0)
+  notes            String?  @db.Text
+  createdById      String
+  createdBy        User     @relation("CampaignCreatedBy", fields: [createdById], references: [id])
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@map("campaigns")
+}
+
+// ===========================
+// TIMESHEETS (time & effort tracking)
+// ===========================
+
+model Timesheet {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation("TimesheetUser", fields: [userId], references: [id])
+  projectId    String
+  project      Project   @relation(fields: [projectId], references: [id])
+  task         String
+  date         DateTime
+  hours        Float
+  status       String    @default("PENDING") // PENDING, APPROVED, REJECTED
+  notes        String?
+  reviewedById String?
+  reviewedBy   User?     @relation("TimesheetReviewer", fields: [reviewedById], references: [id])
+  reviewedAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@map("timesheets")
 }

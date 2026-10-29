@@ -1,11 +1,17 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Clock, Plus, Search, X } from 'lucide-react'
-import { cn, formatDate } from '@/lib/utils'
+import { cn, formatDate, formatCurrency } from '@/lib/utils'
+import { timesheetService } from '@/lib/services/operationsService'
+import { useLookups, apiError } from '@/lib/services/lookupService'
+import { useAuthStore } from '@/store/authStore'
+import PageLoader from '@/components/shared/PageLoader'
+import toast from 'react-hot-toast'
 
 type TimesheetStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
 
 interface TimesheetEntry {
   id: string
+  userId: string
   employee: string
   project: string
   task: string
@@ -21,18 +27,27 @@ const STATUS_COLORS: Record<TimesheetStatus, string> = {
   REJECTED: 'bg-red-100 text-red-600',
 }
 
-const mockEntries: TimesheetEntry[] = [
-  { id: 'ts1', employee: 'Bob Nkurunziza', project: 'SANTRACK Implementation', task: 'Requirements Analysis', date: '2026-10-05', hours: 8, status: 'APPROVED', notes: 'Completed requirements document.' },
-  { id: 'ts2', employee: 'Bob Nkurunziza', project: 'SANTRACK Implementation', task: 'Development', date: '2026-10-06', hours: 7.5, status: 'APPROVED', notes: 'Core module development.' },
-  { id: 'ts3', employee: 'Frank Kagabo', project: 'Company Website', task: 'Frontend Design', date: '2026-10-05', hours: 6, status: 'PENDING', notes: 'Homepage layout.' },
-  { id: 'ts4', employee: 'Frank Kagabo', project: 'EVS System', task: 'Hardware Installation', date: '2026-10-07', hours: 9, status: 'PENDING', notes: 'Installed terminals at site.' },
-  { id: 'ts5', employee: 'Alice Uwimana', project: 'EVS System', task: 'Client Meeting', date: '2026-10-08', hours: 2, status: 'APPROVED', notes: 'Kickoff meeting with SABBAN.' },
-  { id: 'ts6', employee: 'Bob Nkurunziza', project: 'SANTRACK Implementation', task: 'Testing', date: '2026-10-09', hours: 5, status: 'REJECTED', notes: 'UAT failed — rescheduled.' },
-]
+interface ProjectProfit {
+  projectId: string
+  project: string
+  status: string
+  contractValue: number
+  received: number
+  hours: number
+  staffCost: number
+  profit: number
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toEntry = (t: any): TimesheetEntry => ({
+  id: t.id, userId: t.user?.id ?? t.userId, employee: t.user ? `${t.user.firstName} ${t.user.lastName}` : '',
+  project: t.project?.name ?? '', task: t.task, date: String(t.date).slice(0, 10), hours: Number(t.hours),
+  status: t.status, notes: t.notes ?? '',
+})
 
 const emptyForm = {
   employee: '',
-  project: '',
+  projectId: '',
   task: '',
   date: '',
   hours: 8,
@@ -40,7 +55,21 @@ const emptyForm = {
 }
 
 export default function TimesheetsPage() {
-  const [entries, setEntries] = useState<TimesheetEntry[]>(mockEntries)
+  const [entries, setEntries] = useState<TimesheetEntry[]>([])
+  const [profit, setProfit] = useState<ProjectProfit[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const lookups = useLookups()
+  const { user } = useAuthStore()
+  const isLead = ['SUPER_ADMIN', 'ADMIN', 'PROJECT_MANAGER'].includes(user?.role ?? '')
+
+  useEffect(() => {
+    timesheetService.getAll()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then((res: any) => { setEntries((res.data ?? []).map(toEntry)); setProfit(res.profitability ?? []) })
+      .catch(err => toast.error(apiError(err, 'Failed to load timesheets')))
+      .finally(() => setLoading(false))
+  }, [])
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<TimesheetStatus | 'ALL'>('ALL')
   const [showAddModal, setShowAddModal] = useState(false)
@@ -59,26 +88,39 @@ export default function TimesheetsPage() {
     setForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!form.employee.trim() || !form.project.trim() || !form.date) return
-    const newEntry: TimesheetEntry = {
-      id: `ts${Date.now()}`,
-      employee: form.employee.trim(),
-      project: form.project.trim(),
-      task: form.task.trim(),
-      date: form.date,
-      hours: Number(form.hours),
-      status: 'PENDING',
-      notes: form.notes.trim(),
+    if (!form.projectId || !form.task.trim() || !form.date) { toast.error('Project, task and date are required'); return }
+    setSaving(true)
+    try {
+      const res = await timesheetService.create({
+        userId: isLead && form.employee ? form.employee : undefined,
+        projectId: form.projectId, task: form.task.trim(), date: form.date, hours: Number(form.hours), notes: form.notes.trim(),
+      })
+      setEntries(prev => [toEntry(res.data), ...prev])
+      toast.success(res.message)
+      setShowAddModal(false)
+      setForm(emptyForm)
+    } catch (err) {
+      toast.error(apiError(err, 'Failed to log time'))
+    } finally {
+      setSaving(false)
     }
-    setEntries(prev => [newEntry, ...prev])
-    setShowAddModal(false)
-    setForm(emptyForm)
   }
 
-  const approve = (id: string) => setEntries(prev => prev.map(e => e.id === id ? { ...e, status: 'APPROVED' } : e))
-  const reject = (id: string) => setEntries(prev => prev.map(e => e.id === id ? { ...e, status: 'REJECTED' } : e))
+  const review = async (id: string, decision: 'approve' | 'reject') => {
+    try {
+      const res = await timesheetService.review(id, decision)
+      setEntries(prev => prev.map(e => (e.id === id ? toEntry(res.data) : e)))
+      toast.success(res.message)
+    } catch (err) {
+      toast.error(apiError(err, 'Failed to review entry'))
+    }
+  }
+  const approve = (id: string) => review(id, 'approve')
+  const reject = (id: string) => review(id, 'reject')
+
+  if (loading) return <PageLoader />
 
   const inputCls = 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500'
   const labelCls = 'block text-xs font-medium text-gray-700 mb-1'
@@ -168,7 +210,7 @@ export default function TimesheetsPage() {
                     {entry.notes.length > 40 ? entry.notes.slice(0, 40) + '...' : entry.notes}
                   </td>
                   <td className="px-4 py-3">
-                    {entry.status === 'PENDING' && (
+                    {isLead && entry.status === 'PENDING' && entry.userId !== user?.id && (
                       <div className="flex gap-1.5">
                         <button onClick={() => approve(entry.id)}
                           className="text-xs bg-green-50 text-green-600 px-2 py-1 rounded-lg hover:bg-green-100 font-medium transition-colors">
@@ -191,6 +233,39 @@ export default function TimesheetsPage() {
         </div>
       </div>
 
+      {/* Project profitability */}
+      {isLead && profit.length > 0 && (
+        <div className="bms-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-100">
+            <h3 className="text-sm font-semibold text-gray-700">Project Profitability</h3>
+            <p className="text-xs text-gray-400 mt-0.5">Payments received − staff time cost (approved hours × monthly salary ÷ 176 h)</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-100">
+                <tr>
+                  {['Project', 'Contract Value', 'Received', 'Approved Hours', 'Staff Cost', 'Profit'].map(h => (
+                    <th key={h} className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {profit.map(p => (
+                  <tr key={p.projectId} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 text-xs font-medium text-gray-800">{p.project}</td>
+                    <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">{formatCurrency(p.contractValue)}</td>
+                    <td className="px-4 py-3 text-xs text-green-700 whitespace-nowrap">{formatCurrency(p.received)}</td>
+                    <td className="px-4 py-3 text-xs text-gray-600">{p.hours.toFixed(1)}h</td>
+                    <td className="px-4 py-3 text-xs text-red-600 whitespace-nowrap">{formatCurrency(p.staffCost)}</td>
+                    <td className={cn('px-4 py-3 text-xs font-bold whitespace-nowrap', p.profit >= 0 ? 'text-green-700' : 'text-red-600')}>{formatCurrency(p.profit)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* Add Modal */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
@@ -202,16 +277,24 @@ export default function TimesheetsPage() {
               <button onClick={() => setShowAddModal(false)}><X className="w-5 h-5 text-gray-400" /></button>
             </div>
             <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
-              <div>
-                <label className={labelCls}>Employee *</label>
-                <input name="employee" value={form.employee} onChange={handleFormChange} placeholder="e.g. Bob Nkurunziza" required className={inputCls} />
-              </div>
+              {isLead && (
+                <div>
+                  <label className={labelCls}>Employee</label>
+                  <select name="employee" value={form.employee} onChange={handleFormChange} className={inputCls}>
+                    <option value="">Myself</option>
+                    {lookups.users.filter(u => u.id !== user?.id).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                  </select>
+                </div>
+              )}
               <div>
                 <label className={labelCls}>Project *</label>
-                <input name="project" value={form.project} onChange={handleFormChange} placeholder="e.g. EVS System" required className={inputCls} />
+                <select name="projectId" value={form.projectId} onChange={handleFormChange} required className={inputCls}>
+                  <option value="">Select project…</option>
+                  {lookups.projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
               </div>
               <div>
-                <label className={labelCls}>Task</label>
+                <label className={labelCls}>Task *</label>
                 <input name="task" value={form.task} onChange={handleFormChange} placeholder="e.g. Development" className={inputCls} />
               </div>
               <div>
@@ -231,9 +314,9 @@ export default function TimesheetsPage() {
                   className="flex-1 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 font-medium">
                   Cancel
                 </button>
-                <button type="submit"
-                  className="flex-1 py-2.5 bg-santech-600 text-white rounded-lg text-sm hover:bg-santech-700 font-medium">
-                  Save
+                <button type="submit" disabled={saving}
+                  className="flex-1 py-2.5 bg-santech-600 text-white rounded-lg text-sm hover:bg-santech-700 font-medium disabled:opacity-50">
+                  {saving ? 'Saving…' : 'Save'}
                 </button>
               </div>
             </form>

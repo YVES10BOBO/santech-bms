@@ -11,6 +11,8 @@ import {
 } from '../controllers/operationsController'
 import { getUsers, createUser, updateUser, getNotifications, getUnreadCount, markNotificationsRead } from '../controllers/usersController'
 import { getCommunications, createCommunication, updateCommunication, getMeetings, createMeeting, updateMeeting } from '../controllers/activityController'
+import { getSubscriptions, saveSubscription, paySubscription, renewSubscription, getCampaigns, saveCampaign, getTimesheets, createTimesheet, reviewTimesheet } from '../controllers/growthController'
+import { FINANCE, PROJECT_LEADS } from '../lib/roles'
 
 // Leads, quotations, support, products, departments, reception, users, notifications
 const router = Router()
@@ -64,6 +66,23 @@ router.put('/communications/:id', updateCommunication)
 router.get('/meetings', getMeetings)
 router.post('/meetings', createMeeting)
 router.put('/meetings/:id', updateMeeting)
+
+// Client services & renewals (finance + management)
+router.get('/client-services', authorize(...FINANCE, 'SALES_MANAGER'), getSubscriptions)
+router.post('/client-services', authorize(...FINANCE), saveSubscription)
+router.put('/client-services/:id', authorize(...FINANCE), saveSubscription)
+router.post('/client-services/:id/pay', authorize(...FINANCE), paySubscription)
+router.post('/client-services/:id/renew', authorize(...FINANCE), renewSubscription)
+
+// Marketing campaigns
+router.get('/campaigns', authorize(...SALES), getCampaigns)
+router.post('/campaigns', authorize(...ADMINS, 'MARKETING_MANAGER', 'SALES_MANAGER'), saveCampaign)
+router.put('/campaigns/:id', authorize(...ADMINS, 'MARKETING_MANAGER', 'SALES_MANAGER'), saveCampaign)
+
+// Timesheets (everyone logs own time; project leads review)
+router.get('/timesheets', getTimesheets)
+router.post('/timesheets', createTimesheet)
+router.post('/timesheets/:id/:decision', authorize(...PROJECT_LEADS), reviewTimesheet)
 
 // Notifications for the logged-in user
 router.get('/notifications', getNotifications)

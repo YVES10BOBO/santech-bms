@@ -109,6 +109,26 @@ export async function generateReminders(userId: string, role: UserRole): Promise
     }
   }
 
+  // Finance + management: hosting / maintenance renewals (30, 15, 7 days, expired)
+  if (hasRole(role, [...FINANCE, 'SALES_MANAGER'])) {
+    const subs = await prisma.clientSubscription.findMany({
+      // Paid only covers the current period, so every upcoming renewal is reminded
+      where: { renewalDate: { lte: new Date(today.getTime() + 30 * DAY) } },
+      include: { client: { select: { companyName: true } } },
+    })
+    for (const s of subs) {
+      const days = Math.round((s.renewalDate.getTime() - today.getTime()) / DAY)
+      const stage = days < 0 ? 'expired' : [7, 15, 30].find(x => days <= x)
+      jobs.push(notify(userId, {
+        type: days < 0 ? 'OVERDUE' : 'CONTRACT_EXPIRY', link: '/contracts/services', key: `sub-${s.id}-${s.renewalDate.getTime()}-${stage}`,
+        title: days < 0 ? 'Service Expired' : 'Service Renewal Due',
+        description: days < 0
+          ? `${s.systemName} (${s.client.companyName}) expired ${-days} day${days === -1 ? '' : 's'} ago — renew and collect payment`
+          : `${s.systemName} (${s.client.companyName}) renews in ${days} day${days === 1 ? '' : 's'} — RWF ${Math.round(s.amount).toLocaleString('en-US')}`,
+      }))
+    }
+  }
+
   // Everyone: own tasks due within 2 days or overdue
   const tasks = await prisma.task.findMany({
     where: { assignedToId: userId, status: { in: ['CREATED', 'ASSIGNED', 'ACCEPTED', 'IN_PROGRESS', 'REJECTED'] }, deadline: { lte: new Date(today.getTime() + 2 * DAY) } },

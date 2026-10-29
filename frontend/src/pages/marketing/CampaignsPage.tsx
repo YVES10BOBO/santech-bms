@@ -1,6 +1,10 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Search, LayoutGrid, List, X, Plus, TrendingUp, TrendingDown, Target, Users, DollarSign, ChevronRight } from 'lucide-react'
 import { cn, formatDate, formatCurrency } from '@/lib/utils'
+import { campaignService } from '@/lib/services/operationsService'
+import { apiError } from '@/lib/services/lookupService'
+import PageLoader from '@/components/shared/PageLoader'
+import toast from 'react-hot-toast'
 
 type CampaignStatus = 'PLANNING' | 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'CANCELLED'
 type CampaignType = 'EXPO_EVENT' | 'FIELD_VISITS' | 'SOCIAL_MEDIA' | 'EMAIL_CAMPAIGN' | 'REFERRAL' | 'COLD_OUTREACH' | 'OTHER'
@@ -25,6 +29,10 @@ interface Campaign {
 }
 
 interface NewCampaignForm {
+  status: CampaignStatus
+  leadsGenerated: string
+  clientsAcquired: string
+  revenueGenerated: string
   name: string
   type: CampaignType
   objective: string
@@ -37,110 +45,13 @@ interface NewCampaignForm {
   notes: string
 }
 
-const mockCampaigns: Campaign[] = [
-  {
-    id: '1',
-    name: 'TechForward Expo 2026',
-    type: 'EXPO_EVENT',
-    status: 'COMPLETED',
-    objective: 'Present Santech products to Kigali businesses',
-    targetAudience: 'SMEs in Kigali',
-    startDate: '2026-10-01',
-    endDate: '2026-10-05',
-    budget: 500000,
-    leadsGenerated: 18,
-    clientsAcquired: 4,
-    revenueGenerated: 4200000,
-    channel: 'Events',
-    assignedTeam: 'Sales & Marketing Team',
-    notes: 'Very successful expo. Good brand visibility.',
-  },
-  {
-    id: '2',
-    name: 'Kigali Industrial Zone Field Campaign',
-    type: 'FIELD_VISITS',
-    status: 'ACTIVE',
-    objective: 'Visit all industries in Kigali industrial zones',
-    targetAudience: 'Manufacturing companies',
-    startDate: '2026-09-01',
-    endDate: '2026-11-30',
-    budget: 300000,
-    leadsGenerated: 24,
-    clientsAcquired: 2,
-    revenueGenerated: 3000000,
-    channel: 'Direct',
-    assignedTeam: 'Alice Uwimana, Eve Ingabire',
-    notes: 'Ongoing. High lead generation rate.',
-  },
-  {
-    id: '3',
-    name: 'EVS Campaign — Banks & Institutions',
-    type: 'COLD_OUTREACH',
-    status: 'ACTIVE',
-    objective: 'Sell EVS to banks, hospitals, and government institutions',
-    targetAudience: 'Banks, hospitals, police, government',
-    startDate: '2026-09-15',
-    endDate: '2026-12-31',
-    budget: 200000,
-    leadsGenerated: 12,
-    clientsAcquired: 1,
-    revenueGenerated: 0,
-    channel: 'Direct',
-    assignedTeam: 'Alice Uwimana',
-    notes: 'Revenue pending contract signing.',
-  },
-  {
-    id: '4',
-    name: 'Social Media Awareness Campaign',
-    type: 'SOCIAL_MEDIA',
-    status: 'ACTIVE',
-    objective: 'Increase Santech brand awareness on LinkedIn, Facebook, Instagram',
-    targetAudience: 'General business community in Rwanda',
-    startDate: '2026-10-01',
-    endDate: '2026-12-31',
-    budget: 150000,
-    leadsGenerated: 5,
-    clientsAcquired: 0,
-    revenueGenerated: 0,
-    channel: 'Social Media',
-    assignedTeam: 'Eve Ingabire',
-    notes: 'Brand building phase.',
-  },
-  {
-    id: '5',
-    name: 'SANHUB Training Program Q4 2026',
-    type: 'OTHER',
-    status: 'PLANNING',
-    objective: 'Offer paid training programs through SANHUB to students and professionals',
-    targetAudience: 'University students, young professionals',
-    startDate: '2026-11-01',
-    endDate: '2026-12-31',
-    budget: 400000,
-    leadsGenerated: 0,
-    clientsAcquired: 0,
-    revenueGenerated: 0,
-    channel: 'Events',
-    assignedTeam: 'Bob Nkurunziza, Claire Mukamana',
-    notes: 'Curriculum under development.',
-  },
-  {
-    id: '6',
-    name: 'Referral Program Launch',
-    type: 'REFERRAL',
-    status: 'PLANNING',
-    objective: 'Existing clients refer new clients and earn commission',
-    targetAudience: 'Existing Santech clients',
-    startDate: '2026-11-15',
-    endDate: '2027-03-31',
-    budget: 100000,
-    leadsGenerated: 0,
-    clientsAcquired: 0,
-    revenueGenerated: 0,
-    channel: 'Referral',
-    assignedTeam: 'Sales Team',
-    notes: 'Commission structure being defined.',
-  },
-]
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toCampaign = (c: any): Campaign => ({
+  id: c.id, name: c.name, type: c.type, status: c.status, objective: c.objective ?? '', targetAudience: c.targetAudience ?? '',
+  startDate: String(c.startDate).slice(0, 10), endDate: String(c.endDate).slice(0, 10), budget: Number(c.budget),
+  leadsGenerated: c.leadsGenerated ?? 0, clientsAcquired: c.clientsAcquired ?? 0, revenueGenerated: Number(c.revenueGenerated ?? 0),
+  channel: c.channel, assignedTeam: c.assignedTeam ?? '', notes: c.notes ?? '',
+})
 
 const statusStyle: Record<CampaignStatus, string> = {
   PLANNING: 'bg-gray-100 text-gray-600',
@@ -188,12 +99,37 @@ function calcROI(revenue: number, budget: number): number {
 }
 
 const emptyForm: NewCampaignForm = {
+  status: 'PLANNING',
+  leadsGenerated: '0',
+  clientsAcquired: '0',
+  revenueGenerated: '0',
   name: '', type: 'EXPO_EVENT', objective: '', targetAudience: '',
   startDate: '', endDate: '', budget: '', assignedTeam: '', channel: 'Events', notes: '',
 }
 
 export default function CampaignsPage() {
-  const [campaigns, setCampaigns] = useState<Campaign[]>(mockCampaigns)
+  const [campaigns, setCampaigns] = useState<Campaign[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [editId, setEditId] = useState<string | null>(null)
+
+  useEffect(() => {
+    campaignService.getAll()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then((res: any) => setCampaigns((res.data ?? []).map(toCampaign)))
+      .catch(err => toast.error(apiError(err, 'Failed to load campaigns')))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const openEdit = (c: Campaign) => {
+    setForm({
+      status: c.status, leadsGenerated: String(c.leadsGenerated), clientsAcquired: String(c.clientsAcquired),
+      revenueGenerated: String(c.revenueGenerated), name: c.name, type: c.type, objective: c.objective,
+      targetAudience: c.targetAudience, startDate: c.startDate, endDate: c.endDate, budget: String(c.budget),
+      assignedTeam: c.assignedTeam, channel: c.channel, notes: c.notes,
+    })
+    setEditId(c.id); setFormError(''); setDetailCampaign(null); setShowModal(true)
+  }
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<CampaignStatus | 'All'>('All')
   const [typeFilter, setTypeFilter] = useState<CampaignType | 'All'>('All')
@@ -229,34 +165,39 @@ export default function CampaignsPage() {
     setForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
   }
 
-  const handleFormSubmit = (e: React.FormEvent) => {
+  const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!form.name || !form.startDate || !form.endDate || !form.budget) {
       setFormError('Campaign name, dates, and budget are required.')
       return
     }
-    const newCampaign: Campaign = {
-      id: String(Date.now()),
-      name: form.name,
-      type: form.type,
-      status: 'PLANNING',
-      objective: form.objective,
-      targetAudience: form.targetAudience,
-      startDate: form.startDate,
-      endDate: form.endDate,
-      budget: parseFloat(form.budget),
-      leadsGenerated: 0,
-      clientsAcquired: 0,
-      revenueGenerated: 0,
-      channel: form.channel,
-      assignedTeam: form.assignedTeam,
-      notes: form.notes,
+    const payload = {
+      name: form.name, type: form.type, objective: form.objective, targetAudience: form.targetAudience,
+      startDate: form.startDate, endDate: form.endDate, budget: parseFloat(form.budget),
+      channel: form.channel, assignedTeam: form.assignedTeam, notes: form.notes,
+      ...(editId ? {
+        status: form.status, leadsGenerated: Number(form.leadsGenerated) || 0,
+        clientsAcquired: Number(form.clientsAcquired) || 0, revenueGenerated: Number(form.revenueGenerated) || 0,
+      } : {}),
     }
-    setCampaigns(prev => [newCampaign, ...prev])
-    setShowModal(false)
-    setForm(emptyForm)
-    setFormError('')
+    setSaving(true)
+    try {
+      const res = editId ? await campaignService.update(editId, payload) : await campaignService.create(payload)
+      const saved = toCampaign(res.data)
+      setCampaigns(prev => editId ? prev.map(c => (c.id === editId ? saved : c)) : [saved, ...prev])
+      toast.success(res.message)
+      setShowModal(false)
+      setForm(emptyForm)
+      setFormError('')
+      setEditId(null)
+    } catch (err) {
+      setFormError(apiError(err, 'Failed to save campaign'))
+    } finally {
+      setSaving(false)
+    }
   }
+
+  if (loading) return <PageLoader />
 
   return (
     <div className="space-y-5">
@@ -284,7 +225,7 @@ export default function CampaignsPage() {
             </button>
           </div>
           <button
-            onClick={() => { setShowModal(true); setForm(emptyForm); setFormError('') }}
+            onClick={() => { setShowModal(true); setForm(emptyForm); setEditId(null); setFormError('') }}
             className="flex items-center gap-2 px-4 py-2 bg-santech-600 text-white rounded-lg text-sm font-medium hover:bg-santech-700 transition-colors"
           >
             <Plus className="w-4 h-4" /> New Campaign
@@ -414,7 +355,7 @@ export default function CampaignsPage() {
                   >
                     View Details <ChevronRight className="w-3 h-3" />
                   </button>
-                  <button className="px-3 py-1.5 text-xs border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors font-medium">
+                  <button onClick={() => openEdit(campaign)} className="px-3 py-1.5 text-xs border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors font-medium">
                     Edit
                   </button>
                 </div>
@@ -495,7 +436,7 @@ export default function CampaignsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b">
-              <h2 className="text-lg font-semibold text-gray-800">New Campaign</h2>
+              <h2 className="text-lg font-semibold text-gray-800">{editId ? 'Edit Campaign & Results' : 'New Campaign'}</h2>
               <button onClick={() => setShowModal(false)}><X className="w-5 h-5 text-gray-400" /></button>
             </div>
             <form onSubmit={handleFormSubmit} className="px-6 py-5 space-y-4">
@@ -550,9 +491,34 @@ export default function CampaignsPage() {
                 <label className="block text-xs font-medium text-gray-700 mb-1">Notes</label>
                 <textarea name="notes" value={form.notes} onChange={handleFormChange} rows={2} placeholder="Additional notes..." className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500 resize-none" />
               </div>
+              {editId && (
+                <div className="rounded-xl border border-santech-100 bg-santech-50/40 p-4 space-y-3">
+                  <p className="text-xs font-semibold text-santech-700 uppercase tracking-wide">Status & results (used for ROI)</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Status</label>
+                      <select name="status" value={form.status} onChange={handleFormChange} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500">
+                        {(['PLANNING', 'ACTIVE', 'PAUSED', 'COMPLETED', 'CANCELLED'] as CampaignStatus[]).map(st => <option key={st} value={st}>{st.charAt(0) + st.slice(1).toLowerCase()}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Leads generated</label>
+                      <input name="leadsGenerated" type="number" min={0} value={form.leadsGenerated} onChange={handleFormChange} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Clients acquired</label>
+                      <input name="clientsAcquired" type="number" min={0} value={form.clientsAcquired} onChange={handleFormChange} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Revenue generated (RWF)</label>
+                      <input name="revenueGenerated" type="number" min={0} value={form.revenueGenerated} onChange={handleFormChange} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500" />
+                    </div>
+                  </div>
+                </div>
+              )}
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 font-medium">Cancel</button>
-                <button type="submit" className="flex-1 py-2.5 bg-santech-600 text-white rounded-lg text-sm hover:bg-santech-700 font-medium">Create Campaign</button>
+                <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-santech-600 text-white rounded-lg text-sm hover:bg-santech-700 font-medium disabled:opacity-50">{saving ? 'Saving…' : editId ? 'Save Changes' : 'Create Campaign'}</button>
               </div>
             </form>
           </div>
