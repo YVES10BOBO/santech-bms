@@ -46,16 +46,29 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [showDemoAccounts, setShowDemoAccounts] = useState(false)
   const { login, isLoading } = useAuthStore()
+  const [loginError, setLoginError] = useState('')
+
+  /** Turns a failed login into a clear message for the user */
+  const describeLoginError = (err: unknown): string => {
+    const e = err as { response?: { status?: number; data?: { message?: string } }; code?: string }
+    if (!e.response) return 'Cannot reach the server. It may be waking up — wait 30 seconds and try again.'
+    if (e.response.status === 429) return e.response.data?.message ?? 'Too many failed attempts. Please wait 15 minutes and try again.'
+    if (e.response.status === 401) return 'Invalid email or password.'
+    return e.response.data?.message ?? 'Login failed. Please try again.'
+  }
   const { register, handleSubmit, formState: { errors } } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
   })
 
   const onSubmit = async (data: LoginFormData) => {
+    setLoginError('')
     try {
       await login(data.email, data.password)
       toast.success('Welcome back!')
-    } catch {
-      toast.error('Invalid email or password')
+    } catch (err) {
+      const message = describeLoginError(err)
+      setLoginError(message)
+      toast.error(message)
     }
   }
 
@@ -190,6 +203,12 @@ export default function LoginPage() {
               )}
             </div>
 
+            {loginError && (
+              <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {loginError}
+              </div>
+            )}
+
             <button
               type="submit"
               disabled={isLoading}
@@ -240,11 +259,14 @@ export default function LoginPage() {
                       type="button"
                       tabIndex={showDemoAccounts ? 0 : -1}
                       onClick={async () => {
+                        setLoginError('')
                         try {
                           await login(account.email, account.password)
                           toast.success(`Logged in as ${account.role}`)
-                        } catch {
-                          toast.error('Login failed')
+                        } catch (err) {
+                          const message = describeLoginError(err)
+                          setLoginError(message)
+                          toast.error(message)
                         }
                       }}
                       className="flex min-h-10 items-center justify-between gap-2 rounded-md border border-[#c9d5e6] bg-white px-3 py-2 text-left text-xs font-medium text-[#0b1f44] transition-colors hover:border-[#819cc0] hover:bg-[#f3f6fb] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3972c5]"

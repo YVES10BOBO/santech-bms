@@ -8,6 +8,8 @@ import rateLimit from 'express-rate-limit'
 dotenv.config()
 
 const app = express()
+// Render puts a proxy in front of the app: trust it so rate limits see each visitor's real IP
+app.set('trust proxy', 1)
 const PORT = process.env.PORT || 5000
 
 // Security middleware
@@ -31,12 +33,15 @@ const limiter = rateLimit({
 })
 app.use('/api', limiter)
 
-// Stricter limit on login only (prevent brute force)
+// Brute-force protection: 10 FAILED login attempts per 15 min per visitor.
+// Successful logins and normal profile checks do not count.
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 20, // 20 login attempts per 15 min
+  max: 10,
+  skipSuccessfulRequests: true,
   standardHeaders: true,
   legacyHeaders: false,
+  message: { success: false, message: 'Too many failed login attempts. Please wait 15 minutes and try again.' },
 })
 
 // Body parsing
@@ -67,7 +72,8 @@ import reportsRouter from './routes/reports'
 import prisma from './lib/prisma'
 import { authenticate as authMiddleware, authorize } from './middleware/auth'
 
-app.use('/api/auth', authLimiter, authRouter)
+app.use('/api/auth/login', authLimiter)
+app.use('/api/auth', authRouter)
 app.use('/api/clients', clientsRouter)
 app.use('/api/field-visits', fieldVisitsRouter)
 app.use('/api/employees', employeesRouter)

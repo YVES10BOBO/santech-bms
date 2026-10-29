@@ -23,10 +23,12 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const isLoginRequest = String(error.config?.url ?? '').includes('/auth/login')
+    if (error.response?.status === 401 && !isLoginRequest) {
+      // Session expired: clear it and go to the login page (no reload loop if already there)
       localStorage.removeItem('santech_token')
       localStorage.removeItem('santech_user')
-      window.location.href = '/login'
+      if (!window.location.pathname.startsWith('/login')) window.location.href = '/login'
     }
     return Promise.reject(error)
   }
