@@ -122,7 +122,23 @@ export default function InvoicesPage() {
     setForm(p => ({ ...p, [e.target.name]: e.target.value }))
   }
 
-  const openAdd = () => { setForm(emptyForm); setError(''); setShowModal(true) }
+  const openAdd = () => {
+    setForm(emptyForm); setError(''); setShowModal(true)
+    lookups.reload().catch(() => { /* keep the lists already loaded */ })
+  }
+
+  // The Contract and Project lists only offer the chosen client's own records
+  const clientContracts = lookups.contracts.filter(c => c.clientId === form.clientId)
+  const clientProjects = lookups.projects.filter(p => p.clientId === form.clientId)
+  const emptyLabel = (items: unknown[], what: string) =>
+    !form.clientId ? 'Choose a client first' : items.length ? `No ${what} (optional)` : `This client has no ${what}s yet`
+
+  // Picking a project fills in its contract (when that contract belongs to the same client)
+  const pickProject = (projectId: string) => {
+    const project = clientProjects.find(p => p.id === projectId)
+    const contractId = project?.contractId && clientContracts.some(c => c.id === project.contractId) ? project.contractId : null
+    setForm(p => ({ ...p, projectId, contractId: contractId ?? p.contractId }))
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -407,15 +423,15 @@ export default function InvoicesPage() {
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Contract</label>
                   <select name="contractId" value={form.contractId} onChange={handleChange} disabled={!form.clientId} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500 disabled:bg-gray-50">
-                    <option value="">None</option>
-                    {lookups.contracts.filter(c => c.clientId === form.clientId).map(c => <option key={c.id} value={c.id}>{c.contractNumber}</option>)}
+                    <option value="">{emptyLabel(clientContracts, 'contract')}</option>
+                    {clientContracts.map(c => <option key={c.id} value={c.id}>{c.contractNumber}{c.projectName ? ` — ${c.projectName}` : ''}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Project</label>
-                  <select name="projectId" value={form.projectId} onChange={handleChange} disabled={!form.clientId} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500 disabled:bg-gray-50">
-                    <option value="">None</option>
-                    {lookups.projects.filter(p => p.clientId === form.clientId).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  <select name="projectId" value={form.projectId} onChange={e => pickProject(e.target.value)} disabled={!form.clientId} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500 disabled:bg-gray-50">
+                    <option value="">{emptyLabel(clientProjects, 'project')}</option>
+                    {clientProjects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
                 </div>
               </div>

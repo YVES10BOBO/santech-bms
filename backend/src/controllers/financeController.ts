@@ -69,6 +69,19 @@ export async function createInvoice(req: AuthRequest, res: Response): Promise<vo
 
     const amountNum = parseFloat(amount)
     const taxNum = parseFloat(taxAmount) || 0
+    if (!(amountNum > 0)) { res.status(400).json({ success: false, message: 'Amount must be a positive number' }); return }
+
+    // The contract and project must belong to the client being invoiced
+    const [client, contract, project] = await Promise.all([
+      prisma.client.findUnique({ where: { id: clientId }, select: { id: true } }),
+      contractId ? prisma.contract.findUnique({ where: { id: contractId }, select: { clientId: true, contractNumber: true } }) : null,
+      projectId ? prisma.project.findUnique({ where: { id: projectId }, select: { clientId: true, name: true } }) : null,
+    ])
+    if (!client) { res.status(400).json({ success: false, message: 'Client not found' }); return }
+    if (contractId && !contract) { res.status(400).json({ success: false, message: 'Contract not found' }); return }
+    if (projectId && !project) { res.status(400).json({ success: false, message: 'Project not found' }); return }
+    if (contract && contract.clientId !== clientId) { res.status(400).json({ success: false, message: `Contract ${contract.contractNumber} belongs to another client` }); return }
+    if (project && project.clientId !== clientId) { res.status(400).json({ success: false, message: `Project "${project.name}" belongs to another client` }); return }
 
     const invoice = await prisma.invoice.create({
       data: {

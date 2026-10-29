@@ -113,9 +113,11 @@ santech-bms-current/
 │   └── prisma/
 │       ├── schema.prisma             ← full database schema
 │       ├── migrations/               ← applied automatically on Render deploy
+│       ├── maintenance/              ← one-off data fixes (dry run first, then --apply)
 │       ├── seed.ts                   ← demo data entry point
 │       └── seeds/                    ← demo data per area (+ data/*.json)
 │
+├── backups/                          ← local database backups (git-ignored, never committed)
 ├── README.md                         ← what the system does (this file)
 ├── CHANGELOG.md                      ← every change, newest first
 └── SETUP.md                          ← run it on your own computer
@@ -305,6 +307,12 @@ saves through the API.
 #### Invoices & Payments
 **Where:** Finance → Invoices & Payments
 - Invoice table with status badges (Draft/Sent/Due/Partial/Paid/Overdue)
+- **New Invoice:** choose the client first. The Contract and Project lists (both optional) then offer
+  only that client's own contracts and projects, and picking a project fills in its contract. The
+  server refuses a contract or project that belongs to another client.
+- A new invoice shows in this list, in the client's Client 360° profile and in the Audit Trail. Once
+  it is **Sent**, it also counts in Dashboard → Pending invoices, Finance → Statements → Accounts
+  Receivable, and the due/overdue reminders in Notifications.
 - **Record Payment** (amount, date, method, reference); overpayment is refused
 - Each payment is booked as income in Finance and the status updates automatically
 - **PDF:** open an invoice → **PDF** → *Save as PDF*
@@ -614,7 +622,16 @@ cd backend
 pnpm db:seed      # uses DATABASE_URL from backend/.env (Neon)
 ```
 
-The seed only adds missing rows, so it is safe to run any number of times.
+The seed only adds missing rows, and reuses records that already exist under the same name, so it is
+safe to run any number of times and never creates copies.
+
+### Backups and data fixes
+
+- Database backups made with `pg_dump` are kept in `backups/`, which git ignores, so they are never
+  committed.
+- `backend/prisma/maintenance/` holds one-off data fixes. `remove-duplicates-2026-10.js` removes the
+  duplicate demo records left by old seed versions (see CHANGELOG). Run it from `backend` without
+  options to see the plan, then with `--apply` to apply it.
 
 ### Environment Variables (Frontend — Vercel)
 

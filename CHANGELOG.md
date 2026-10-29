@@ -22,7 +22,65 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 
 ## 1.2.0 — 29 October 2026
 
+### Demo data: duplicate records cleaned up
+- **What:** Older versions of the demo-data loader ran several times on 26–27 Oct and left copies
+  of the same records. For example, *East African Seed Ltd* existed twice, and its contract sat on one
+  copy while the other copy had none. That is why the invoice form often offered only "None".
+  The clean-up merges or removes the copies:
+
+  | Records | Before | After |
+  |---|---|---|
+  | Clients | 32 | 19 |
+  | Projects | 14 | 6 |
+  | Contracts | 7 | 6 (CT-2026-003 was the same N&T deal as CT-2026-004) |
+  | Milestones | 36 | 14 |
+  | Field visits | 51 | 13 |
+  | Deals in the pipeline | 27 | 7 |
+  | Tasks | 58 | 34 |
+  | Payments / income entries | 9 / 35 | 3 / 29 |
+
+- **Also fixed:**
+  - Three invoice payments were recorded three times, so income was overstated by RWF 6,100,000.
+  - Rwanda Mountain Ride's website project pointed at N&T's contract; it now uses its own (CT-2025-012).
+  - SABBAN's EVS project mixed two milestone plans (adding up to 170%); it now has the current plan
+    (Site Survey, Hardware Procurement, Installation & Testing, Training & Handover = 100%).
+  - Milestones that had generated invoices keep their invoice links.
+- **Rules (safety):**
+  - Nothing is lost: each merged client keeps all its visits, deals, quotations, contracts, invoices,
+    payments, documents and messages.
+  - Only copies created by the old loader (before 28 Oct) are removed, never a record someone changed
+    in the app (checked against the Audit Trail). The one exception is two copies of the Serena deal
+    that were only dragged between pipeline stages.
+  - Everything runs in one transaction with checks before it commits, so it either fully succeeds or
+    changes nothing.
+  - Full backups of the live database were taken first, into `backups/` (git-ignored).
+- **Status:** rehearsed on a full copy of the live database: all checks passed, 23 page/API checks
+  passed, and re-running the seed added nothing. **Not yet applied to the live database.** To apply it,
+  run the command below from `backend`.
+- **Technical:** `backend/prisma/maintenance/remove-duplicates-2026-10.js`: without options it only
+  prints the plan; `--apply` runs it. The seed now reuses an existing client, project, deal, task or
+  field visit with the same name instead of creating a copy, and lists Rwanda Mountain Ride's contract
+  as CT-2025-012 (`prisma/seed.ts`, `prisma/seeds/tasksForEveryone.ts`).
+
+### Invoice form: clear Contract and Project choices
+- **What:**
+  - The Contract and Project lists only offer the chosen client's own records. Instead of a lone
+    "None", they now say *Choose a client first*, *No contract (optional)* or *This client has no
+    contracts yet* (same for projects).
+  - Contracts show their project, e.g. *CT-2026-001 — SANTRACK Implementation*.
+  - Picking a project fills in its contract.
+  - Dropdown lists on every page refresh when the page opens, and the invoice form refreshes them when
+    it opens. A client, contract or project created elsewhere now appears without reloading the browser.
+- **Where:** Finance → Invoices & Payments → **New Invoice**.
+- **Rules:** the server refuses a contract or project that belongs to another client, an unknown
+  client, and an amount that isn't positive, each with a clear message.
+- **Technical:** `useLookups` (`lookupService.ts`) fetches fresh lists on every page and shows the last
+  ones instantly; `InvoicesPage.tsx`; checks in `createInvoice` (`financeController.ts`).
+- **Tested:** 8 API checks (own contract and project accepted and linked; another client's contract
+  or project refused; bad amount; unknown client; invoice without contract or project) and type checks.
+
 ### Documents: Delete button on every document (admins)
+*Commit 00238fb*
 - **What:** Admins now see **Delete** on every document, not only on archived ones. Before, you had to
   archive the document, switch the Status filter to *Archived* and only then find Delete, which was
   easy to miss.

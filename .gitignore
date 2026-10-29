@@ -19,3 +19,6 @@ backend-out.txt
 
 # Agent planning files
 .agents/
+
+# Local database backups (never commit)
+backups/

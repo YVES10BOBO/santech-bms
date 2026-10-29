@@ -124,11 +124,11 @@ async function main() {
   const createdClients: Record<string, string> = {}
   for (const c of clientRows) {
     const { id, ...data } = c
-    const client = await prisma.client.upsert({
-      where: { id },
-      update: {},
-      create: { id, ...data, clientType: 'ACQUISITION', assignedToId: aliceUser.id, services: [] },
-    })
+    // Reuse a client with the same name if one exists (older seeds used other ids), so names never repeat
+    const client =
+      (await prisma.client.findUnique({ where: { id }, select: { id: true } })) ??
+      (await prisma.client.findFirst({ where: { companyName: { equals: c.companyName, mode: 'insensitive' } }, select: { id: true } })) ??
+      (await prisma.client.create({ data: { id, ...data, clientType: 'ACQUISITION', assignedToId: aliceUser.id, services: [] }, select: { id: true } }))
     createdClients[c.companyName] = client.id
   }
   console.log('✅ Clients seeded')
@@ -137,7 +137,7 @@ async function main() {
   const contractRows = [
     { id: 'ct-2026-001', contractNumber: 'CT-2026-001', clientId: createdClients['East African Seed Ltd'],   projectName: 'SANTRACK Implementation',        value: 1500000,  currency: 'RWF', startDate: new Date('2026-08-01'), endDate: new Date('2026-12-31'), paymentTerms: '50% upfront, 50% on delivery',                  status: 'ACTIVE' as const,    responsibleManagerId: aliceUser.id, signedAt: new Date('2026-07-25') },
     { id: 'ct-2026-002', contractNumber: 'CT-2026-002', clientId: createdClients['SABBAN ABATTOIR'],         projectName: 'EVS System — 90 Employees',      value: 12000000, currency: 'RWF', startDate: new Date('2026-11-01'), endDate: new Date('2027-04-30'), paymentTerms: '30% signing, 40% installation, 30% handover',   status: 'SIGNING' as const,   responsibleManagerId: bobUser.id },
-    { id: 'ct-2026-003', contractNumber: 'CT-2026-003', clientId: createdClients['Rwanda Mountain Ride'],    projectName: 'Company Website',                value: 800000,   currency: 'RWF', startDate: new Date('2026-07-01'), endDate: new Date('2026-09-30'), paymentTerms: 'Full payment on delivery',                       status: 'COMPLETED' as const, responsibleManagerId: aliceUser.id, signedAt: new Date('2026-06-28') },
+    { id: 'ct-2025-012', contractNumber: 'CT-2025-012', clientId: createdClients['Rwanda Mountain Ride'],    projectName: 'Company Website',                value: 800000,   currency: 'RWF', startDate: new Date('2026-07-01'), endDate: new Date('2026-09-30'), paymentTerms: 'Full payment on delivery',                       status: 'COMPLETED' as const, responsibleManagerId: aliceUser.id, signedAt: new Date('2026-06-28') },
     { id: 'ct-2026-004', contractNumber: 'CT-2026-004', clientId: createdClients['N&T PLASTIC INDUSTRIES'],  projectName: 'SANTRACK Stock Management',       value: 3000000,  currency: 'RWF', startDate: new Date('2026-09-15'), endDate: new Date('2027-02-28'), paymentTerms: '50% upfront, 50% on go-live',                   status: 'ACTIVE' as const,    responsibleManagerId: aliceUser.id, signedAt: new Date('2026-09-10') },
     { id: 'ct-2026-005', contractNumber: 'CT-2026-005', clientId: createdClients['ECOBANK Rwanda'],          projectName: 'EVS + SANHR IMS',                value: 8000000,  currency: 'RWF', startDate: new Date('2026-10-01'), endDate: new Date('2027-03-31'), paymentTerms: 'Milestone-based payments',                       status: 'REVIEW' as const,    responsibleManagerId: bobUser.id },
   ]
@@ -153,7 +153,7 @@ async function main() {
   const projectRows = [
     { id: 'proj-santrack',  name: 'SANTRACK Implementation',       clientId: createdClients['East African Seed Ltd'],   contractId: createdContracts['CT-2026-001'], projectManagerId: aliceUser.id,  budget: 1500000,  contractValue: 1500000,  currency: 'RWF', startDate: new Date('2026-08-01'), endDate: new Date('2026-12-31'), priority: 'HIGH' as const,   status: 'IN_PROGRESS' as const, progress: 70,  description: 'Full SANTRACK ERP implementation.' },
     { id: 'proj-evs-sabban',name: 'EVS System — 90 Employees',    clientId: createdClients['SABBAN ABATTOIR'],          contractId: createdContracts['CT-2026-002'], projectManagerId: bobUser.id,    budget: 12000000, contractValue: 12000000, currency: 'RWF', startDate: new Date('2026-11-01'), endDate: new Date('2027-04-30'), priority: 'URGENT' as const, status: 'PLANNING' as const,    progress: 0,   description: 'Enterprise EVS for 90 employees.' },
-    { id: 'proj-website',   name: 'Company Website',               clientId: createdClients['Rwanda Mountain Ride'],    contractId: createdContracts['CT-2026-003'], projectManagerId: aliceUser.id,  budget: 800000,   contractValue: 800000,   currency: 'RWF', startDate: new Date('2026-07-01'), endDate: new Date('2026-09-30'), priority: 'MEDIUM' as const, status: 'COMPLETED' as const,   progress: 100, description: 'Corporate website design.' },
+    { id: 'proj-website',   name: 'Company Website',               clientId: createdClients['Rwanda Mountain Ride'],    contractId: createdContracts['CT-2025-012'], projectManagerId: aliceUser.id,  budget: 800000,   contractValue: 800000,   currency: 'RWF', startDate: new Date('2026-07-01'), endDate: new Date('2026-09-30'), priority: 'MEDIUM' as const, status: 'COMPLETED' as const,   progress: 100, description: 'Corporate website design.' },
     { id: 'proj-stock',     name: 'SANTRACK Stock Management',     clientId: createdClients['N&T PLASTIC INDUSTRIES'],  contractId: createdContracts['CT-2026-004'], projectManagerId: claireUser.id, budget: 3000000,  contractValue: 3000000,  currency: 'RWF', startDate: new Date('2026-09-15'), endDate: new Date('2027-02-28'), priority: 'HIGH' as const,   status: 'IN_PROGRESS' as const, progress: 30,  description: 'Stock and inventory module.' },
     { id: 'proj-hospital',  name: 'EVS Hospital Access Control',   clientId: createdClients['NYARUGENGE HOSPITAL'],                                                  projectManagerId: bobUser.id,    budget: 15000000, contractValue: 15000000, currency: 'RWF', startDate: new Date('2026-12-01'), endDate: new Date('2027-06-30'), priority: 'HIGH' as const,   status: 'NOT_STARTED' as const, progress: 0,   description: 'Biometric access control.' },
     { id: 'proj-cta',       name: 'Custom Driver Management System',clientId: createdClients['Capital Transport Agency'],                                             projectManagerId: claireUser.id, budget: 5000000,  contractValue: 5000000,  currency: 'RWF', startDate: new Date('2026-11-15'), endDate: new Date('2027-05-31'), priority: 'MEDIUM' as const, status: 'PLANNING' as const,    progress: 0,   description: 'Driver licensing and trip management.' },
@@ -161,7 +161,10 @@ async function main() {
   const createdProjects: Record<string, string> = {}
   for (const p of projectRows) {
     const { id, ...data } = p
-    const project = await prisma.project.upsert({ where: { id }, update: {}, create: { id, ...data } })
+    const project =
+      (await prisma.project.findUnique({ where: { id }, select: { id: true } })) ??
+      (await prisma.project.findFirst({ where: { clientId: data.clientId, name: { equals: p.name, mode: 'insensitive' } }, select: { id: true } })) ??
+      (await prisma.project.create({ data: { id, ...data }, select: { id: true } }))
     createdProjects[p.name] = project.id
   }
 
@@ -186,7 +189,7 @@ async function main() {
   const invoiceRows = [
     { id: 'inv-001', invoiceNumber: 'INV-2026-001', clientId: createdClients['East African Seed Ltd'],   contractId: createdContracts['CT-2026-001'], amount: 750000,  taxAmount: 0, totalAmount: 750000,  paidAmount: 750000,  currency: 'RWF', issueDate: new Date('2026-10-01'), dueDate: new Date('2026-10-15'), status: 'PAID' as const,             notes: '50% upfront',   pay: { amount: 750000,  date: new Date('2026-10-02'), method: 'Bank Transfer',  ref: 'BNK-2026-1001' } },
     { id: 'inv-002', invoiceNumber: 'INV-2026-002', clientId: createdClients['East African Seed Ltd'],   contractId: createdContracts['CT-2026-001'], amount: 750000,  taxAmount: 0, totalAmount: 750000,  paidAmount: 0,       currency: 'RWF', issueDate: new Date('2026-12-01'), dueDate: new Date('2026-12-15'), status: 'DUE' as const,              notes: '50% on delivery', pay: null },
-    { id: 'inv-003', invoiceNumber: 'INV-2026-003', clientId: createdClients['Rwanda Mountain Ride'],    contractId: createdContracts['CT-2026-003'], amount: 800000,  taxAmount: 0, totalAmount: 800000,  paidAmount: 800000,  currency: 'RWF', issueDate: new Date('2026-09-28'), dueDate: new Date('2026-10-07'), status: 'PAID' as const,             notes: 'Full payment',  pay: { amount: 800000,  date: new Date('2026-09-30'), method: 'Mobile Money',   ref: 'MTN-20260930' } },
+    { id: 'inv-003', invoiceNumber: 'INV-2026-003', clientId: createdClients['Rwanda Mountain Ride'],    contractId: createdContracts['CT-2025-012'], amount: 800000,  taxAmount: 0, totalAmount: 800000,  paidAmount: 800000,  currency: 'RWF', issueDate: new Date('2026-09-28'), dueDate: new Date('2026-10-07'), status: 'PAID' as const,             notes: 'Full payment',  pay: { amount: 800000,  date: new Date('2026-09-30'), method: 'Mobile Money',   ref: 'MTN-20260930' } },
     { id: 'inv-004', invoiceNumber: 'INV-2026-004', clientId: createdClients['N&T PLASTIC INDUSTRIES'],  contractId: createdContracts['CT-2026-004'], amount: 3000000, taxAmount: 0, totalAmount: 3000000, paidAmount: 1500000, currency: 'RWF', issueDate: new Date('2026-10-15'), dueDate: new Date('2026-10-30'), status: 'PARTIALLY_PAID' as const,   notes: 'Partial payment', pay: { amount: 1500000, date: new Date('2026-10-18'), method: 'Bank Transfer',  ref: 'BNK-2026-1045' } },
     { id: 'inv-005', invoiceNumber: 'INV-2026-005', clientId: createdClients['ECOBANK Rwanda'],          contractId: createdContracts['CT-2026-005'], amount: 2000000, taxAmount: 0, totalAmount: 2000000, paidAmount: 0,       currency: 'RWF', issueDate: new Date('2026-10-08'), dueDate: new Date('2026-10-22'), status: 'OVERDUE' as const,          notes: 'Signing payment overdue', pay: null },
     { id: 'inv-006', invoiceNumber: 'INV-2026-006', clientId: createdClients['SABBAN ABATTOIR'],         contractId: createdContracts['CT-2026-002'], amount: 3600000, taxAmount: 0, totalAmount: 3600000, paidAmount: 0,       currency: 'RWF', issueDate: new Date('2026-11-01'), dueDate: new Date('2026-11-15'), status: 'DRAFT' as const,            notes: '30% on signing draft', pay: null },
@@ -214,7 +217,8 @@ async function main() {
   ]
   for (const t of taskRows) {
     const { id, ...data } = t
-    await prisma.task.upsert({ where: { id }, update: {}, create: { id, ...data } })
+    const twin = await prisma.task.findFirst({ where: { title: t.title, assignedToId: t.assignedToId, NOT: { id } }, select: { id: true } })
+    if (!twin) await prisma.task.upsert({ where: { id }, update: {}, create: { id, ...data } })
   }
   console.log('✅ Tasks seeded')
 
@@ -230,7 +234,8 @@ async function main() {
   ]
   for (const o of oppRows) {
     const { id, ...data } = o
-    await prisma.opportunity.upsert({ where: { id }, update: {}, create: { id, ...data } })
+    const twin = await prisma.opportunity.findFirst({ where: { clientId: o.clientId, name: { equals: o.name, mode: 'insensitive' }, NOT: { id } }, select: { id: true } })
+    if (!twin) await prisma.opportunity.upsert({ where: { id }, update: {}, create: { id, ...data } })
   }
   console.log('✅ Opportunities seeded')
 
@@ -247,7 +252,9 @@ async function main() {
   ]
   for (const v of visitRows) {
     const { id, ...data } = v
-    await prisma.fieldVisit.upsert({ where: { id }, update: {}, create: { id, ...data } })
+    const dayEnd = new Date(v.visitDate.getTime() + 24 * 3600 * 1000)
+    const twin = await prisma.fieldVisit.findFirst({ where: { companyName: { equals: v.companyName, mode: 'insensitive' }, visitDate: { gte: v.visitDate, lt: dayEnd }, NOT: { id } }, select: { id: true } })
+    if (!twin) await prisma.fieldVisit.upsert({ where: { id }, update: {}, create: { id, ...data } })
   }
   console.log('✅ Field visits seeded')
 

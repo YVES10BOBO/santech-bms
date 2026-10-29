@@ -47,6 +47,8 @@ export async function seedTasksForEveryone(prisma: PrismaClient) {
     if (!assignedToId) continue
     const taskId = `task-${r.key}`
     const done = r.status === 'APPROVED'
+    // Skip if the same task already exists under another id (keeps My Tasks free of copies)
+    if (await prisma.task.findFirst({ where: { title: r.title, assignedToId, NOT: { id: taskId } }, select: { id: true } })) continue
     await prisma.task.upsert({
       where: { id: taskId },
       update: {},

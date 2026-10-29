@@ -10,24 +10,29 @@ export interface Lookups {
 
 const empty: Lookups = { clients: [], users: [], contracts: [], projects: [] }
 let cache: Promise<Lookups> | null = null
+let last: Lookups | null = null // last lists received, shown instantly while fresh ones load
 
 export const lookupService = {
   get: (refresh = false): Promise<Lookups> => {
     if (!cache || refresh) {
       cache = api.get('/lookups')
-        .then(r => r.data.data as Lookups)
+        .then(r => (last = r.data.data as Lookups))
         .catch(err => { cache = null; throw err })
     }
     return cache
   },
 }
 
-/** Dropdown data (clients, staff, contracts, projects) shared by all forms. */
+/**
+ * Dropdown data (clients, staff, contracts, projects) shared by all forms.
+ * Each page that uses it fetches fresh lists when it opens, so clients, contracts
+ * and projects created elsewhere appear without reloading the browser.
+ */
 export function useLookups() {
-  const [lookups, setLookups] = useState<Lookups>(empty)
+  const [lookups, setLookups] = useState<Lookups>(last ?? empty)
   useEffect(() => {
     let alive = true
-    lookupService.get().then(l => { if (alive) setLookups(l) }).catch(() => { /* forms still work, lists stay empty */ })
+    lookupService.get(true).then(l => { if (alive) setLookups(l) }).catch(() => { /* forms still work, lists stay as they were */ })
     return () => { alive = false }
   }, [])
   const reload = () => lookupService.get(true).then(setLookups)
