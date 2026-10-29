@@ -26,6 +26,8 @@ import {
   MessageSquare,
   FolderOpen,
   ShoppingCart,
+  Menu,
+  X,
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -189,9 +191,11 @@ interface SidebarProps {
   collapsed: boolean
   mobileOpen: boolean
   onMobileClose: () => void
+  /** Desktop only: collapse / expand the sidebar (menu button in the sidebar's top-right corner) */
+  onToggle?: () => void
 }
 
-export default function Sidebar({ collapsed, mobileOpen, onMobileClose }: SidebarProps) {
+export default function Sidebar({ collapsed, mobileOpen, onMobileClose, onToggle }: SidebarProps) {
   const { user, canAccess, logout } = useAuthStore()
   const location = useLocation()
   const [openMenus, setOpenMenus] = useState<string[]>(['CRM', 'Team', 'Settings', 'Reports', 'Support'])
@@ -228,19 +232,40 @@ export default function Sidebar({ collapsed, mobileOpen, onMobileClose }: Sideba
           opacity: 0.03,
         }}
       />
-      {/* Logo */}
+      {/* Logo + menu button (top-right). Collapsed: only the menu button, to expand again */}
       <div className={cn(
-        'flex items-center gap-3 px-4 py-5 border-b border-santech-700',
-        collapsed ? 'justify-center' : ''
+        'relative flex items-center gap-3 px-4 py-5 border-b border-santech-700',
+        collapsed ? 'justify-center px-2' : ''
       )}>
-        <div className="w-8 h-8 bg-santech-400 rounded-lg flex items-center justify-center flex-shrink-0">
-          <Building2 className="w-4 h-4 text-santech-900" />
-        </div>
         {!collapsed && (
-          <div>
-            <p className="font-bold text-sm leading-tight">Santech</p>
-            <p className="text-santech-300 text-xs">Business Management</p>
-          </div>
+          <>
+            <div className="w-8 h-8 bg-santech-400 rounded-lg flex items-center justify-center flex-shrink-0">
+              <Building2 className="w-4 h-4 text-santech-900" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-sm leading-tight">Santech</p>
+              <p className="text-santech-300 text-xs">Business Management</p>
+            </div>
+          </>
+        )}
+        {onToggle ? (
+          <button
+            onClick={onToggle}
+            title={collapsed ? 'Expand menu' : 'Collapse menu'}
+            aria-label={collapsed ? 'Expand menu' : 'Collapse menu'}
+            className="flex-shrink-0 p-1.5 rounded-md text-white hover:bg-white/10 transition-colors"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+        ) : (
+          <button
+            onClick={onMobileClose}
+            title="Close menu"
+            aria-label="Close menu"
+            className="flex-shrink-0 p-1.5 rounded-md text-white hover:bg-white/10 transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
         )}
       </div>
 

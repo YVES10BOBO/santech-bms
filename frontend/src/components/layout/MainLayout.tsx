@@ -18,6 +18,7 @@ export default function MainLayout() {
           collapsed={sidebarCollapsed}
           mobileOpen={mobileSidebarOpen}
           onMobileClose={() => setMobileSidebarOpen(false)}
+          onToggle={() => setSidebarCollapsed(c => !c)}
         />
       </div>
 
@@ -33,10 +34,7 @@ export default function MainLayout() {
       {/* Main content area — takes remaining space, never changes width */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Top bar */}
-        <Topbar
-          onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
-          onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
-        />
+        <Topbar onOpenMobileSidebar={() => setMobileSidebarOpen(true)} />
 
         {/* Page content — overflow-y-scroll keeps scrollbar always visible (no width jump) */}
         <main

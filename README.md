@@ -150,6 +150,9 @@ santech-bms-current/
 Grouped as they appear in the sidebar. **Where** shows how to get to each page. Every page reads and
 saves through the API.
 
+The white menu button in the sidebar's top-right corner collapses the sidebar to icons and expands it
+again. On phones, the menu button in the top bar opens the sidebar, and its X button closes it.
+
 ### Login & Access Control
 **Where:** `/login`
 - Professional split-panel login page (Imigongo pattern) with quick demo login buttons

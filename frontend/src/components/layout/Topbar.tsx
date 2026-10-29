@@ -6,11 +6,10 @@ import { notificationService } from '@/lib/services/operationsService'
 import { getInitials } from '@/lib/utils'
 
 interface TopbarProps {
-  onToggleSidebar: () => void
   onOpenMobileSidebar: () => void
 }
 
-export default function Topbar({ onToggleSidebar, onOpenMobileSidebar }: TopbarProps) {
+export default function Topbar({ onOpenMobileSidebar }: TopbarProps) {
   const { user, logout } = useAuthStore()
   const navigate = useNavigate()
   const location = useLocation()
@@ -30,18 +29,12 @@ export default function Topbar({ onToggleSidebar, onOpenMobileSidebar }: TopbarP
 
   return (
     <header className="h-11 bg-white border-b-2 border-[#dde3f0] flex items-center px-4 gap-3 flex-shrink-0 z-10 shadow-sm">
-      {/* Mobile menu button */}
+      {/* Phones only: the sidebar is hidden there, so this opens it.
+          On computers the menu button sits in the sidebar's top-right corner. */}
       <button
         onClick={onOpenMobileSidebar}
+        aria-label="Open menu"
         className="lg:hidden p-1.5 rounded-md text-gray-500 hover:bg-gray-100 transition-colors"
-      >
-        <Menu className="w-5 h-5" />
-      </button>
-
-      {/* Desktop sidebar toggle */}
-      <button
-        onClick={onToggleSidebar}
-        className="hidden lg:flex p-1.5 rounded-md text-gray-500 hover:bg-gray-100 transition-colors"
       >
         <Menu className="w-5 h-5" />
       </button>

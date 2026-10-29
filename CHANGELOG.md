@@ -22,7 +22,17 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 
 ## 1.2.0 — 29 October 2026
 
+### Sidebar: menu button moved onto the blue sidebar
+- **What:** The menu (hamburger) button that collapses and expands the sidebar is now white and sits in
+  the top-right corner of the blue sidebar, instead of in the white top bar. When the sidebar is
+  collapsed to icons, the button stays at the top so you can expand it again.
+- **Phones:** the sidebar is hidden on small screens, so the top bar keeps a button to open it. The
+  opened sidebar has a white close (X) button in the same corner.
+- **Technical:** `Sidebar.tsx` (new `onToggle` prop), `MainLayout.tsx`, `Topbar.tsx`. Frontend only.
+- **Tested:** frontend type check.
+
 ### Demo data: duplicate records cleaned up
+*Commit 7858302*
 - **What:** Older versions of the demo-data loader ran several times on 26–27 Oct and left copies
   of the same records. For example, *East African Seed Ltd* existed twice, and its contract sat on one
   copy while the other copy had none. That is why the invoice form often offered only "None".
@@ -63,6 +73,7 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
   as CT-2025-012 (`prisma/seed.ts`, `prisma/seeds/tasksForEveryone.ts`).
 
 ### Invoice form: clear Contract and Project choices
+*Commit 7858302*
 - **What:**
   - The Contract and Project lists only offer the chosen client's own records. Instead of a lone
     "None", they now say *Choose a client first*, *No contract (optional)* or *This client has no
