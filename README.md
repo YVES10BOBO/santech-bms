@@ -530,13 +530,14 @@ only protection.
 |---|---|
 | **Super Admin** | Everything, including promotions, CEO approval of quotations and permanent document deletion |
 | **Admin (HR)** | Everything except Super Admin-only actions |
-| **Finance Manager** | Dashboard, Finance, Contracts, Reports, Notifications |
-| **Sales Manager** | Dashboard, CRM, Sales, Marketing, Reports, Notifications |
-| **Marketing Manager** | Dashboard, CRM, Marketing, Reports, Notifications |
+| **Finance Manager** | Dashboard, Finance, Contracts, My Tasks, Reports, Notifications |
+| **Sales Manager** | Dashboard, CRM, Sales, Marketing, My Tasks, Reports, Notifications |
+| **Marketing Manager** | Dashboard, CRM, Marketing, My Tasks, Reports, Notifications |
 | **Project Manager** | Dashboard, Projects, Team, My Tasks, Reports, Notifications |
 | **Sales Staff** | Dashboard, CRM, Sales, My Tasks, Notifications |
 | **Employee** | Dashboard, My Tasks, Team, Notifications |
 
+Every role has **My Tasks** (Team → My Tasks), which shows only the person's own tasks.
 Documents, Procurement, Support, Reception, Communication, Training and Settings are shown to
 Super Admin and Admin only. Salary figures are only returned by the API to HR and finance roles.
 

@@ -19,10 +19,10 @@ interface AuthStore {
 /** Which sidebar modules each role can open (also shown on Settings → Roles) */
 export const roleAccess: Record<UserRole, string[]> = {
   SUPER_ADMIN: ['*'],
-  ADMIN: ['dashboard', 'crm', 'sales', 'marketing', 'contracts', 'finance', 'projects', 'team', 'support', 'reports', 'settings', 'notifications', 'reception', 'communication', 'training', 'documents', 'procurement'],
-  FINANCE_MANAGER: ['dashboard', 'finance', 'contracts', 'reports', 'notifications'],
-  SALES_MANAGER: ['dashboard', 'crm', 'sales', 'marketing', 'reports', 'notifications'],
-  MARKETING_MANAGER: ['dashboard', 'crm', 'marketing', 'reports', 'notifications'],
+  ADMIN: ['dashboard', 'crm', 'sales', 'marketing', 'contracts', 'finance', 'projects', 'team', 'my-tasks', 'support', 'reports', 'settings', 'notifications', 'reception', 'communication', 'training', 'documents', 'procurement'],
+  FINANCE_MANAGER: ['dashboard', 'finance', 'contracts', 'my-tasks', 'reports', 'notifications'],
+  SALES_MANAGER: ['dashboard', 'crm', 'sales', 'marketing', 'my-tasks', 'reports', 'notifications'],
+  MARKETING_MANAGER: ['dashboard', 'crm', 'marketing', 'my-tasks', 'reports', 'notifications'],
   PROJECT_MANAGER: ['dashboard', 'projects', 'team', 'my-tasks', 'reports', 'notifications'],
   SALES_STAFF: ['dashboard', 'crm', 'sales', 'my-tasks', 'notifications'],
   EMPLOYEE: ['dashboard', 'my-tasks', 'notifications', 'team'],

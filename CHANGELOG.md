@@ -22,7 +22,20 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 
 ## 1.2.0 — 29 October 2026
 
+### My Tasks visible to every role
+- **What:** Every role now has **Team → My Tasks**. Before, Admin (HR), Finance Managers, the Sales
+  Manager, the Marketing Manager and Sales Staff had seeded tasks but no menu item to open them.
+- **Where:** sidebar → **Team** → **My Tasks**. Roles without the other Team pages see a Team menu
+  that holds only My Tasks.
+- **Rules:** My Tasks only ever shows the logged-in person's own tasks. The other Team pages
+  (Employees, Salary, …) keep their old access.
+- **Technical:** `roleAccess` in `frontend/src/store/authStore.ts` gives `my-tasks` to Admin, Finance
+  Manager, Sales Manager and Marketing Manager. `Sidebar.tsx` now shows a menu when the role can open
+  at least one page in it. No API or database change; the tasks API already returned each user's own tasks.
+- **Tested:** frontend type check.
+
 ### Documentation: changelog started, README and SETUP brought up to date
+*Commit 4a59fc2*
 - **What:** This changelog now records every change. README.md describes every page, grouped like the
   sidebar, with where to find it. SETUP.md has the correct demo logins and setup steps.
 - **Also fixed:** `backend/.env.example` was missing `DIRECT_URL`, which the database schema requires.
@@ -301,7 +314,8 @@ Real login, and the first pages on the database.
 ## How to add an entry
 
 Add the entry **in the same commit as the change**, at the top of the newest version (or under a new
-version heading). If what the system does has changed, update README.md too.
+version heading). If what the system does has changed, update README.md too. A new entry can't name
+its own commit; add the commit hash later if useful.
 
 ```markdown
 ### Short title in plain words

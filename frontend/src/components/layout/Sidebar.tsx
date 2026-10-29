@@ -247,7 +247,8 @@ export default function Sidebar({ collapsed, mobileOpen, onMobileClose }: Sideba
       {/* Navigation */}
       <nav className="sidebar-nav-scroll flex-1 overflow-y-auto py-4 px-2 space-y-0.5">
         {navItems.map((item) => {
-          if (!canAccess(item.module)) return null
+          // Show a menu when the role can open it or at least one page in it (e.g. My Tasks under Team)
+          if (!canAccess(item.module) && !item.children?.some((c) => canAccess(c.module))) return null
 
           // Single link (no children)
           if (item.path && !item.children) {
