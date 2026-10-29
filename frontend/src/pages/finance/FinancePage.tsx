@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { financeService, type PLReport } from '@/lib/services/financeService'
 import { useLookups, apiError } from '@/lib/services/lookupService'
 import toast from 'react-hot-toast'
+import StatementsTab from './StatementsTab'
 import {
   TrendingUp,
   TrendingDown,
@@ -16,7 +17,7 @@ import {
 import { cn, formatDate, formatCurrency } from '@/lib/utils'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type Tab = 'overview' | 'income' | 'expenses'
+type Tab = 'overview' | 'income' | 'expenses' | 'statements'
 
 type IncomeCategory =
   | 'Software Dev'
@@ -1032,6 +1033,7 @@ export default function FinancePage() {
     { key: 'overview',  label: 'Overview'  },
     { key: 'income',    label: 'Income'    },
     { key: 'expenses',  label: 'Expenses'  },
+    { key: 'statements', label: 'Statements' },
   ]
 
   return (
@@ -1067,6 +1069,7 @@ export default function FinancePage() {
       {activeTab === 'overview'  && <OverviewTab  />}
       {activeTab === 'income'    && <IncomeTab    />}
       {activeTab === 'expenses'  && <ExpensesTab  />}
+      {activeTab === 'statements' && <StatementsTab />}
     </div>
   )
 }

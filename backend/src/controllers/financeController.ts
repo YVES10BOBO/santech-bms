@@ -620,3 +620,87 @@ export async function updateContract(req: AuthRequest, res: Response): Promise<v
     res.json({ success: true, data: contract, message: 'Contract updated successfully' })
   } catch (error) { fail(res, error, 'updateContract') }
 }
+
+// ── FINANCIAL STATEMENTS (cash flow, accounts payable, balance sheet) ─────────
+// Built from what the system already records. Opening cash comes from the
+// "finance" setting (set once by finance/admin).
+
+export async function getStatements(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const year = parseInt(String(req.query.year)) || new Date().getFullYear()
+    const yearStart = new Date(Date.UTC(year, 0, 1))
+    const yearEnd = new Date(Date.UTC(year + 1, 0, 1))
+    const asOf = new Date() < yearEnd ? new Date() : yearEnd
+
+    const setting = await prisma.setting.findUnique({ where: { key: 'finance' } })
+    const openingCash = Number((setting?.value as { openingCash?: number } | null)?.openingCash ?? 0)
+
+    const [incomeBefore, expenseBefore, incomes, expenses, openInvoices, openPurchases, unpaidSalaries, equipment] = await Promise.all([
+      prisma.incomeEntry.aggregate({ where: { date: { lt: yearStart } }, _sum: { amount: true } }),
+      prisma.expenseEntry.aggregate({ where: { date: { lt: yearStart } }, _sum: { amount: true } }),
+      prisma.incomeEntry.findMany({ where: { date: { gte: yearStart, lt: yearEnd } }, select: { date: true, amount: true, category: true } }),
+      prisma.expenseEntry.findMany({ where: { date: { gte: yearStart, lt: yearEnd } }, select: { date: true, amount: true, category: true } }),
+      prisma.invoice.findMany({ where: { status: { notIn: ['PAID', 'CANCELLED', 'DRAFT'] } }, include: { client: { select: { companyName: true } } } }),
+      prisma.purchaseRequest.findMany({ where: { status: { in: ['APPROVED', 'ORDERED'] } } }),
+      prisma.salaryRecord.findMany({ where: { isPaid: false }, include: { employee: { include: { user: { select: { firstName: true, lastName: true } } } } } }),
+      prisma.expenseEntry.aggregate({ where: { category: 'Equipment', date: { lt: asOf } }, _sum: { amount: true } }),
+    ])
+
+    // Cash flow by month
+    const cashStart = openingCash + (incomeBefore._sum.amount ?? 0) - (expenseBefore._sum.amount ?? 0)
+    let running = cashStart
+    const monthly = Array.from({ length: 12 }, (_, m) => {
+      const inflow = incomes.filter(i => i.date.getUTCMonth() === m).reduce((s, i) => s + i.amount, 0)
+      const outflow = expenses.filter(e => e.date.getUTCMonth() === m).reduce((s, e) => s + e.amount, 0)
+      running += inflow - outflow
+      return { month: MONTH_LABELS[m], inflow, outflow, net: inflow - outflow, closing: running }
+    })
+    const totalIn = incomes.reduce((s, i) => s + i.amount, 0)
+    const totalOut = expenses.reduce((s, e) => s + e.amount, 0)
+    const operatingOut = expenses.filter(e => e.category !== 'Equipment').reduce((s, e) => s + e.amount, 0)
+    const investingOut = totalOut - operatingOut
+
+    // Accounts payable: approved/ordered purchases not delivered + unpaid salaries
+    const payables = [
+      ...openPurchases.map(p => ({ type: 'Purchase', name: `${p.quantity} × ${p.itemName}`, party: p.supplier ?? '—', amount: p.quantity * p.unitPrice, status: p.status })),
+      ...unpaidSalaries.map(s => ({ type: 'Salary', name: `Salary ${MONTH_LABELS[s.month - 1]} ${s.year}`, party: `${s.employee.user.firstName} ${s.employee.user.lastName}`, amount: s.netSalary, status: 'UNPAID' })),
+    ].sort((a, b) => b.amount - a.amount)
+    const totalPayable = payables.reduce((s, p) => s + p.amount, 0)
+
+    // Accounts receivable
+    const receivables = openInvoices.map(i => ({ number: i.invoiceNumber, client: i.client.companyName ?? '', due: i.dueDate, balance: i.totalAmount - i.paidAmount, status: i.status }))
+      .sort((a, b) => b.balance - a.balance)
+    const totalReceivable = receivables.reduce((s, r) => s + r.balance, 0)
+
+    // Simplified balance sheet at the end of the period (or today)
+    const cash = cashStart + totalIn - totalOut
+    const fixedAssets = equipment._sum.amount ?? 0
+    const totalAssets = cash + totalReceivable + fixedAssets
+    const equity = totalAssets - totalPayable
+
+    res.json({
+      success: true,
+      data: {
+        year, asOf, openingCash,
+        cashFlow: { opening: cashStart, operatingIn: totalIn, operatingOut, investingOut, net: totalIn - totalOut, closing: cash, monthly },
+        payables, totalPayable,
+        receivables, totalReceivable,
+        balanceSheet: {
+          assets: { cash, receivables: totalReceivable, fixedAssets, total: totalAssets },
+          liabilities: { payables: totalPayable, total: totalPayable },
+          equity: { retainedAndCapital: equity, total: equity },
+        },
+      },
+    })
+  } catch (e) { fail(res, e, 'getStatements') }
+}
+
+export async function setOpeningCash(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const openingCash = parseFloat(req.body.openingCash)
+    if (!Number.isFinite(openingCash)) { res.status(400).json({ success: false, message: 'Enter a valid amount' }); return }
+    await prisma.setting.upsert({ where: { key: 'finance' }, update: { value: { openingCash } }, create: { key: 'finance', value: { openingCash } } })
+    await logAudit(req, { action: 'UPDATE', entity: 'Finance', entityId: 'finance', entityName: 'Opening cash', description: `Set opening cash balance to RWF ${openingCash.toLocaleString('en-US')}` })
+    res.json({ success: true, message: 'Opening balance saved' })
+  } catch (e) { fail(res, e, 'setOpeningCash') }
+}

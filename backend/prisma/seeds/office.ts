@@ -137,5 +137,8 @@ export async function seedOffice(prisma: PrismaClient) {
       },
     },
   })
+  // Opening cash balance for the financial statements (set once, never overwritten)
+  const fin = await prisma.setting.findUnique({ where: { key: 'finance' } })
+  if (!fin) await prisma.setting.create({ data: { key: 'finance', value: { openingCash: 15000000 } } })
   console.log('✅ Company profile seeded')
 }

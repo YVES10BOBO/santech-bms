@@ -2,7 +2,7 @@ import { Router } from 'express'
 import { authenticate, authorize } from '../middleware/auth'
 import {
   getInvoices, getInvoice, createInvoice, updateInvoice, recordPayment,
-  getIncome, createIncome, getExpenses, createExpense, getPL,
+  getIncome, createIncome, getExpenses, createExpense, getPL, getStatements, setOpeningCash,
   getOpportunities, createOpportunity, updateOpportunity,
   getContracts, createContract, updateContract,
 } from '../controllers/financeController'
@@ -24,6 +24,8 @@ router.post('/income', authorize(...FINANCE), createIncome)
 router.get('/expenses', authorize(...FINANCE), getExpenses)
 router.post('/expenses', authorize(...FINANCE), createExpense)
 router.get('/pl', authorize(...FINANCE), getPL)
+router.get('/statements', authorize(...FINANCE), getStatements)
+router.put('/opening-cash', authorize(...FINANCE), setOpeningCash)
 
 // ── Sales pipeline (sales team + management)
 router.get('/opportunities', authorize(...SALES), getOpportunities)
