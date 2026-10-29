@@ -1,6 +1,6 @@
 # SAN-BMS — Santech Business Management System
 
-> **Version:** 1.0.0 | **Status:** Frontend Complete, Backend Integration In Progress
+> **Version:** 1.1.0 | **Status:** All pages connected to the live API and PostgreSQL (Neon) database
 > **Live Frontend:** https://santech-bms.vercel.app
 > **Live Backend API:** https://santech-bms-api.onrender.com
 
@@ -37,14 +37,22 @@ This system serves as Santech's internal **ERP + CRM platform**.
 
 ## Live Demo — Login Credentials
 
-| Role | Email | Password | Access |
-|---|---|---|---|
-| Super Admin | `admin@santech.rw` | `Santech@2026` | Full system |
-| Admin (HR) | `claire@santech.rw` | `Santech@2026` | All except promotions |
-| Sales Staff | `alice@santech.rw` | `Santech@2026` | CRM, Sales, My Tasks |
-| Finance Manager | `david@santech.rw` | `Santech@2026` | Finance, Contracts, Reports |
-| Project Manager | `bob@santech.rw` | `Santech@2026` | Projects, Tasks, Team |
-| Employee | `frank@santech.rw` | `Santech@2026` | My Tasks only |
+All demo accounts use the password **`Santech@2026`**.
+
+| Role | Email | Access |
+|---|---|---|
+| Super Admin | `admin@santech.rw` | Full system |
+| Super Admin (CEO) | `jean@santech.rw` | Full system — final approver of quotations |
+| Admin (HR) | `claire@santech.rw` | Everything except Super Admin actions |
+| Finance Manager | `david@santech.rw` | Finance, invoices, payroll payments, contracts, reports |
+| Finance Manager | `grace@santech.rw` | Same as David |
+| Sales Manager | `paul@santech.rw` | CRM, sales, quotation manager approval, reports |
+| Sales Staff | `alice@santech.rw` | CRM, leads, pipeline, quotations, My Tasks |
+| Marketing Manager | `eve@santech.rw` | CRM, campaigns, reports |
+| Project Manager | `bob@santech.rw` | Projects, milestones, tasks, timesheets, team |
+| Project Manager | `marie@santech.rw` | Same as Bob |
+| Employee | `frank@santech.rw` | My Tasks, own attendance, timesheets |
+| (inactive) | `eric@santech.rw` | Deactivated account — cannot log in |
 
 ---
 
@@ -72,96 +80,54 @@ This system serves as Santech's internal **ERP + CRM platform**.
 ## Project Structure
 
 ```
-santech_crm/
-├── frontend/                         ← React + TypeScript + Tailwind
-│   ├── public/
-│   │   └── imingogo-trimmed.png      ← Rwandan Imigongo pattern (background)
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── layout/
-│   │   │   │   ├── MainLayout.tsx    ← App shell (sidebar + topbar + content)
-│   │   │   │   ├── Sidebar.tsx       ← Collapsible, role-based navigation
-│   │   │   │   ├── Topbar.tsx        ← Search, notifications, user profile
-│   │   │   │   └── AuthLayout.tsx    ← Login page wrapper
-│   │   │   └── shared/
-│   │   │       └── PhoneInput.tsx    ← Phone input with country code selector
-│   │   ├── pages/
-│   │   │   ├── auth/
-│   │   │   │   └── LoginPage.tsx     ← Split-panel professional login page
-│   │   │   ├── dashboard/
-│   │   │   │   └── DashboardPage.tsx ← Executive KPIs + charts
-│   │   │   ├── crm/
-│   │   │   │   ├── CustomersPage.tsx ← Enhanced client registration (4 types)
-│   │   │   │   ├── ClientProfilePage.tsx ← Client 360° profile + timeline
-│   │   │   │   ├── LeadsPage.tsx     ← Lead management + pipeline conversion
-│   │   │   │   └── FieldVisitsPage.tsx ← Field visit recording (Excel migration)
-│   │   │   ├── sales/
-│   │   │   │   ├── PipelinePage.tsx  ← Kanban + list view deal pipeline
-│   │   │   │   └── QuotationsPage.tsx ← Quotations with line items + VAT
-│   │   │   ├── marketing/
-│   │   │   │   └── CampaignsPage.tsx ← Campaign tracking + ROI
-│   │   │   ├── contracts/
-│   │   │   │   ├── ContractsPage.tsx ← Contract lifecycle management
-│   │   │   │   └── ClientServicesPage.tsx ← Hosting/maintenance renewals
-│   │   │   ├── finance/
-│   │   │   │   ├── FinancePage.tsx   ← P&L + Income + Expenses (3 tabs)
-│   │   │   │   └── InvoicesPage.tsx  ← Invoice + payment tracking
-│   │   │   ├── projects/
-│   │   │   │   ├── ProjectsPage.tsx  ← Project management
-│   │   │   │   └── TasksPage.tsx     ← Task assignment + approval workflow
-│   │   │   ├── team/
-│   │   │   │   ├── EmployeesPage.tsx ← Employee profiles (grid + list view)
-│   │   │   │   ├── DepartmentsPage.tsx ← Department management
-│   │   │   │   ├── WorkloadPage.tsx  ← Staff workload overview
-│   │   │   │   ├── MyTasksPage.tsx   ← Employee personal task dashboard
-│   │   │   │   └── SalaryPage.tsx    ← Salary + bonuses + promotions
-│   │   │   ├── reports/
-│   │   │   │   └── ReportsPage.tsx   ← Sales, Finance, Team, Client reports
-│   │   │   ├── notifications/
-│   │   │   │   └── NotificationsPage.tsx ← System alerts + reminders
-│   │   │   ├── support/
-│   │   │   │   └── SupportPage.tsx   ← Support ticket management
-│   │   │   └── settings/
-│   │   │       ├── SettingsPage.tsx  ← User management + roles
-│   │   │       ├── ProductCatalogPage.tsx ← Santech services catalog
-│   │   │       └── AuditTrailPage.tsx ← Full system action log
-│   │   ├── store/
-│   │   │   └── authStore.ts          ← Zustand auth + role-based access
-│   │   ├── lib/
-│   │   │   ├── api.ts                ← Axios client (auto JWT + 401 redirect)
-│   │   │   └── utils.ts              ← Currency, date, status, initials helpers
-│   │   ├── types/
-│   │   │   └── index.ts              ← TypeScript types for all entities
-│   │   └── App.tsx                   ← Router + protected routes
-│   ├── vercel.json                   ← Vercel deployment config
-│   └── package.json
+santech-bms-current/
+├── frontend/                         ← React + TypeScript + Vite + Tailwind
+│   └── src/
+│       ├── pages/                    ← one folder per module (crm, sales, finance, projects, team, …)
+│       ├── components/layout/        ← sidebar, top bar (live notification bell), page shell
+│       ├── lib/api.ts                ← Axios client (JWT header, 401 → login)
+│       ├── lib/services/             ← one small client per API area
+│       │   ├── lookupService.ts      ← shared dropdown data (clients, staff, contracts, projects)
+│       │   └── operationsService.ts  ← leads, quotations, tickets, HR, reception, …
+│       └── store/authStore.ts        ← login state + role → module access rules
 │
 ├── backend/                          ← Node.js + Express + Prisma
 │   ├── src/
-│   │   ├── routes/                   ← API route definitions
-│   │   │   ├── auth.ts
-│   │   │   ├── clients.ts
-│   │   │   ├── fieldVisits.ts
-│   │   │   ├── employees.ts
-│   │   │   ├── tasks.ts
-│   │   │   ├── projects.ts
-│   │   │   ├── finance.ts
-│   │   │   └── dashboard.ts
-│   │   ├── controllers/              ← Business logic
-│   │   │   ├── authController.ts
-│   │   │   ├── clientsController.ts
-│   │   │   └── fieldVisitsController.ts
-│   │   └── middleware/
-│   │       └── auth.ts               ← JWT verify + role authorization
-│   ├── prisma/
-│   │   ├── schema.prisma             ← Full database schema (all modules)
-│   │   └── seed.ts                   ← Default users + sample data
-│   ├── render.yaml                   ← Render deployment config
-│   └── package.json
+│   │   ├── routes/                   ← auth, clients, finance, projects, tasks, salary, reports, …
+│   │   ├── controllers/              ← business rules (approvals, totals, workflows)
+│   │   ├── lib/
+│   │   │   ├── roles.ts              ← role groups used by every route guard
+│   │   │   ├── audit.ts              ← writes the audit trail for every important action
+│   │   │   ├── notifications.ts      ← reminder engine (invoices, contracts, tasks, renewals, …)
+│   │   │   └── numbering.ts          ← INV-/CT-/QT-/TKT- document numbers
+│   │   └── middleware/auth.ts        ← JWT check + role authorisation
+│   └── prisma/
+│       ├── schema.prisma             ← full database schema
+│       ├── migrations/               ← applied automatically on Render deploy
+│       ├── seed.ts                   ← demo data entry point
+│       └── seeds/                    ← demo data per area (+ data/*.json)
 │
-├── README.md                         ← This file
-└── SETUP.md                          ← Local development setup guide
+├── README.md
+└── SETUP.md
 ```
+
+### How the modules feed each other
+
+| Action | What happens automatically |
+|---|---|
+| Lead → **Convert to Deal** | Client registered (if new) + qualified deal added to the pipeline |
+| Quotation → approvals | Salesperson → Manager → CEO, each step notifies the next approver |
+| Accepted quotation → **Convert** | Draft contract created with the same value and line items |
+| Contract **Active** | Requires all signatories signed + signed document attached |
+| Milestone approved → **Generate Invoice** | Invoice created for the milestone's share of the contract |
+| Invoice **payment recorded** | Income entry in Finance (P&L, dashboard, reports update) |
+| Salary **Mark Paid** | Salaries expense in Finance |
+| Client service **Mark Paid** | Maintenance income in Finance |
+| Purchase **Delivered** | Expense in Finance |
+| Training fee **paid** | Training income in Finance |
+| Task / timesheet / leave **approved** | Employee notified; task approval raises performance score |
+| Visitor **checked in** | Host notified |
+| Every important action | Written to the Audit Trail (who, what, before/after, IP, device) |
 
 ---
 
@@ -413,13 +379,21 @@ santech_crm/
 
 ## Role-Based Access
 
-| Role | What They See |
+Sidebar access comes from `roleAccess` in `frontend/src/store/authStore.ts` (also shown on
+Settings → Roles). The API enforces the same rules, so hiding a menu item is never the only protection.
+
+| Role | Sidebar modules |
 |---|---|
-| **Super Admin** | Everything — full sidebar, all modules, promotions |
-| **Admin (HR)** | Everything except Super Admin-only actions (promotions) |
+| **Super Admin** | Everything, including promotions and CEO approval of quotations |
+| **Admin (HR)** | Everything except Super Admin-only actions |
 | **Finance Manager** | Dashboard, Finance, Contracts, Reports, Notifications |
+| **Sales Manager** | Dashboard, CRM, Sales, Marketing, Reports, Notifications |
+| **Marketing Manager** | Dashboard, CRM, Marketing, Reports, Notifications |
+| **Project Manager** | Dashboard, Projects, Team, My Tasks, Reports, Notifications |
 | **Sales Staff** | Dashboard, CRM, Sales, My Tasks, Notifications |
-| **Employee** | Dashboard, My Tasks, Notifications only |
+| **Employee** | Dashboard, My Tasks, Team, Notifications |
+
+Salary figures are only returned by the API to HR and finance roles.
 
 ---
 
@@ -477,6 +451,18 @@ CLIENT_URL=https://santech-bms.vercel.app
 PORT=5000
 ```
 
+### Seeding the database
+
+Migrations run automatically on every Render deploy. **The demo data seed does not** (the Render
+service's build command does not include `prisma db seed`). After a deploy that adds new demo data, run:
+
+```powershell
+cd backend
+pnpm db:seed      # uses DATABASE_URL from backend/.env (Neon)
+```
+
+The seed only adds missing rows, so it is safe to run any number of times.
+
 ### Environment Variables (Frontend — Vercel)
 
 ```
@@ -508,24 +494,18 @@ pnpm dev        # → http://localhost:5000
 
 ## Database Schema
 
-The Prisma schema covers all modules:
+PostgreSQL on Neon, managed with Prisma (see `backend/prisma/schema.prisma`).
 
-| Model | Description |
+| Area | Models |
 |---|---|
-| User | System users with roles |
-| Employee | Staff profiles linked to users |
-| SalaryRecord | Monthly salary slips |
-| Client | All client types and categories |
-| FieldVisit | Field visit records (from Excel) |
-| Product | Santech service catalog |
-| Opportunity | Sales pipeline deals |
-| Contract | Contract lifecycle |
-| Invoice | Invoices and billing |
-| Payment | Payment records |
-| Project | Project management |
-| Milestone | Project milestones |
-| Task | Task assignments |
-| AuditLog | System action log |
+| Users & HR | User, Employee, SalaryRecord, Department, Attendance, LeaveRequest |
+| CRM | Client, ClientMember, FieldVisit, Lead, Communication, Meeting, Visitor |
+| Sales & marketing | Opportunity, Quotation, Tender, Campaign, Product |
+| Contracts & services | Contract, ClientSubscription |
+| Finance | Invoice, Payment, IncomeEntry, ExpenseEntry, PurchaseRequest |
+| Projects | Project, Milestone, Task, Timesheet |
+| Support & knowledge | SupportTicket, KnowledgeArticle, Document, TrainingSession, TrainingAttendee |
+| System | Notification, AuditLog, Setting |
 
 ---
 
@@ -533,70 +513,25 @@ The Prisma schema covers all modules:
 
 ### ✅ Completed
 
-#### Foundation
-- [x] Monorepo structure (frontend + backend)
-- [x] React + TypeScript + Vite + Tailwind CSS frontend
-- [x] Node.js + Express + Prisma backend
-- [x] PostgreSQL schema (Neon)
-- [x] JWT authentication + role-based access
-- [x] Zustand state management
-- [x] Imigongo pattern background (Rwandan cultural design)
-- [x] Professional split-panel login page with quick demo login
-- [x] Role-based sidebar (each role sees permitted modules only)
-- [x] GitHub repository + CI/CD via Vercel + Render
+- [x] Monorepo (frontend + backend), JWT auth, role-based sidebar **and** role checks on every API route
+- [x] PostgreSQL schema on Neon with migrations applied automatically on deploy
+- [x] **Every page reads and saves through the API** — no page uses hardcoded mock data any more
+- [x] Demo data for every module seeded into the database (idempotent: safe to re-run, never overwrites edits)
+- [x] Finance linked end-to-end: invoices, payments, payroll, purchases, services and training feed the P&L
+- [x] Approval workflows: quotations (Sales → Manager → CEO), contracts, milestones, tasks, timesheets, leave, purchases
+- [x] Notification engine with a live unread count on the top bar
+- [x] Reports (sales, finance, team, clients) calculated from live data
+- [x] Audit trail of all important actions
+- [x] Project profitability (payments received − staff time cost from approved timesheets)
 
-#### Frontend Pages (All Built)
-- [x] Executive Dashboard (KPIs + 4 charts)
-- [x] Field Visits (14 columns, Excel migration, filters, modal)
-- [x] Leads Management (journey flow, convert to deal)
-- [x] Customer Management (4 types: Individual/Business/Team/Delegation)
-- [x] Client 360° Profile (timeline, financials, services, documents)
-- [x] Deal Pipeline (Kanban + list, drag & drop)
-- [x] Quotations (line items, VAT, workflow)
-- [x] Contracts (lifecycle, alerts)
-- [x] Client Services & Renewals (hosting, domains, renewal alerts)
-- [x] Invoices & Payments (tracking, record payment)
-- [x] Finance P&L (3 tabs: Overview, Income, Expenses)
-- [x] Projects (progress bars, status badges)
-- [x] Tasks (assign, approve, reject workflow)
-- [x] My Tasks (employee personal dashboard)
-- [x] Employees (grid + list view, performance bars)
-- [x] Departments (grid + list view, budget tracking)
-- [x] Workload View (available/busy/overloaded)
-- [x] Salary Management (bonuses, promotions)
-- [x] Marketing Campaigns (ROI tracking)
-- [x] Reports (4 tabs: Sales/Finance/Team/Clients)
-- [x] Notifications (type-colored alerts)
-- [x] Support Tickets (full lifecycle)
-- [x] User Management (CRUD, roles)
-- [x] Product Catalog (Santech services)
-- [x] Audit Trail (read-only action log)
-- [x] PhoneInput component (country code selector, 50+ countries)
+### 📋 Possible next steps
 
-#### Backend (Built, Integration Pending)
-- [x] Express server with helmet, CORS, rate limiting
-- [x] Auth routes (login, getMe, change password)
-- [x] Clients routes (CRUD, pagination, search)
-- [x] Field Visits routes (role-based filtering)
-- [x] All other routes scaffolded
-- [x] Deployed on Render
-- [x] Database on Neon (PostgreSQL)
-
-### 🔄 In Progress
-- [ ] Connect frontend to real backend API (replace mock data)
-- [ ] Run database migrations on Neon
-- [ ] Seed production database
-
-### 📋 Remaining Features
-- [ ] Milestone management page
-- [ ] Time & effort tracking (timesheets)
-- [ ] Document management center
-- [ ] Communication log (calls, emails, WhatsApp)
-- [ ] Meeting & appointment management
+- [ ] File storage for documents and signed contracts (only file names are stored today)
+- [ ] PDF generation for quotations and invoices
+- [ ] Email / SMS / WhatsApp delivery of notifications (in-app only today)
 - [ ] Customer portal (client self-service login)
-- [ ] Management approval workflows
-- [ ] PDF generation for quotations/invoices
-- [ ] Email/WhatsApp notifications
+- [ ] Supplier portal, accounts payable, balance sheet / cash-flow statements
+- [ ] Multi-currency
 
 ---
 
@@ -616,4 +551,4 @@ All 13 Excel columns are mapped to database fields and displayed in the Field Vi
 ---
 
 *SAN-BMS — Built for Santech Innovate, Kigali Rwanda 🇷🇼*
-*README last updated: October 2026*
+*README last updated: 29 October 2026*
