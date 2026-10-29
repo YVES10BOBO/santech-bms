@@ -10,6 +10,7 @@ import { seedSalesAndOperations } from './seeds/salesAndOperations'
 import { seedActivity } from './seeds/activity'
 import { seedGrowth } from './seeds/growth'
 import { seedOffice } from './seeds/office'
+import { seedDocumentLinks } from './seeds/documentLinks'
 import { seedTasksForEveryone } from './seeds/tasksForEveryone'
 
 const prisma = new PrismaClient()
@@ -260,6 +261,8 @@ async function main() {
   await seedGrowth(prisma)
   // Documents, attendance, tenders, procurement, training, knowledge base, company profile
   await seedOffice(prisma)
+  // Documents linked to clients/projects + sample files
+  await seedDocumentLinks(prisma)
   // Every demo login gets tasks on My Tasks
   await seedTasksForEveryone(prisma)
 

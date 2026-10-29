@@ -61,7 +61,19 @@ export async function getClient(req: AuthRequest, res: Response): Promise<void> 
         opportunities: true,
         contracts: true,
         invoices: { orderBy: { createdAt: 'desc' } },
-        quotations: { select: { id: true, quotationNumber: true, totalAmount: true, status: true, createdAt: true }, orderBy: { createdAt: 'desc' } },
+        quotations: {
+          select: {
+            id: true, quotationNumber: true, status: true, createdAt: true, validUntil: true, currency: true,
+            items: true, subtotal: true, vatRate: true, vatAmount: true, totalAmount: true,
+            contactName: true, contactPhone: true, contactEmail: true, paymentTerms: true, notes: true,
+          },
+          orderBy: { createdAt: 'desc' },
+        },
+        documents: {
+          where: { status: 'ACTIVE' },
+          include: { uploadedBy: { select: { firstName: true, lastName: true } }, project: { select: { name: true } } },
+          orderBy: { date: 'desc' },
+        },
         communications: { include: { loggedBy: { select: { firstName: true, lastName: true } } }, orderBy: { dateTime: 'desc' }, take: 50 },
         meetings: { orderBy: { date: 'desc' }, take: 20 },
         tickets: { select: { id: true, ticketNo: true, subject: true, status: true, createdAt: true }, orderBy: { createdAt: 'desc' }, take: 20 },

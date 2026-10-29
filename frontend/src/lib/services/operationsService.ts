@@ -95,7 +95,11 @@ export const timesheetService = {
 }
 
 export const documentService = {
-  getAll: () => get('/documents'),
+  /** Filters: search, category, clientId ("none" = company documents), projectId, status, from, to */
+  getAll: (filters: Record<string, string> = {}) => {
+    const qs = new URLSearchParams(Object.entries(filters).filter(([, v]) => v)).toString()
+    return get(`/documents${qs ? `?${qs}` : ''}`)
+  },
   create: (b: Body) => post('/documents', b),
   update: (id: string, b: Body) => put(`/documents/${id}`, b),
 }

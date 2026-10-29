@@ -8,6 +8,8 @@ import {
 } from 'lucide-react'
 import { cn, formatDate, formatCurrency } from '@/lib/utils'
 import { clientService } from '@/lib/services/clientService'
+import { fileService } from '@/lib/services/fileService'
+import { printDocument, type PrintDoc } from '@/lib/printDocument'
 import { communicationService } from '@/lib/services/operationsService'
 import { apiError } from '@/lib/services/lookupService'
 import toast from 'react-hot-toast'
@@ -23,7 +25,7 @@ type TimelineEventType =
 type ServiceStatus = 'ACTIVE' | 'EXPIRED' | 'PENDING'
 type ContractStatus = 'ACTIVE' | 'COMPLETED' | 'CANCELLED' | 'PENDING'
 type InvoiceStatus = 'PAID' | 'UNPAID' | 'PARTIAL' | 'OVERDUE'
-type DocumentType = 'Contract' | 'Proposal' | 'Invoice' | 'Other'
+type DocumentType = 'Contract' | 'Proposal' | 'Invoice' | 'Report' | 'Policy' | 'Other'
 
 interface Member {
   name: string
@@ -67,6 +69,13 @@ interface ClientDocument {
   name: string
   type: DocumentType
   date: string
+  detail?: string     // project, uploader or status
+  fileId?: string     // uploaded file → Download
+  print?: PrintDoc    // quotation / invoice → PDF made on the spot
+}
+
+const CATEGORY_TO_TYPE: Record<string, DocumentType> = {
+  CONTRACT: 'Contract', PROPOSAL: 'Proposal', INVOICE: 'Invoice', REPORT: 'Report', POLICY: 'Policy',
 }
 
 interface ClientProfile {
@@ -352,6 +361,8 @@ export default function ClientProfilePage() {
         const invoices = (c.invoices as Record<string, unknown>[] | undefined) ?? []
         const contracts = (c.contracts as Record<string, unknown>[] | undefined) ?? []
         const fieldVisits = (c.fieldVisits as Record<string, unknown>[] | undefined) ?? []
+        const linkedDocs = (c.documents as Record<string, unknown>[] | undefined) ?? []
+        const clientLabel = String(c.companyName ?? c.fullName ?? c.teamName ?? c.delegationName ?? '')
         const communications = (c.communications as Record<string, unknown>[] | undefined) ?? []
         const meetings = (c.meetings as Record<string, unknown>[] | undefined) ?? []
         const quotations = (c.quotations as Record<string, unknown>[] | undefined) ?? []
@@ -478,9 +489,52 @@ export default function ClientProfilePage() {
           })),
           // Documents this client has in the system
           documents: [
-            ...contracts.filter(ct => ct.signedDocumentName).map((ct): ClientDocument => ({ name: String(ct.signedDocumentName), type: 'Contract', date: ct.signedAt ? String(ct.signedAt).slice(0, 10) : String(ct.startDate ?? '').slice(0, 10) })),
-            ...quotations.map((q): ClientDocument => ({ name: `${String(q.quotationNumber)}.pdf`, type: 'Proposal', date: String(q.createdAt ?? '').slice(0, 10) })),
-            ...invoices.map((inv): ClientDocument => ({ name: `${String(inv.invoiceNumber)}.pdf`, type: 'Invoice', date: String(inv.issueDate ?? '').slice(0, 10) })),
+            // Files uploaded on the Documents page and linked to this client
+            ...linkedDocs.map((dd): ClientDocument => {
+              const project = dd.project as Record<string, unknown> | null | undefined
+              const by = dd.uploadedBy as Record<string, unknown> | null | undefined
+              return {
+                name: String(dd.name), type: CATEGORY_TO_TYPE[String(dd.category)] ?? 'Other', date: String(dd.date ?? '').slice(0, 10),
+                detail: [project?.name ? String(project.name) : '', by ? `by ${String(by.firstName)} ${String(by.lastName)}` : ''].filter(Boolean).join(' · '),
+                fileId: dd.fileId ? String(dd.fileId) : undefined,
+              }
+            }),
+            // Signed contracts uploaded at the signing step
+            ...contracts.filter(ct => ct.signedDocumentName).map((ct): ClientDocument => ({
+              name: String(ct.signedDocumentName), type: 'Contract', detail: `Signed contract ${String(ct.contractNumber ?? '')}`,
+              date: ct.signedAt ? String(ct.signedAt).slice(0, 10) : String(ct.startDate ?? '').slice(0, 10),
+              fileId: String(ct.signedDocumentUrl ?? '').startsWith('/files/') ? String(ct.signedDocumentUrl).slice(7) : undefined,
+            })),
+            // Quotations and invoices: the PDF is generated when you click
+            ...quotations.map((q): ClientDocument => ({
+              name: `${String(q.quotationNumber)}.pdf`, type: 'Proposal', date: String(q.createdAt ?? '').slice(0, 10),
+              detail: `Quotation · ${String(q.status ?? '').replace(/_/g, ' ').toLowerCase()}`,
+              print: {
+                kind: 'QUOTATION', number: String(q.quotationNumber), date: String(q.createdAt ?? ''),
+                dueOrValid: q.validUntil ? String(q.validUntil) : undefined, clientName: clientLabel,
+                contactName: q.contactName ? String(q.contactName) : undefined,
+                contactPhone: q.contactPhone ? String(q.contactPhone) : undefined,
+                contactEmail: q.contactEmail ? String(q.contactEmail) : undefined,
+                lines: ((q.items as Record<string, unknown>[] | undefined) ?? []).map(i => ({
+                  description: String(i.description ?? ''), quantity: Number(i.quantity ?? 0),
+                  unitPrice: Number(i.unitPrice ?? 0), total: Number(i.total ?? 0),
+                })),
+                subtotal: Number(q.subtotal ?? 0), vatRate: Number(q.vatRate ?? 0), vatAmount: Number(q.vatAmount ?? 0),
+                total: Number(q.totalAmount ?? 0), currency: String(q.currency ?? 'RWF'),
+                paymentTerms: q.paymentTerms ? String(q.paymentTerms) : undefined, notes: q.notes ? String(q.notes) : undefined,
+              },
+            })),
+            ...invoices.map((inv): ClientDocument => ({
+              name: `${String(inv.invoiceNumber)}.pdf`, type: 'Invoice', date: String(inv.issueDate ?? '').slice(0, 10),
+              detail: `Invoice · ${String(inv.status ?? '').replace(/_/g, ' ').toLowerCase()}`,
+              print: {
+                kind: 'INVOICE', number: String(inv.invoiceNumber), date: String(inv.issueDate ?? ''),
+                dueOrValid: inv.dueDate ? String(inv.dueDate) : undefined, clientName: clientLabel,
+                lines: [{ description: String(inv.notes || 'Services rendered'), quantity: 1, unitPrice: Number(inv.amount ?? 0), total: Number(inv.amount ?? 0) }],
+                subtotal: Number(inv.amount ?? 0), vatAmount: Number(inv.taxAmount ?? 0), total: Number(inv.totalAmount ?? 0),
+                paid: Number(inv.paidAmount ?? 0), currency: String(inv.currency ?? 'RWF'),
+              },
+            })),
           ],
         }
         setProfile(mapped)
@@ -859,11 +913,19 @@ export default function ClientProfilePage() {
                         <span className="text-xs text-gray-400">{doc.type}</span>
                         <span className="text-xs text-gray-300">·</span>
                         <span className="text-xs text-gray-400">{formatDate(doc.date)}</span>
+                        {doc.detail && <><span className="text-xs text-gray-300">·</span><span className="text-xs text-gray-400">{doc.detail}</span></>}
                       </div>
                     </div>
-                    <button className="flex items-center gap-1 text-xs text-santech-600 hover:text-santech-700 font-medium px-2 py-1 rounded hover:bg-santech-50">
-                      <Download className="w-3.5 h-3.5" /> Download
-                    </button>
+                    {doc.fileId || doc.print ? (
+                      <button
+                        onClick={() => (doc.fileId ? fileService.open(doc.fileId, true, doc.name) : printDocument(doc.print!))}
+                        className="flex items-center gap-1 text-xs text-santech-600 hover:text-santech-700 font-medium px-2 py-1 rounded hover:bg-santech-50"
+                      >
+                        <Download className="w-3.5 h-3.5" /> {doc.fileId ? 'Download' : 'PDF'}
+                      </button>
+                    ) : (
+                      <span className="text-xs text-gray-400 px-2 py-1">No file</span>
+                    )}
                   </div>
                 ))}
               </div>

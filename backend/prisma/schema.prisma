@@ -391,6 +391,7 @@ model Client {
   communications Communication[]
   meetings     Meeting[]
   subscriptions ClientSubscription[]
+  documents    Document[]
 
   @@map("clients")
 }
@@ -610,6 +611,7 @@ model Project {
   milestones       Milestone[]
   invoices         Invoice[]
   timesheets       Timesheet[]
+  documents        Document[]
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 
@@ -1031,11 +1033,17 @@ model Document {
   description  String?
   size         String?
   status       String   @default("ACTIVE") // ACTIVE, ARCHIVED
+  clientId     String?  // optional link so the document shows on the client's 360° page
+  client       Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  projectId    String?  // optional link to a project (its client is linked too)
+  project      Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
   uploadedById String
   uploadedBy   User     @relation("DocumentUploadedBy", fields: [uploadedById], references: [id])
   date         DateTime @default(now())
   createdAt    DateTime @default(now())
 
+  @@index([clientId])
+  @@index([projectId])
   @@map("documents")
 }
 

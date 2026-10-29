@@ -20,10 +20,59 @@ const nameOf = (u: { firstName: string; lastName: string } | null | undefined) =
 
 // ── DOCUMENTS ─────────────────────────────────────────────────────────────────
 
-export async function getDocuments(_req: AuthRequest, res: Response): Promise<void> {
+const DOC_CATEGORIES = ['CONTRACT', 'INVOICE', 'PROPOSAL', 'REPORT', 'POLICY', 'OTHER']
+const docInclude = {
+  uploadedBy: userName,
+  client: { select: { id: true, companyName: true } },
+  project: { select: { id: true, name: true } },
+}
+const ONE_DAY = 24 * 60 * 60 * 1000
+
+/**
+ * List documents. All filters are optional and can be combined:
+ *   ?search=   matches the name, description, client name or project name
+ *   ?category= CONTRACT | INVOICE | PROPOSAL | REPORT | POLICY | OTHER
+ *   ?clientId= a client id, or "none" for documents not linked to a client
+ *   ?projectId= ?status=ACTIVE|ARCHIVED ?from=YYYY-MM-DD ?to=YYYY-MM-DD
+ * The totals always count the whole library, so the cards stay steady while filtering.
+ */
+export async function getDocuments(req: AuthRequest, res: Response): Promise<void> {
   try {
-    const rows = await prisma.document.findMany({ include: { uploadedBy: userName }, orderBy: { date: 'desc' } })
-    res.json({ success: true, data: rows })
+    const q = req.query
+    const where: Prisma.DocumentWhereInput = {}
+    if (q.category && q.category !== 'ALL') where.category = String(q.category)
+    if (q.status && q.status !== 'ALL') where.status = String(q.status)
+    if (q.clientId) where.clientId = q.clientId === 'none' ? null : String(q.clientId)
+    if (q.projectId) where.projectId = String(q.projectId)
+    if (q.from || q.to) {
+      where.date = {
+        ...(q.from ? { gte: day(q.from) } : {}),
+        ...(q.to ? { lt: new Date(day(q.to).getTime() + ONE_DAY) } : {}),
+      }
+    }
+    const search = String(q.search ?? '').trim()
+    if (search) {
+      const has = { contains: search, mode: 'insensitive' as const }
+      where.OR = [{ name: has }, { description: has }, { client: { companyName: has } }, { project: { name: has } }]
+    }
+
+    const [rows, groups] = await Promise.all([
+      prisma.document.findMany({ where, include: docInclude, orderBy: { date: 'desc' } }),
+      prisma.document.groupBy({ by: ['category', 'status'], _count: { _all: true } }),
+    ])
+    const count = (match: (g: { category: string; status: string }) => boolean) =>
+      groups.filter(match).reduce((sum, g) => sum + g._count._all, 0)
+    res.json({
+      success: true,
+      data: rows,
+      totals: {
+        all: count(() => true),
+        active: count(g => g.status === 'ACTIVE'),
+        archived: count(g => g.status === 'ARCHIVED'),
+        contracts: count(g => g.category === 'CONTRACT'),
+        reports: count(g => g.category === 'REPORT'),
+      },
+    })
   } catch (e) { fail(res, e, 'getDocuments') }
 }
 
@@ -31,23 +80,68 @@ export async function saveDocument(req: AuthRequest, res: Response): Promise<voi
   try {
     const id = req.params.id
     const b = req.body
-    if (!id && !b.name) { res.status(400).json({ success: false, message: 'Document name is required' }); return }
+    if (!id && !String(b.name ?? '').trim()) { res.status(400).json({ success: false, message: 'Document name is required' }); return }
+    if (b.category !== undefined && !DOC_CATEGORIES.includes(b.category)) { res.status(400).json({ success: false, message: 'Unknown document category' }); return }
+
+    const before = id ? await prisma.document.findUnique({ where: { id } }) : null
+    if (id && !before) { res.status(404).json({ success: false, message: 'Document not found' }); return }
+    // Only the person who added a document, or an admin, can change or archive it
+    if (before && before.uploadedById !== req.user!.id && !hasRole(req.user?.role, ADMINS)) {
+      res.status(403).json({ success: false, message: 'Only the person who added this document or an admin can change it' }); return
+    }
+
+    // Client / project links. Choosing a project also links that project's client.
+    let clientId: string | null | undefined = b.clientId === undefined ? undefined : (b.clientId || null)
+    let projectId: string | null | undefined = b.projectId === undefined ? undefined : (b.projectId || null)
+    if (clientId && !(await prisma.client.findUnique({ where: { id: clientId }, select: { id: true } }))) {
+      res.status(400).json({ success: false, message: 'Client not found' }); return
+    }
+    const linkedProject = projectId !== undefined ? projectId : before?.projectId ?? null
+    if (linkedProject) {
+      const project = await prisma.project.findUnique({ where: { id: linkedProject }, select: { clientId: true } })
+      if (!project) { res.status(400).json({ success: false, message: 'Project not found' }); return }
+      if (projectId !== undefined) {
+        if (clientId && clientId !== project.clientId) {
+          res.status(400).json({ success: false, message: 'That project belongs to a different client' }); return
+        }
+        clientId = project.clientId
+      } else if (clientId !== undefined && clientId !== project.clientId) {
+        projectId = null // the client changed, so the old project link no longer fits
+      }
+    }
+
     const data = {
-      ...(b.name !== undefined && { name: b.name }),
+      ...(b.name !== undefined && { name: String(b.name).trim() }),
       ...(b.category !== undefined && { category: b.category }),
       ...(b.description !== undefined && { description: b.description || null }),
       ...(b.size !== undefined && { size: b.size || null }),
-      ...(b.status !== undefined && { status: b.status }),
+      ...(b.status !== undefined && { status: b.status === 'ARCHIVED' ? 'ARCHIVED' : 'ACTIVE' }),
       ...(b.fileId !== undefined && { fileId: b.fileId || null }),
+      ...(clientId !== undefined && { clientId }),
+      ...(projectId !== undefined && { projectId }),
     }
     const d = id
-      ? await prisma.document.update({ where: { id }, data, include: { uploadedBy: userName } })
-      : await prisma.document.create({ data: { category: 'OTHER', ...data, name: b.name, uploadedById: req.user!.id }, include: { uploadedBy: userName } })
+      ? await prisma.document.update({ where: { id }, data, include: docInclude })
+      : await prisma.document.create({
+          data: { category: 'OTHER', ...data, name: String(b.name).trim(), uploadedById: req.user!.id },
+          include: docInclude,
+        })
+
+    const statusChanged = !!before && before.status !== d.status
+    const link = d.client ? ` for ${d.client.companyName}${d.project ? ` (${d.project.name})` : ''}` : ''
     await logAudit(req, {
-      action: id ? (b.status ? 'STATUS_CHANGE' : 'UPDATE') : 'CREATE', entity: 'Document', entityId: d.id, entityName: d.name,
-      description: id ? (b.status === 'ARCHIVED' ? `Archived document ${d.name}` : `Updated document ${d.name}`) : `Added document ${d.name}`,
+      action: !before ? 'CREATE' : statusChanged ? 'STATUS_CHANGE' : 'UPDATE',
+      entity: 'Document', entityId: d.id, entityName: d.name,
+      description: !before ? `Added document ${d.name}${link}`
+        : statusChanged ? `${d.status === 'ARCHIVED' ? 'Archived' : 'Restored'} document ${d.name}`
+        : `Updated document ${d.name}${link}`,
+      ...(before ? { oldValue: { category: before.category, status: before.status, clientId: before.clientId, projectId: before.projectId } } : {}),
+      newValue: { category: d.category, status: d.status, client: d.client?.companyName ?? null, project: d.project?.name ?? null },
     })
-    res.status(id ? 200 : 201).json({ success: true, data: d, message: id ? 'Document updated' : 'Document added' })
+    res.status(before ? 200 : 201).json({
+      success: true, data: d,
+      message: !before ? 'Document added' : statusChanged ? (d.status === 'ARCHIVED' ? 'Document archived' : 'Document restored') : 'Document updated',
+    })
   } catch (e) { fail(res, e, 'saveDocument') }
 }
 
