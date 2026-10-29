@@ -38,6 +38,7 @@ export async function saveDocument(req: AuthRequest, res: Response): Promise<voi
       ...(b.description !== undefined && { description: b.description || null }),
       ...(b.size !== undefined && { size: b.size || null }),
       ...(b.status !== undefined && { status: b.status }),
+      ...(b.fileId !== undefined && { fileId: b.fileId || null }),
     }
     const d = id
       ? await prisma.document.update({ where: { id }, data, include: { uploadedBy: userName } })

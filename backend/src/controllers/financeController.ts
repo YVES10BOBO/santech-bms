@@ -551,7 +551,7 @@ export async function updateContract(req: AuthRequest, res: Response): Promise<v
   try {
     const {
       clientId, projectName, value, startDate, endDate, paymentTerms, deliverables, status,
-      responsibleManagerId, signatories, signedDocumentName, approvalNote, notes,
+      responsibleManagerId, signatories, signedDocumentName, signedDocumentUrl, approvalNote, notes,
     } = req.body
 
     const before = await prisma.contract.findUnique({ where: { id: req.params.id } })
@@ -594,6 +594,7 @@ export async function updateContract(req: AuthRequest, res: Response): Promise<v
         ...(responsibleManagerId !== undefined && { responsibleManagerId: responsibleManagerId || null }),
         ...(Array.isArray(signatories) && { signatories: signatories as unknown as Prisma.InputJsonValue }),
         ...(signedDocumentName !== undefined && { signedDocumentName }),
+        ...(signedDocumentUrl !== undefined && { signedDocumentUrl }),
         ...(approvalNote !== undefined && { approvalNote }),
         ...(notes !== undefined && { notes }),
         ...(status !== undefined && { status }),

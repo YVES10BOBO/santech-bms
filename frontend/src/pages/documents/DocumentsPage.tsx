@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react'
-import { FolderOpen, Plus, Search, Eye, X, FileText, Archive } from 'lucide-react'
+import { FolderOpen, Plus, Search, Eye, X, FileText, Archive, Download, Upload } from 'lucide-react'
 import { cn, formatDate } from '@/lib/utils'
 import { documentService } from '@/lib/services/operationsService'
 import { apiError } from '@/lib/services/lookupService'
 import PageLoader from '@/components/shared/PageLoader'
 import toast from 'react-hot-toast'
+import { fileService, formatSize } from '@/lib/services/fileService'
 
 type DocCategory = 'CONTRACT' | 'INVOICE' | 'PROPOSAL' | 'REPORT' | 'POLICY' | 'OTHER'
 
@@ -17,6 +18,7 @@ interface Document {
   date: string
   size: string
   status: 'ACTIVE' | 'ARCHIVED'
+  fileId?: string
 }
 
 const CATEGORY_COLORS: Record<DocCategory, string> = {
@@ -32,7 +34,7 @@ const CATEGORY_COLORS: Record<DocCategory, string> = {
 const toDoc = (d: any): Document => ({
   id: d.id, name: d.name, category: d.category, description: d.description ?? '',
   uploadedBy: d.uploadedBy ? `${d.uploadedBy.firstName} ${d.uploadedBy.lastName}` : '',
-  date: String(d.date).slice(0, 10), size: d.size ?? '—', status: d.status,
+  date: String(d.date).slice(0, 10), size: d.size ?? '—', status: d.status, fileId: d.fileId ?? undefined,
 })
 
 const emptyForm = {
@@ -45,6 +47,7 @@ export default function DocumentsPage() {
   const [documents, setDocuments] = useState<Document[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [file, setFile] = useState<File | null>(null)
 
   useEffect(() => {
     documentService.getAll()
@@ -87,13 +90,18 @@ export default function DocumentsPage() {
     if (!form.name.trim()) return
     setSaving(true)
     try {
-      const res = await documentService.create({ name: form.name.trim(), category: form.category, description: form.description.trim() })
+      const up = file ? await fileService.upload(file) : null
+      const res = await documentService.create({
+        name: form.name.trim(), category: form.category, description: form.description.trim(),
+        ...(up ? { fileId: up.id, size: formatSize(up.size) } : {}),
+      })
       setDocuments(prev => [toDoc(res.data), ...prev])
       toast.success(res.message)
       setShowAddModal(false)
       setForm(emptyForm)
+      setFile(null)
     } catch (err) {
-      toast.error(apiError(err, 'Failed to add document'))
+      toast.error(apiError(err, err instanceof Error ? err.message : 'Failed to add document'))
     } finally {
       setSaving(false)
     }
@@ -207,6 +215,11 @@ export default function DocumentsPage() {
                       >
                         <Eye className="w-3 h-3" /> View
                       </button>
+                      {doc.fileId && (
+                        <button onClick={() => fileService.open(doc.fileId!, true, doc.name)} className="flex items-center gap-1 text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded-lg hover:bg-blue-100 font-medium transition-colors">
+                          <Download className="w-3 h-3" /> Download
+                        </button>
+                      )}
                       <button onClick={() => toggleArchive(doc)} className="flex items-center gap-1 text-xs bg-amber-50 text-amber-700 px-2 py-1 rounded-lg hover:bg-amber-100 font-medium transition-colors">
                         <Archive className="w-3 h-3" /> {doc.status === 'ACTIVE' ? 'Archive' : 'Restore'}
                       </button>
@@ -233,6 +246,14 @@ export default function DocumentsPage() {
               <button onClick={() => setShowAddModal(false)}><X className="w-5 h-5 text-gray-400" /></button>
             </div>
             <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
+              <div>
+                <label className={labelCls}>File (PDF, Word, Excel, image — max 5 MB)</label>
+                <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 px-3 py-3 text-sm text-gray-600 hover:bg-gray-50">
+                  <Upload className="h-4 w-4" /> {file ? `${file.name} (${formatSize(file.size)})` : 'Choose a file'}
+                  <input type="file" className="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.zip,image/*"
+                    onChange={e => { const f = e.target.files?.[0] ?? null; setFile(f); if (f && !form.name) setForm(prev => ({ ...prev, name: f.name })) }} />
+                </label>
+              </div>
               <div>
                 <label className={labelCls}>Document Name *</label>
                 <input name="name" value={form.name} onChange={handleFormChange} placeholder="e.g. Contract-2026.pdf" required className={inputCls} />
@@ -280,6 +301,7 @@ export default function DocumentsPage() {
               <p>Uploaded by: <span className="text-gray-700 font-medium">{viewDoc.uploadedBy}</span></p>
               <p>Date: <span className="text-gray-700 font-medium">{formatDate(viewDoc.date)}</span></p>
               <p>Size: <span className="text-gray-700 font-medium">{viewDoc.size}</span></p>
+              {viewDoc.fileId && <button onClick={() => fileService.open(viewDoc.fileId!)} className="mt-2 text-santech-600 hover:underline font-medium">Open file</button>}
             </div>
             <button onClick={() => setViewDoc(null)}
               className="w-full py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 font-medium">

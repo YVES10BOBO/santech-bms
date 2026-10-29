@@ -1025,6 +1025,7 @@ model Timesheet {
 
 model Document {
   id           String   @id @default(cuid())
+  fileId       String?  // uploaded file (see StoredFile)
   name         String
   category     String   // CONTRACT, INVOICE, PROPOSAL, REPORT, POLICY, OTHER
   description  String?
@@ -1202,4 +1203,20 @@ model Setting {
   updatedAt DateTime @updatedAt
 
   @@map("settings")
+}
+
+// ===========================
+// STORED FILES (kept in the database — Render's disk is wiped on deploy)
+// ===========================
+
+model StoredFile {
+  id           String   @id @default(cuid())
+  name         String
+  mimeType     String
+  size         Int
+  data         Bytes
+  uploadedById String
+  createdAt    DateTime @default(now())
+
+  @@map("stored_files")
 }

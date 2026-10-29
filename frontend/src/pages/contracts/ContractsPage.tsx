@@ -7,6 +7,7 @@ import { useLookups, apiError } from '@/lib/services/lookupService'
 import { useAuthStore } from '@/store/authStore'
 import PageLoader from '@/components/shared/PageLoader'
 import toast from 'react-hot-toast'
+import { fileService } from '@/lib/services/fileService'
 
 type ContractStatus = 'DRAFT' | 'REVIEW' | 'APPROVAL' | 'SIGNING' | 'ACTIVE' | 'RENEWAL' | 'COMPLETED' | 'CANCELLED'
 type SignatureStatus = 'PENDING' | 'SIGNED'
@@ -39,6 +40,7 @@ interface Contract {
   sourceQuotationNumber?: string
   signatories?: ContractSignatory[]
   signedDocumentName?: string
+  signedDocumentFileId?: string
   approvalNote?: string
 }
 
@@ -101,6 +103,7 @@ function toContract(c: any): Contract {
     sourceQuotationNumber: c.sourceQuotationNumber ?? undefined,
     signatories: Array.isArray(c.signatories) ? c.signatories : [],
     signedDocumentName: c.signedDocumentName ?? undefined,
+    signedDocumentFileId: c.signedDocumentUrl?.startsWith('/files/') ? c.signedDocumentUrl.slice(7) : undefined,
     approvalNote: c.approvalNote ?? undefined,
   }
 }
@@ -279,11 +282,15 @@ export default function ContractsPage() {
     saveContract(contractId, { signatories }, `${signatoryName} signed`)
   }
 
-  const attachSignedDocument = (contractId: string, file?: File) => {
+  const attachSignedDocument = async (contractId: string, file?: File) => {
     if (!file) return
     setSignatureError('')
-    // Only the file name is stored for now (no file storage service yet)
-    saveContract(contractId, { signedDocumentName: file.name }, 'Signed document attached')
+    try {
+      const up = await fileService.upload(file)
+      await saveContract(contractId, { signedDocumentName: up.name, signedDocumentUrl: `/files/${up.id}` }, 'Signed document uploaded')
+    } catch (err) {
+      toast.error(apiError(err, err instanceof Error ? err.message : 'Upload failed'))
+    }
   }
 
   const totalValue = contracts.filter(c => c.status === 'ACTIVE').reduce((s, c) => s + c.value, 0)
@@ -466,6 +473,11 @@ export default function ContractsPage() {
                   <p className="text-xs text-gray-400 mb-1">Source Quotation</p>
                   <p className="font-mono text-sm font-semibold text-santech-700">{viewContract.sourceQuotationNumber}</p>
                 </div>
+              )}
+              {viewContract.signedDocumentFileId && (
+                <button onClick={() => fileService.open(viewContract.signedDocumentFileId!)} className="w-full flex items-center justify-center gap-2 rounded-lg border border-santech-200 px-3 py-2 text-sm font-medium text-santech-700 hover:bg-santech-50">
+                  <FileText className="h-4 w-4" /> Open signed document ({viewContract.signedDocumentName})
+                </button>
               )}
               {viewContract.paymentTerms && (
                 <div>
