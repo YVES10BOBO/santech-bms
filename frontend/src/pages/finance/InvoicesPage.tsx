@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react'
-import { Plus, Search, X, AlertCircle, CheckCircle2, Clock, DollarSign } from 'lucide-react'
+import { Plus, Search, X, AlertCircle, CheckCircle2, Clock, DollarSign, Download } from 'lucide-react'
 import { cn, formatDate, formatCurrency } from '@/lib/utils'
 import { financeService } from '@/lib/services/financeService'
 import { useLookups, apiError } from '@/lib/services/lookupService'
 import PageLoader from '@/components/shared/PageLoader'
 import toast from 'react-hot-toast'
+import { printDocument } from '@/lib/printDocument'
 
 type InvoiceStatus = 'DRAFT' | 'SENT' | 'DUE' | 'PARTIALLY_PAID' | 'PAID' | 'OVERDUE' | 'CANCELLED'
 
@@ -293,7 +294,15 @@ export default function InvoicesPage() {
                 <p className="font-mono text-xs text-santech-600 font-semibold">{viewInvoice.invoiceNumber}</p>
                 <h2 className="font-semibold text-gray-800">{viewInvoice.clientName}</h2>
               </div>
-              <button onClick={() => setViewInvoice(null)}><X className="w-5 h-5 text-gray-400" /></button>
+<div className="flex items-center gap-2">
+                <button onClick={() => printDocument({
+                  kind: 'INVOICE', number: viewInvoice.invoiceNumber, date: viewInvoice.issueDate, dueOrValid: viewInvoice.dueDate,
+                  clientName: viewInvoice.clientName, reference: [viewInvoice.contractNumber, viewInvoice.projectName].filter(Boolean).join(' · '),
+                  lines: [{ description: viewInvoice.notes || viewInvoice.projectName || 'Services rendered', quantity: 1, unitPrice: viewInvoice.amount, total: viewInvoice.amount }],
+                  subtotal: viewInvoice.amount, vatAmount: viewInvoice.taxAmount, total: viewInvoice.totalAmount, paid: viewInvoice.paidAmount, currency: viewInvoice.currency,
+                })} className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg bg-santech-50 text-santech-700 hover:bg-santech-100 font-medium"><Download className="w-3.5 h-3.5" /> PDF</button>
+                <button onClick={() => setViewInvoice(null)}><X className="w-5 h-5 text-gray-400" /></button>
+              </div>
             </div>
             <div className="px-6 py-5 space-y-4 text-sm">
               <div className="grid grid-cols-2 gap-3">

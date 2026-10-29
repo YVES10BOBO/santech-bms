@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, X, FileText, CheckCircle2, Clock, ArrowRight, Trash2 } from 'lucide-react'
+import { Plus, Search, X, FileText, CheckCircle2, Clock, ArrowRight, Trash2, Download } from 'lucide-react'
 import { cn, formatDate, formatCurrency } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
 import { quotationService } from '@/lib/services/operationsService'
 import { useLookups, apiError } from '@/lib/services/lookupService'
 import PageLoader from '@/components/shared/PageLoader'
 import toast from 'react-hot-toast'
+import { printDocument } from '@/lib/printDocument'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type QuotationStatus = 'DRAFT' | 'INTERNAL_REVIEW' | 'MANAGER_APPROVAL' | 'CEO_APPROVAL' | 'APPROVED' | 'SENT' | 'VIEWED' | 'NEGOTIATION' | 'ACCEPTED' | 'REJECTED' | 'CONVERTED' | 'EXPIRED'
@@ -446,7 +447,15 @@ export default function QuotationsPage() {
                 <p className="font-mono text-xs text-santech-600 font-semibold">{viewQuotation.quotationNumber}</p>
                 <h2 className="font-semibold text-gray-800">{viewQuotation.clientName}</h2>
               </div>
-              <button onClick={() => setViewQuotation(null)}><X className="w-5 h-5 text-gray-400" /></button>
+<div className="flex items-center gap-2">
+                <button onClick={() => printDocument({
+                  kind: 'QUOTATION', number: viewQuotation.quotationNumber, date: viewQuotation.createdAt, dueOrValid: viewQuotation.validUntil,
+                  clientName: viewQuotation.clientName, contactName: viewQuotation.contactName, contactPhone: viewQuotation.contactPhone, contactEmail: viewQuotation.contactEmail,
+                  lines: viewQuotation.items, subtotal: viewQuotation.subtotal, vatRate: viewQuotation.vatRate, vatAmount: viewQuotation.vatAmount,
+                  total: viewQuotation.totalAmount, currency: viewQuotation.currency, paymentTerms: viewQuotation.paymentTerms, notes: viewQuotation.notes,
+                })} className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg bg-santech-50 text-santech-700 hover:bg-santech-100 font-medium"><Download className="w-3.5 h-3.5" /> PDF</button>
+                <button onClick={() => setViewQuotation(null)}><X className="w-5 h-5 text-gray-400" /></button>
+              </div>
             </div>
             <div className="px-6 py-5 space-y-5">
               {/* Status */}
