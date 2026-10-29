@@ -62,6 +62,7 @@ import financeRouter from './routes/finance'
 import dashboardRouter from './routes/dashboard'
 import salaryRouter from './routes/salary'
 import lookupsRouter from './routes/lookups'
+import step2Router from './routes/step2'
 import prisma from './lib/prisma'
 import { authenticate as authMiddleware, authorize } from './middleware/auth'
 
@@ -77,6 +78,8 @@ app.use('/api/dashboard', dashboardRouter)
 // Opportunities and Contracts are served under /api/finance (see routes/finance.ts)
 app.use('/api/salary', salaryRouter)
 app.use('/api/lookups', lookupsRouter)
+// Leads, quotations, tickets, products, departments, visitors, users, notifications
+app.use('/api', step2Router)
 
 // Audit logs — read-only, management only
 app.get('/api/audit-logs', authMiddleware, authorize('SUPER_ADMIN', 'ADMIN'), async (req: express.Request, res: express.Response) => {

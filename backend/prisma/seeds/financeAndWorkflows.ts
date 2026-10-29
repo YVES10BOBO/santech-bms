@@ -267,6 +267,10 @@ export async function seedFinanceAndWorkflows(prisma: PrismaClient) {
     }
   }
 
+  // b2) On a fresh database the seeded "done" milestones are created after the
+  //     migration's data fix, so mark them approved here too.
+  await prisma.milestone.updateMany({ where: { isCompleted: true, status: 'NOT_STARTED' }, data: { status: 'APPROVED', approvedAt: new Date() } })
+
   // c) Done milestones with no payment share are simply COMPLETED (nothing to invoice)
   await prisma.milestone.updateMany({ where: { status: 'APPROVED', paymentPercentage: 0, invoiceId: null }, data: { status: 'COMPLETED' } })
 

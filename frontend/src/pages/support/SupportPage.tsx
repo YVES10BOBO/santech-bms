@@ -1,6 +1,10 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Plus, Search, X, Eye, CheckCircle2, XCircle } from 'lucide-react'
 import { cn, formatDate } from '@/lib/utils'
+import { ticketService } from '@/lib/services/operationsService'
+import { useLookups, apiError } from '@/lib/services/lookupService'
+import PageLoader from '@/components/shared/PageLoader'
+import toast from 'react-hot-toast'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 type TicketStatus =
@@ -16,7 +20,8 @@ type Priority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'
 type Product = 'EVS' | 'SANTRACK' | 'REVIXSAN' | 'Website' | 'Other'
 
 interface Ticket {
-  id: number
+  id: string
+  assignedId: string
   ticketNo: string
   client: string
   subject: string
@@ -30,86 +35,24 @@ interface Ticket {
 }
 
 // ─── Mock data ─────────────────────────────────────────────────────────────────
-const mockTickets: Ticket[] = [
-  {
-    id: 1,
-    ticketNo: 'TKT-0001',
-    client: 'SABBAN ABATTOIR',
-    subject: 'EVS device not connecting',
-    description: 'The EVS device at the main entrance has stopped connecting to the server since yesterday morning. Staff cannot clock in or out.',
-    product: 'EVS',
-    priority: 'HIGH',
-    status: 'IN_PROGRESS',
-    assigned: 'Alice Uwimana',
-    created: '2026-10-10',
-    updated: '2026-10-13',
-  },
-  {
-    id: 2,
-    ticketNo: 'TKT-0002',
-    client: 'East African Seed Ltd',
-    subject: 'SANTRACK reports not loading',
-    description: 'The monthly sales reports page returns a blank screen after login. This started after the last update.',
-    product: 'SANTRACK',
-    priority: 'MEDIUM',
-    status: 'ASSIGNED',
-    assigned: 'Bob Nkurunziza',
-    created: '2026-10-11',
-    updated: '2026-10-12',
-  },
-  {
-    id: 3,
-    ticketNo: 'TKT-0003',
-    client: 'Rwanda Mountain Ride',
-    subject: 'Website contact form broken',
-    description: 'Submissions on the contact form do not arrive in the inbox. The form appears to submit successfully but no emails are received.',
-    product: 'Website',
-    priority: 'LOW',
-    status: 'NEW',
-    assigned: 'Unassigned',
-    created: '2026-10-12',
-    updated: '2026-10-12',
-  },
-  {
-    id: 4,
-    ticketNo: 'TKT-0004',
-    client: 'NYARUGENGE HOSPITAL',
-    subject: 'EVS fingerprint reader error',
-    description: 'The fingerprint reader on ward 3 displays error code E-04 and will not accept new enrollments. Affects 20 staff members.',
-    product: 'EVS',
-    priority: 'URGENT',
-    status: 'WAITING_CUSTOMER',
-    assigned: 'Alice Uwimana',
-    created: '2026-10-08',
-    updated: '2026-10-14',
-  },
-  {
-    id: 5,
-    ticketNo: 'TKT-0005',
-    client: 'N&T PLASTIC INDUSTRIES',
-    subject: 'SANTRACK stock discrepancy',
-    description: 'Stock counts in SANTRACK do not match physical inventory for the raw materials warehouse. Discrepancy noticed during monthly audit.',
-    product: 'SANTRACK',
-    priority: 'HIGH',
-    status: 'RESOLVED',
-    assigned: 'Carol Ingabire',
-    created: '2026-10-05',
-    updated: '2026-10-11',
-  },
-  {
-    id: 6,
-    ticketNo: 'TKT-0006',
-    client: 'Capital Transport Agency',
-    subject: 'Login issue on driver portal',
-    description: 'Several drivers cannot log in to the portal after a password reset. The reset email link appears to expire too quickly.',
-    product: 'Other',
-    priority: 'MEDIUM',
-    status: 'CLOSED',
-    assigned: 'Bob Nkurunziza',
-    created: '2026-10-03',
-    updated: '2026-10-09',
-  },
-]
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toTicket(t: any): Ticket {
+  return {
+    id: t.id,
+    ticketNo: t.ticketNo,
+    client: t.client?.companyName ?? '',
+    subject: t.subject,
+    description: t.description,
+    product: t.product,
+    priority: t.priority,
+    status: t.status,
+    assigned: t.assignedTo ? `${t.assignedTo.firstName} ${t.assignedTo.lastName}` : 'Unassigned',
+    assignedId: t.assignedToId ?? '',
+    created: String(t.createdAt).slice(0, 10),
+    updated: String(t.updatedAt).slice(0, 10),
+  }
+}
+
 
 // ─── Badge helpers ─────────────────────────────────────────────────────────────
 const STATUS_COLORS: Record<TicketStatus, string> = {
@@ -139,7 +82,6 @@ const PRIORITY_COLORS: Record<Priority, string> = {
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 const PRODUCTS: Product[] = ['EVS', 'SANTRACK', 'REVIXSAN', 'Website', 'Other']
-const AGENTS = ['Alice Uwimana', 'Bob Nkurunziza', 'Carol Ingabire', 'Unassigned']
 const ROWS_OPTIONS = [5, 10, 20] as const
 
 const STATUS_OPTIONS: { value: TicketStatus | 'ALL'; label: string }[] = [
@@ -171,7 +113,7 @@ const PRODUCT_OPTIONS: { value: Product | 'ALL'; label: string }[] = [
 
 // ─── Form type ─────────────────────────────────────────────────────────────────
 interface TicketForm {
-  client: string
+  clientId: string
   subject: string
   description: string
   product: Product
@@ -180,26 +122,29 @@ interface TicketForm {
 }
 
 const emptyForm: TicketForm = {
-  client: '',
+  clientId: '',
   subject: '',
   description: '',
   product: 'EVS',
   priority: 'MEDIUM',
-  assigned: 'Unassigned',
-}
-
-// ─── Ticket number generator ───────────────────────────────────────────────────
-function generateTicketNo(existing: Ticket[]): string {
-  const max = existing.reduce((acc, t) => {
-    const num = parseInt(t.ticketNo.replace('TKT-', ''), 10)
-    return isNaN(num) ? acc : Math.max(acc, num)
-  }, 0)
-  return `TKT-${String(max + 1).padStart(4, '0')}`
+  assigned: '',
 }
 
 // ─── Component ─────────────────────────────────────────────────────────────────
 export default function SupportPage() {
-  const [tickets, setTickets] = useState<Ticket[]>(mockTickets)
+  const [tickets, setTickets] = useState<Ticket[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const lookups = useLookups()
+  const agents = lookups.users
+
+  useEffect(() => {
+    ticketService.getAll()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then((res: any) => setTickets((res.data ?? []).map(toTicket)))
+      .catch(err => toast.error(apiError(err, 'Failed to load tickets')))
+      .finally(() => setLoading(false))
+  }, [])
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<TicketStatus | 'ALL'>('ALL')
   const [priorityFilter, setPriorityFilter] = useState<Priority | 'ALL'>('ALL')
@@ -268,7 +213,7 @@ export default function SupportPage() {
 
   const validateForm = (): boolean => {
     const errors: Partial<Record<keyof TicketForm, string>> = {}
-    if (!form.client.trim()) errors.client = 'Client name is required.'
+    if (!form.clientId) errors.clientId = 'Client name is required.'
     if (!form.subject.trim()) errors.subject = 'Subject is required.'
     if (!form.description.trim()) errors.description = 'Description is required.'
     if (Object.keys(errors).length > 0) {
@@ -286,36 +231,41 @@ export default function SupportPage() {
 
   const closeModal = () => setShowModal(false)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!validateForm()) return
-
-    const iso = new Date().toISOString().slice(0, 10)
-    const newTicket: Ticket = {
-      id: Date.now(),
-      ticketNo: generateTicketNo(tickets),
-      client: form.client,
-      subject: form.subject,
-      description: form.description,
-      product: form.product,
-      priority: form.priority,
-      status: 'NEW',
-      assigned: form.assigned,
-      created: iso,
-      updated: iso,
+    setSaving(true)
+    try {
+      const res = await ticketService.create({
+        clientId: form.clientId, subject: form.subject, description: form.description,
+        product: form.product, priority: form.priority, assignedToId: form.assigned || undefined,
+      })
+      setTickets(prev => [toTicket(res.data), ...prev])
+      toast.success(res.message)
+      closeModal()
+    } catch (err) {
+      toast.error(apiError(err, 'Failed to create ticket'))
+    } finally {
+      setSaving(false)
     }
-    setTickets(prev => [newTicket, ...prev])
-    closeModal()
   }
 
   // ── Side panel actions ────────────────────────────────────────────────────────
-  const updateTicketStatus = (id: number, status: TicketStatus) => {
-    const iso = new Date().toISOString().slice(0, 10)
-    setTickets(prev =>
-      prev.map(t => (t.id === id ? { ...t, status, updated: iso } : t)),
-    )
-    setViewTicket(prev => (prev && prev.id === id ? { ...prev, status, updated: iso } : prev))
+  const saveTicket = async (id: string, changes: Record<string, unknown>, success: string) => {
+    try {
+      const res = await ticketService.update(id, changes)
+      const saved = toTicket(res.data)
+      setTickets(prev => prev.map(t => (t.id === id ? saved : t)))
+      setViewTicket(prev => (prev && prev.id === id ? saved : prev))
+      toast.success(success)
+    } catch (err) {
+      toast.error(apiError(err, 'Failed to update ticket'))
+    }
   }
+  const updateTicketStatus = (id: string, status: TicketStatus) =>
+    saveTicket(id, { status }, `Ticket ${STATUS_LABELS[status].toLowerCase()}`)
+
+  if (loading) return <PageLoader />
 
   return (
     <div className="space-y-5">
@@ -594,20 +544,22 @@ export default function SupportPage() {
               {/* Client Name */}
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Client Name <span className="text-red-500">*</span>
+                  Client <span className="text-red-500">*</span>
                 </label>
-                <input
-                  name="client"
-                  value={form.client}
+                <select
+                  name="clientId"
+                  value={form.clientId}
                   onChange={handleChange}
-                  placeholder="e.g. SABBAN ABATTOIR"
                   className={cn(
-                    'w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500',
-                    formErrors.client ? 'border-red-400' : 'border-gray-200',
+                    'w-full px-3 py-2 border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500',
+                    formErrors.clientId ? 'border-red-400' : 'border-gray-200',
                   )}
-                />
-                {formErrors.client && (
-                  <p className="text-xs text-red-500 mt-1">{formErrors.client}</p>
+                >
+                  <option value="">Select client…</option>
+                  {lookups.clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+                {formErrors.clientId && (
+                  <p className="text-xs text-red-500 mt-1">{formErrors.clientId}</p>
                 )}
               </div>
 
@@ -696,9 +648,10 @@ export default function SupportPage() {
                   onChange={handleChange}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500"
                 >
-                  {AGENTS.map(a => (
-                    <option key={a} value={a}>
-                      {a}
+                  <option value="">Unassigned</option>
+                  {agents.map(a => (
+                    <option key={a.id} value={a.id}>
+                      {a.name}
                     </option>
                   ))}
                 </select>
@@ -715,9 +668,10 @@ export default function SupportPage() {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 px-4 py-2 bg-santech-600 text-white rounded-lg text-sm font-medium hover:bg-santech-700 transition-colors"
+                  disabled={saving}
+                  className="flex-1 px-4 py-2 bg-santech-600 text-white rounded-lg text-sm font-medium hover:bg-santech-700 transition-colors disabled:opacity-50"
                 >
-                  Save
+                  {saving ? 'Saving…' : 'Save'}
                 </button>
               </div>
             </form>
@@ -820,6 +774,39 @@ export default function SupportPage() {
                 </p>
               </div>
             </div>
+
+            {/* Assignment + progress */}
+            {viewTicket.status !== 'CLOSED' && (
+              <div className="px-6 py-4 border-t space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Assign to</label>
+                  <select
+                    value={viewTicket.assignedId}
+                    onChange={e => saveTicket(viewTicket.id, { assignedToId: e.target.value || null }, 'Ticket reassigned')}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500"
+                  >
+                    <option value="">Unassigned</option>
+                    {agents.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                  </select>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => updateTicketStatus(viewTicket.id, 'IN_PROGRESS')}
+                    disabled={viewTicket.status === 'IN_PROGRESS'}
+                    className="flex-1 px-3 py-1.5 border border-blue-200 text-blue-700 rounded-lg text-xs font-medium hover:bg-blue-50 disabled:opacity-40"
+                  >
+                    Start work
+                  </button>
+                  <button
+                    onClick={() => updateTicketStatus(viewTicket.id, 'WAITING_CUSTOMER')}
+                    disabled={viewTicket.status === 'WAITING_CUSTOMER'}
+                    className="flex-1 px-3 py-1.5 border border-amber-200 text-amber-700 rounded-lg text-xs font-medium hover:bg-amber-50 disabled:opacity-40"
+                  >
+                    Waiting on customer
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Panel footer actions */}
             <div className="px-6 py-4 border-t flex gap-3">

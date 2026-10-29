@@ -1,6 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Plus, Search, X, Users, TrendingUp, Briefcase, Edit2, LayoutGrid, List } from 'lucide-react'
 import { cn, formatCurrency, getInitials } from '@/lib/utils'
+import { departmentService } from '@/lib/services/operationsService'
+import { useLookups, apiError } from '@/lib/services/lookupService'
+import PageLoader from '@/components/shared/PageLoader'
+import toast from 'react-hot-toast'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface Department {
@@ -8,6 +12,7 @@ interface Department {
   name: string
   description: string
   head: string           // Department head name
+  headId: string
   headEmail: string
   budget: number         // Monthly budget in RWF
   employeeCount: number
@@ -18,73 +23,21 @@ interface Department {
 }
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
-const mockDepartments: Department[] = [
-  {
-    id: '1',
-    name: 'Sales & Marketing',
-    description: 'Responsible for finding new clients, field visits, lead generation, and promoting Santech products and services.',
-    head: 'Alice Uwimana',
-    headEmail: 'alice@santech.rw',
-    budget: 2000000,
-    employeeCount: 3,
-    activeProjects: 2,
-    avgPerformance: 78,
-    color: 'bg-blue-100 text-blue-700',
-    createdAt: '2023-01-01',
-  },
-  {
-    id: '2',
-    name: 'IT / Development',
-    description: 'Builds and maintains all software systems including EVS, SANTRACK, REVIXSAN, websites, and custom client solutions.',
-    head: 'Bob Nkurunziza',
-    headEmail: 'bob@santech.rw',
-    budget: 5000000,
-    employeeCount: 4,
-    activeProjects: 5,
-    avgPerformance: 89,
-    color: 'bg-purple-100 text-purple-700',
-    createdAt: '2023-01-01',
-  },
-  {
-    id: '3',
-    name: 'Human Resources',
-    description: 'Manages employee recruitment, onboarding, performance tracking, payroll, and staff welfare.',
-    head: 'Claire Mukamana',
-    headEmail: 'claire@santech.rw',
-    budget: 1500000,
-    employeeCount: 2,
-    activeProjects: 1,
-    avgPerformance: 75,
-    color: 'bg-green-100 text-green-700',
-    createdAt: '2023-01-01',
-  },
-  {
-    id: '4',
-    name: 'Finance',
-    description: 'Manages all financial records, invoicing, payments, expenses, payroll processing, and financial reporting.',
-    head: 'David Habimana',
-    headEmail: 'david@santech.rw',
-    budget: 1000000,
-    employeeCount: 2,
-    activeProjects: 0,
-    avgPerformance: 65,
-    color: 'bg-amber-100 text-amber-700',
-    createdAt: '2023-01-01',
-  },
-  {
-    id: '5',
-    name: 'Operations',
-    description: 'Handles day-to-day operations, logistics, client support, and system maintenance after deployment.',
-    head: 'Frank Bizimana',
-    headEmail: 'frank@santech.rw',
-    budget: 800000,
-    employeeCount: 2,
-    activeProjects: 3,
-    avgPerformance: 82,
-    color: 'bg-teal-100 text-teal-700',
-    createdAt: '2024-01-01',
-  },
-]
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toDepartment = (d: any): Department => ({
+  id: d.id,
+  name: d.name,
+  description: d.description ?? '',
+  head: d.head ? `${d.head.firstName} ${d.head.lastName}` : '',
+  headId: d.headId ?? '',
+  headEmail: d.head?.email ?? '',
+  budget: Number(d.budget ?? 0),
+  employeeCount: d.employeeCount ?? 0,
+  activeProjects: d.activeProjects ?? 0,
+  avgPerformance: d.avgPerformance ?? 0,
+  color: d.color,
+  createdAt: String(d.createdAt).slice(0, 10),
+})
 
 const scoreColor = (score: number) =>
   score >= 80 ? 'text-green-600' : score >= 50 ? 'text-yellow-600' : 'text-red-500'
@@ -106,15 +59,25 @@ const DEPT_COLORS = [
 const emptyForm = {
   name: '',
   description: '',
-  head: '',
-  headEmail: '',
+  headId: '',
   budget: '',
   color: DEPT_COLORS[0],
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function DepartmentsPage() {
-  const [departments, setDepartments] = useState<Department[]>(mockDepartments)
+  const [departments, setDepartments] = useState<Department[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const lookups = useLookups()
+
+  const load = () =>
+    departmentService.getAll()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then((res: any) => setDepartments((res.data ?? []).map(toDepartment)))
+      .catch(err => toast.error(apiError(err, 'Failed to load departments')))
+
+  useEffect(() => { load().finally(() => setLoading(false)) }, [])
   const [search, setSearch] = useState('')
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [showModal, setShowModal] = useState(false)
@@ -131,7 +94,8 @@ export default function DepartmentsPage() {
   // ── Stats ──────────────────────────────────────────────────────────────────
   const totalEmployees = departments.reduce((s, d) => s + d.employeeCount, 0)
   const totalBudget = departments.reduce((s, d) => s + d.budget, 0)
-  const avgPerformance = Math.round(departments.reduce((s, d) => s + d.avgPerformance, 0) / departments.length)
+  const staffed = departments.filter(d => d.employeeCount > 0)
+  const avgPerformance = staffed.length ? Math.round(staffed.reduce((s, d) => s + d.avgPerformance * d.employeeCount, 0) / Math.max(1, totalEmployees)) : 0
   const totalProjects = departments.reduce((s, d) => s + d.activeProjects, 0)
 
   const stats = [
@@ -148,33 +112,30 @@ export default function DepartmentsPage() {
 
   const openAdd = () => { setForm(emptyForm); setEditId(null); setError(''); setShowModal(true) }
   const openEdit = (d: Department) => {
-    setForm({ name: d.name, description: d.description, head: d.head, headEmail: d.headEmail, budget: String(d.budget), color: d.color })
+    setForm({ name: d.name, description: d.description, headId: d.headId, budget: String(d.budget), color: d.color })
     setEditId(d.id); setError(''); setShowModal(true); setViewDept(null)
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!form.name.trim()) { setError('Department name is required.'); return }
-    if (!form.head.trim()) { setError('Department head is required.'); return }
-
-    const dept: Department = {
-      id: editId || String(Date.now()),
-      name: form.name,
-      description: form.description,
-      head: form.head,
-      headEmail: form.headEmail,
-      budget: parseFloat(form.budget) || 0,
-      color: form.color,
-      employeeCount: editId ? departments.find(d => d.id === editId)!.employeeCount : 0,
-      activeProjects: editId ? departments.find(d => d.id === editId)!.activeProjects : 0,
-      avgPerformance: editId ? departments.find(d => d.id === editId)!.avgPerformance : 0,
-      createdAt: editId ? departments.find(d => d.id === editId)!.createdAt : new Date().toISOString().split('T')[0],
+    if (!form.headId) { setError('Department head is required.'); return }
+    const payload = { name: form.name.trim(), description: form.description, headId: form.headId, budget: parseFloat(form.budget) || 0, color: form.color }
+    setSaving(true)
+    try {
+      if (editId) await departmentService.update(editId, payload)
+      else await departmentService.create(payload)
+      toast.success(editId ? 'Department updated' : 'Department created')
+      setShowModal(false)
+      await load() // staff counts and performance are calculated by the server
+    } catch (err) {
+      setError(apiError(err, 'Failed to save department'))
+    } finally {
+      setSaving(false)
     }
-
-    if (editId) setDepartments(prev => prev.map(d => d.id === editId ? dept : d))
-    else setDepartments(prev => [...prev, dept])
-    setShowModal(false)
   }
+
+  if (loading) return <PageLoader />
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
@@ -453,13 +414,13 @@ export default function DepartmentsPage() {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div>
+                <div className="col-span-2">
                   <label className="block text-xs font-medium text-gray-700 mb-1">Department Head *</label>
-                  <input name="head" value={form.head} onChange={handleChange} placeholder="e.g. Alice Uwimana" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Head Email</label>
-                  <input name="headEmail" type="email" value={form.headEmail} onChange={handleChange} placeholder="head@santech.rw" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500" />
+                  <select name="headId" value={form.headId} onChange={handleChange} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500">
+                    <option value="">Select staff member…</option>
+                    {lookups.users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                  </select>
+                  <p className="text-xs text-gray-400 mt-1">Staff count and performance come from employees whose department matches this name.</p>
                 </div>
               </div>
 
@@ -482,7 +443,7 @@ export default function DepartmentsPage() {
 
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 font-medium">Cancel</button>
-                <button type="submit" className="flex-1 py-2.5 bg-santech-600 text-white rounded-lg text-sm hover:bg-santech-700 font-medium">{editId ? 'Save Changes' : 'Add Department'}</button>
+                <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-santech-600 text-white rounded-lg text-sm hover:bg-santech-700 font-medium disabled:opacity-50">{saving ? 'Saving…' : editId ? 'Save Changes' : 'Add Department'}</button>
               </div>
             </form>
           </div>

@@ -1,7 +1,11 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Plus, Search, X, LogIn, LogOut, UserCheck } from 'lucide-react'
 import PhoneInput from '@/components/shared/PhoneInput'
 import { cn, formatDate, formatDateTime } from '@/lib/utils'
+import { visitorService } from '@/lib/services/operationsService'
+import { useLookups, apiError } from '@/lib/services/lookupService'
+import PageLoader from '@/components/shared/PageLoader'
+import toast from 'react-hot-toast'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type VisitorStatus = 'EXPECTED' | 'CHECKED_IN' | 'CHECKED_OUT' | 'NO_SHOW' | 'WALK_IN'
@@ -44,9 +48,9 @@ const PURPOSE_COLORS: Record<VisitPurpose, string> = {
   OTHER: 'bg-gray-100 text-gray-600',
 }
 
-const TODAY = '2026-10-11'
-
-const HOSTS = ['Alice Uwimana', 'Bob Nkurunziza', 'Claire Mukamana', 'Admin', 'Frank Bizimana']
+// Local date (not UTC) so "today" matches the receptionist's clock
+const localISO = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+const TODAY = localISO()
 
 const PURPOSE_OPTIONS: { value: VisitPurpose; label: string }[] = [
   { value: 'SALES_MEETING', label: 'Sales Meeting' },
@@ -60,141 +64,25 @@ const PURPOSE_OPTIONS: { value: VisitPurpose; label: string }[] = [
 
 const ROWS_OPTIONS = [5, 10, 20, 'All'] as const
 
-// ─── Mock Data ────────────────────────────────────────────────────────────────
-const initialVisitors: Visitor[] = [
-  {
-    id: 'v1',
-    visitorName: 'Michael Johnson',
-    company: 'LA Tech Delegation',
-    status: 'CHECKED_IN',
-    expectedDate: '2026-10-11',
-    expectedTime: '09:00',
-    checkInTime: '2026-10-11T09:05:00',
-    expectedDuration: 120,
-    host: 'Admin',
-    purpose: 'CLIENT_MEETING',
-    phone: '',
-    email: '',
-    idNumber: '',
-    notes: 'LA Tech delegation visiting to discuss potential partnership',
-  },
-  {
-    id: 'v2',
-    visitorName: 'KAMIKAZI',
-    company: 'ECOBANK',
-    status: 'CHECKED_OUT',
-    expectedDate: '2026-10-10',
-    expectedTime: '10:00',
-    checkInTime: '2026-10-10T10:00:00',
-    checkOutTime: '2026-10-10T14:00:00',
-    expectedDuration: 120,
-    host: 'Alice Uwimana',
-    purpose: 'SALES_MEETING',
-    phone: '0786740490',
-    email: '',
-    idNumber: '',
-    notes: '',
-  },
-  {
-    id: 'v3',
-    visitorName: 'HR THEONESTE',
-    company: 'SABBAN ABATTOIR',
-    status: 'CHECKED_OUT',
-    expectedDate: '2026-10-09',
-    expectedTime: '11:00',
-    checkInTime: '2026-10-09T11:00:00',
-    checkOutTime: '2026-10-09T12:30:00',
-    expectedDuration: 90,
-    host: 'Alice Uwimana',
-    purpose: 'CONTRACT_SIGNING',
-    phone: '0788846240',
-    email: '',
-    idNumber: '',
-    notes: '',
-  },
-  {
-    id: 'v4',
-    visitorName: 'Denis',
-    company: 'Bloom Kigali',
-    status: 'NO_SHOW',
-    expectedDate: '2026-10-08',
-    expectedTime: '15:00',
-    expectedDuration: 60,
-    host: 'Alice Uwimana',
-    purpose: 'CLIENT_MEETING',
-    phone: '',
-    email: '',
-    idNumber: '',
-    notes: 'Denis from Bloom Kigali did not show up for the scheduled meeting',
-  },
-  {
-    id: 'v5',
-    visitorName: 'Job Candidate',
-    company: 'External',
-    status: 'CHECKED_OUT',
-    expectedDate: '2026-10-07',
-    expectedTime: '09:00',
-    checkInTime: '2026-10-07T09:00:00',
-    checkOutTime: '2026-10-07T10:30:00',
-    expectedDuration: 90,
-    host: 'Claire Mukamana',
-    purpose: 'INTERVIEW',
-    phone: '',
-    email: '',
-    idNumber: '',
-    notes: '',
-  },
-  {
-    id: 'v6',
-    visitorName: 'Bob Tech',
-    company: 'Tech Supplier',
-    status: 'CHECKED_OUT',
-    expectedDate: '2026-10-06',
-    expectedTime: '14:00',
-    checkInTime: '2026-10-06T14:00:00',
-    checkOutTime: '2026-10-06T15:00:00',
-    expectedDuration: 60,
-    host: 'Bob Nkurunziza',
-    purpose: 'DELIVERY',
-    phone: '',
-    email: '',
-    idNumber: '',
-    notes: 'Delivered network equipment',
-  },
-  {
-    id: 'v7',
-    visitorName: 'Ange',
-    company: 'KABILA COFFEE',
-    status: 'CHECKED_OUT',
-    expectedDate: '2026-10-05',
-    expectedTime: '10:00',
-    checkInTime: '2026-10-05T10:00:00',
-    checkOutTime: '2026-10-05T11:00:00',
-    expectedDuration: 60,
-    host: 'Alice Uwimana',
-    purpose: 'SALES_MEETING',
-    phone: '',
-    email: '',
-    idNumber: '',
-    notes: '',
-  },
-  {
-    id: 'v8',
-    visitorName: 'Training Attendee',
-    company: 'QUINCAILLAIRE KEMEC',
-    status: 'WALK_IN',
-    expectedDate: '2026-10-11',
-    expectedTime: '14:00',
-    checkInTime: '2026-10-11T14:00:00',
-    expectedDuration: 120,
-    host: 'Bob Nkurunziza',
-    purpose: 'TRAINING',
-    phone: '',
-    email: '',
-    idNumber: '',
-    notes: 'Walk-in for training session',
-  },
-]
+// ─── API → page shape ─────────────────────────────────────────────────────────
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toVisitor = (v: any): Visitor => ({
+  id: v.id,
+  visitorName: v.visitorName,
+  company: v.company ?? '',
+  phone: v.phone ?? '',
+  email: v.email ?? '',
+  idNumber: v.idNumber ?? '',
+  purpose: v.purpose,
+  host: v.host ? `${v.host.firstName} ${v.host.lastName}` : '',
+  expectedDate: String(v.expectedDate).slice(0, 10),
+  expectedTime: v.expectedTime ?? '',
+  expectedDuration: v.expectedDuration ?? 60,
+  checkInTime: v.checkInTime ?? undefined,
+  checkOutTime: v.checkOutTime ?? undefined,
+  status: v.status,
+  notes: v.notes ?? '',
+})
 
 // ─── Empty form ───────────────────────────────────────────────────────────────
 const emptyForm = {
@@ -204,7 +92,7 @@ const emptyForm = {
   email: '',
   idNumber: '',
   purpose: 'CLIENT_MEETING' as VisitPurpose,
-  host: HOSTS[0],
+  host: '',
   expectedDate: TODAY,
   expectedTime: '09:00',
   expectedDuration: 60,
@@ -222,7 +110,19 @@ function computeDuration(checkIn: string, checkOut: string): number {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function ReceptionPage() {
-  const [visitors, setVisitors] = useState<Visitor[]>(initialVisitors)
+  const [visitors, setVisitors] = useState<Visitor[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [walkIn, setWalkIn] = useState(true)
+  const lookups = useLookups()
+
+  useEffect(() => {
+    visitorService.getAll()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then((res: any) => setVisitors((res.data ?? []).map(toVisitor)))
+      .catch(err => toast.error(apiError(err, 'Failed to load visitors')))
+      .finally(() => setLoading(false))
+  }, [])
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState(emptyForm)
   const [formError, setFormError] = useState('')
@@ -234,31 +134,23 @@ export default function ReceptionPage() {
   const todayVisitors = visitors.filter(v => v.expectedDate === TODAY)
   const checkedInCount = visitors.filter(v => v.status === 'CHECKED_IN').length
   const expectedTodayCount = visitors.filter(v => v.expectedDate === TODAY && v.status === 'EXPECTED').length
-  const thisMonthCount = visitors.filter(v => v.expectedDate.startsWith('2026-10')).length
+  const thisMonthCount = visitors.filter(v => v.expectedDate.startsWith(TODAY.slice(0, 7))).length
 
   // ── Today's active visitors (CHECKED_IN | WALK_IN) ────────────────────────
   const todayActive = todayVisitors.filter(v => v.status === 'CHECKED_IN' || v.status === 'WALK_IN')
 
   // ── Check In / Check Out handlers ─────────────────────────────────────────
-  const handleCheckIn = (id: string) => {
-    setVisitors(prev =>
-      prev.map(v =>
-        v.id === id
-          ? { ...v, status: 'CHECKED_IN', checkInTime: new Date().toISOString() }
-          : v,
-      ),
-    )
+  const runAction = async (id: string, action: 'check-in' | 'check-out' | 'no-show') => {
+    try {
+      const res = await visitorService.action(id, action)
+      setVisitors(prev => prev.map(v => (v.id === id ? toVisitor(res.data) : v)))
+      toast.success(res.message)
+    } catch (err) {
+      toast.error(apiError(err, 'Failed to update visitor'))
+    }
   }
-
-  const handleCheckOut = (id: string) => {
-    setVisitors(prev =>
-      prev.map(v =>
-        v.id === id
-          ? { ...v, status: 'CHECKED_OUT', checkOutTime: new Date().toISOString() }
-          : v,
-      ),
-    )
-  }
+  const handleCheckIn = (id: string) => runAction(id, 'check-in')
+  const handleCheckOut = (id: string) => runAction(id, 'check-out')
 
   // ── Filtered visitor log ───────────────────────────────────────────────────
   const filtered = visitors.filter(v => {
@@ -289,23 +181,30 @@ export default function ReceptionPage() {
     }))
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!form.visitorName.trim()) { setFormError('Visitor name is required.'); return }
     if (!form.purpose) { setFormError('Purpose is required.'); return }
     if (!form.expectedDate) { setFormError('Expected date is required.'); return }
-
-    const newVisitor: Visitor = {
-      id: `v${Date.now()}`,
-      ...form,
-      status: form.expectedDate === TODAY ? 'WALK_IN' : 'EXPECTED',
+    setSaving(true)
+    try {
+      const res = await visitorService.create({
+        ...form, hostId: form.host || undefined, walkIn: walkIn && form.expectedDate === TODAY,
+      })
+      setVisitors(prev => [toVisitor(res.data), ...prev])
+      toast.success(res.message)
+      setShowModal(false)
+      setForm(emptyForm)
+      setFormError('')
+      setPage(1)
+    } catch (err) {
+      setFormError(apiError(err, 'Failed to save visitor'))
+    } finally {
+      setSaving(false)
     }
-    setVisitors(prev => [newVisitor, ...prev])
-    setShowModal(false)
-    setForm(emptyForm)
-    setFormError('')
-    setPage(1)
   }
+
+  if (loading) return <PageLoader />
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
@@ -504,7 +403,7 @@ export default function ReceptionPage() {
                       </td>
                       <td className="px-3 py-3">
                         <div className="flex gap-1.5">
-                          {(v.status === 'EXPECTED' || (v.status === 'WALK_IN' && !v.checkInTime)) && (
+                          {v.status === 'EXPECTED' && (
                             <button
                               onClick={() => handleCheckIn(v.id)}
                               className="flex items-center gap-1 text-xs bg-green-50 text-green-600 px-2 py-1 rounded-lg hover:bg-green-100 transition-colors font-medium whitespace-nowrap"
@@ -512,7 +411,15 @@ export default function ReceptionPage() {
                               <LogIn className="w-3 h-3" /> Check In
                             </button>
                           )}
-                          {v.status === 'CHECKED_IN' && (
+                          {v.status === 'EXPECTED' && v.expectedDate < TODAY && (
+                            <button
+                              onClick={() => runAction(v.id, 'no-show')}
+                              className="text-xs bg-red-50 text-red-500 px-2 py-1 rounded-lg hover:bg-red-100 transition-colors font-medium whitespace-nowrap"
+                            >
+                              No-show
+                            </button>
+                          )}
+                          {(v.status === 'CHECKED_IN' || v.status === 'WALK_IN') && (
                             <button
                               onClick={() => handleCheckOut(v.id)}
                               className="flex items-center gap-1 text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-lg hover:bg-gray-200 transition-colors font-medium whitespace-nowrap"
@@ -711,8 +618,15 @@ export default function ReceptionPage() {
                     onChange={handleFormChange}
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500"
                   >
-                    {HOSTS.map(h => <option key={h}>{h}</option>)}
+                    <option value="">No specific host</option>
+                    {lookups.users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                   </select>
+                  {form.expectedDate === TODAY && (
+                    <label className="flex items-center gap-2 mt-2 text-xs text-gray-600">
+                      <input type="checkbox" checked={walkIn} onChange={e => setWalkIn(e.target.checked)} />
+                      Visitor is here now (check in and notify host)
+                    </label>
+                  )}
                 </div>
               </div>
 
@@ -780,9 +694,10 @@ export default function ReceptionPage() {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 bg-santech-600 text-white rounded-lg text-sm hover:bg-santech-700 font-medium"
+                  disabled={saving}
+                  className="flex-1 py-2.5 bg-santech-600 text-white rounded-lg text-sm hover:bg-santech-700 font-medium disabled:opacity-50"
                 >
-                  Save Visitor
+                  {saving ? 'Saving…' : 'Save Visitor'}
                 </button>
               </div>
             </form>

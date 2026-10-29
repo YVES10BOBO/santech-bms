@@ -1,6 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Bell, CreditCard, AlertCircle, FileText, Phone, Clock } from 'lucide-react'
 import { cn, timeAgo } from '@/lib/utils'
+import { notificationService } from '@/lib/services/operationsService'
+import { apiError } from '@/lib/services/lookupService'
+import PageLoader from '@/components/shared/PageLoader'
+import toast from 'react-hot-toast'
 
 type NotificationType =
   | 'PAYMENT_DUE'
@@ -11,29 +16,19 @@ type NotificationType =
   | 'SYSTEM'
 
 interface Notification {
-  id: number
+  id: string
   type: NotificationType
   title: string
   description: string
   time: string
   read: boolean
+  link: string
 }
 
-type FilterTab = 'All' | 'Unread' | 'Payment' | 'Follow-up' | 'Tasks'
+/** Lets the top-bar bell refresh after notifications are read */
+export const NOTIFICATIONS_CHANGED = 'santech:notifications-changed'
 
-// --- Mock data ---
-const initialNotifications: Notification[] = [
-  { id: 1,  type: 'OVERDUE',          title: 'Invoice Overdue',              description: 'ECOBANK invoice INV-2026-005 is overdue by 3 days',                          time: '2026-10-13T09:00:00', read: false },
-  { id: 2,  type: 'FOLLOW_UP',        title: 'Follow-up Due',                description: 'Call QUINCAILLAIRE KEMEC — scheduled for Oct 15',                            time: '2026-10-14T08:30:00', read: false },
-  { id: 3,  type: 'CONTRACT_EXPIRY',  title: 'Contract Expiring',            description: 'Contract CT-2026-001 expires in 82 days — review required',                  time: '2026-10-12T10:00:00', read: false },
-  { id: 4,  type: 'TASK_DEADLINE',    title: 'Task Deadline Tomorrow',       description: 'EVS proposal for Ecobank is due tomorrow',                                   time: '2026-10-14T07:00:00', read: false },
-  { id: 5,  type: 'FOLLOW_UP',        title: 'Follow-up: Call Client',       description: 'Call SABBAN ABATTOIR — contact: HR THEONESTE',                               time: '2026-10-13T11:00:00', read: false },
-  { id: 6,  type: 'PAYMENT_DUE',      title: 'Payment Due Soon',             description: 'N&T PLASTIC INDUSTRIES balance due on Oct 30 — RWF 1,500,000',              time: '2026-10-14T09:30:00', read: true  },
-  { id: 7,  type: 'FOLLOW_UP',        title: 'New Lead Assigned',            description: 'MARRIOTT INTERNATIONAL assigned to you — initial contact needed',            time: '2026-10-11T14:00:00', read: true  },
-  { id: 8,  type: 'CONTRACT_EXPIRY',  title: 'Contract Awaiting Signature',  description: 'SABBAN ABATTOIR contract CT-2026-004 needs client signature',               time: '2026-10-10T16:00:00', read: true  },
-  { id: 9,  type: 'SYSTEM',           title: 'Task Approved',                description: 'Monthly sales report approved by Admin',                                     time: '2026-10-09T12:00:00', read: true  },
-  { id: 10, type: 'SYSTEM',           title: 'System Backup',                description: 'Database backup completed successfully at 02:00 AM',                         time: '2026-10-14T02:00:00', read: true  },
-]
+type FilterTab = 'All' | 'Unread' | 'Payment' | 'Follow-up' | 'Tasks'
 
 // --- Type config ---
 const TYPE_CONFIG: Record<
@@ -61,21 +56,53 @@ function filterNotifications(notifications: Notification[], tab: FilterTab): Not
 }
 
 export default function NotificationsPage() {
-  const [notifications, setNotifications] = useState<Notification[]>(initialNotifications)
+  const navigate = useNavigate()
+  const [notifications, setNotifications] = useState<Notification[]>([])
+  const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<FilterTab>('All')
+
+  useEffect(() => {
+    notificationService.getAll()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then((res: any) => setNotifications((res.data ?? []).map((n: any) => ({
+        id: n.id,
+        type: (n.type in TYPE_CONFIG ? n.type : 'SYSTEM') as NotificationType,
+        title: n.title,
+        description: n.description,
+        time: n.createdAt,
+        read: n.read,
+        link: n.link ?? '',
+      }))))
+      .catch(err => toast.error(apiError(err, 'Failed to load notifications')))
+      .finally(() => { setLoading(false); window.dispatchEvent(new Event(NOTIFICATIONS_CHANGED)) })
+  }, [])
 
   const unreadCount = notifications.filter(n => !n.read).length
   const filtered = filterNotifications(notifications, activeTab)
 
-  const markAsRead = (id: number) => {
-    setNotifications(prev =>
-      prev.map(n => (n.id === id ? { ...n, read: true } : n))
-    )
+  const markAsRead = (id: string) => {
+    setNotifications(prev => prev.map(n => (n.id === id ? { ...n, read: true } : n)))
+    notificationService.markRead([id])
+      .then(() => window.dispatchEvent(new Event(NOTIFICATIONS_CHANGED)))
+      .catch(() => { /* stays read on screen; will sync next load */ })
   }
 
-  const markAllAsRead = () => {
+  const markAllAsRead = async () => {
     setNotifications(prev => prev.map(n => ({ ...n, read: true })))
+    try {
+      await notificationService.markRead()
+      window.dispatchEvent(new Event(NOTIFICATIONS_CHANGED))
+    } catch (err) {
+      toast.error(apiError(err, 'Failed to mark as read'))
+    }
   }
+
+  const open = (n: Notification) => {
+    if (!n.read) markAsRead(n.id)
+    if (n.link) navigate(n.link)
+  }
+
+  if (loading) return <PageLoader />
 
   return (
     <div className="space-y-5">
@@ -144,10 +171,10 @@ export default function NotificationsPage() {
             return (
               <div
                 key={notification.id}
-                onClick={() => !notification.read && markAsRead(notification.id)}
+                onClick={() => open(notification)}
                 className={cn(
                   'bms-card p-4 flex items-start gap-4 transition-colors',
-                  !notification.read ? 'cursor-pointer hover:bg-blue-50/30' : ''
+                  !notification.read || notification.link ? 'cursor-pointer hover:bg-blue-50/30' : ''
                 )}
               >
                 {/* Colored icon */}

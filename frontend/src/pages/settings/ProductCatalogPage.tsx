@@ -1,6 +1,11 @@
-import React, { useState, useMemo } from 'react'
+import React, { useEffect, useState, useMemo } from 'react'
 import { Search, Plus, Edit2, X, Package, Tag, Layers } from 'lucide-react'
 import { cn, formatCurrency } from '@/lib/utils'
+import { productService } from '@/lib/services/operationsService'
+import { apiError } from '@/lib/services/lookupService'
+import { useAuthStore } from '@/store/authStore'
+import PageLoader from '@/components/shared/PageLoader'
+import toast from 'react-hot-toast'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -18,7 +23,7 @@ type Category =
   | 'Other'
 
 interface Product {
-  id: number
+  id: string
   name: string
   category: Category
   description: string
@@ -72,103 +77,11 @@ const CATEGORY_BADGE: Record<Category, string> = {
 
 // ─── Mock data ──────────────────────────────────────────────────────────────────
 
-const INITIAL_PRODUCTS: Product[] = [
-  {
-    id: 1,
-    name: 'EVS Enterprise',
-    category: 'EVS',
-    description:
-      'Full biometric employee verification system with attendance, access control and HR integration.',
-    price: 8500000,
-    cost: 3500000,
-    taxRate: 18,
-    sla: '5 business days',
-    isActive: true,
-  },
-  {
-    id: 2,
-    name: 'SANTRACK ERP',
-    category: 'SANTRACK',
-    description:
-      'Complete inventory, sales and procurement management platform for businesses.',
-    price: 3000000,
-    cost: 1200000,
-    taxRate: 18,
-    sla: '3 business days',
-    isActive: true,
-  },
-  {
-    id: 3,
-    name: 'REVIXSAN HRIS',
-    category: 'REVIXSAN',
-    description:
-      'Human resource information system for leave, payroll and performance management.',
-    price: 1500000,
-    cost: 600000,
-    taxRate: 18,
-    sla: '3 business days',
-    isActive: true,
-  },
-  {
-    id: 4,
-    name: 'SANBOOK Accounting',
-    category: 'SANBOOK',
-    description: 'Accounting and bookkeeping software tailored for SMEs.',
-    price: 2000000,
-    cost: 800000,
-    taxRate: 18,
-    sla: '2 business days',
-    isActive: true,
-  },
-  {
-    id: 5,
-    name: 'SANHUB Integration',
-    category: 'SANHUB',
-    description:
-      'API integration hub connecting Santech products with third-party systems.',
-    price: 500000,
-    cost: 150000,
-    taxRate: 18,
-    sla: '1 business day',
-    isActive: true,
-  },
-  {
-    id: 6,
-    name: 'Corporate Website',
-    category: 'Website',
-    description:
-      'Custom business website with CMS, SEO optimization and hosting setup.',
-    price: 800000,
-    cost: 300000,
-    taxRate: 18,
-    sla: '10 business days',
-    isActive: true,
-  },
-  {
-    id: 7,
-    name: 'Mobile App Development',
-    category: 'Mobile App',
-    description:
-      'Cross-platform mobile application development for Android and iOS.',
-    price: 5000000,
-    cost: 2000000,
-    taxRate: 18,
-    sla: '15 business days',
-    isActive: true,
-  },
-  {
-    id: 8,
-    name: 'Staff Training Package',
-    category: 'Training',
-    description:
-      'On-site or remote product training for client staff. Per person rate.',
-    price: 200000,
-    cost: 50000,
-    taxRate: 0,
-    sla: '1 business day',
-    isActive: true,
-  },
-]
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toProduct = (p: any): Product => ({
+  id: p.id, name: p.name, category: p.category as Category, description: p.description ?? '',
+  price: Number(p.price), cost: Number(p.cost ?? 0), taxRate: Number(p.taxRate ?? 0), sla: p.sla ?? '', isActive: !!p.isActive,
+})
 
 const EMPTY_FORM: ProductFormState = {
   name: '',
@@ -455,7 +368,18 @@ function ProductModal({ open, editing, onClose, onSave }: ProductModalProps) {
 // ─── Main page ──────────────────────────────────────────────────────────────────
 
 export default function ProductCatalogPage() {
-  const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS)
+  const [products, setProducts] = useState<Product[]>([])
+  const [loading, setLoading] = useState(true)
+  const { user } = useAuthStore()
+  const canEdit = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN'
+
+  useEffect(() => {
+    productService.getAll()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then((res: any) => setProducts((res.data ?? []).map(toProduct)))
+      .catch(err => toast.error(apiError(err, 'Failed to load products')))
+      .finally(() => setLoading(false))
+  }, [])
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<Category | ''>('')
   const [statusFilter, setStatusFilter] = useState<'All' | 'Active' | 'Inactive'>('All')
@@ -506,47 +430,42 @@ export default function ProductCatalogPage() {
     setEditingProduct(null)
   }
 
-  function handleSave(form: ProductFormState) {
-    if (editingProduct) {
-      setProducts((prev) =>
-        prev.map((p) =>
-          p.id === editingProduct.id
-            ? {
-                ...p,
-                name: form.name.trim(),
-                category: form.category,
-                description: form.description.trim(),
-                price: Number(form.price),
-                cost: Number(form.cost) || 0,
-                taxRate: Number(form.taxRate) || 0,
-                sla: form.sla.trim(),
-                isActive: form.isActive,
-              }
-            : p
-        )
-      )
-    } else {
-      const newProduct: Product = {
-        id: Date.now(),
-        name: form.name.trim(),
-        category: form.category,
-        description: form.description.trim(),
-        price: Number(form.price),
-        cost: Number(form.cost) || 0,
-        taxRate: Number(form.taxRate) || 0,
-        sla: form.sla.trim(),
-        isActive: form.isActive,
-      }
-      setProducts((prev) => [...prev, newProduct])
+  async function handleSave(form: ProductFormState) {
+    if (!canEdit) { toast.error('Only admins can change the catalog'); return }
+    const payload = {
+      name: form.name.trim(), category: form.category, description: form.description.trim(),
+      price: Number(form.price), cost: Number(form.cost) || 0, taxRate: Number(form.taxRate) || 0,
+      sla: form.sla.trim(), isActive: form.isActive,
     }
-    closeModal()
+    try {
+      if (editingProduct) {
+        const res = await productService.update(editingProduct.id, payload)
+        setProducts(prev => prev.map(p => (p.id === editingProduct.id ? toProduct(res.data) : p)))
+      } else {
+        const res = await productService.create(payload)
+        setProducts(prev => [...prev, toProduct(res.data)])
+      }
+      toast.success(editingProduct ? 'Product updated' : 'Product added')
+      closeModal()
+    } catch (err) {
+      toast.error(apiError(err, 'Failed to save product'))
+    }
   }
 
-  function toggleActive(id: number) {
-    setProducts((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, isActive: !p.isActive } : p))
-    )
+  async function toggleActive(id: string) {
+    const product = products.find(p => p.id === id)
+    if (!product) return
+    if (!canEdit) { toast.error('Only admins can change the catalog'); return }
+    try {
+      const res = await productService.update(id, { isActive: !product.isActive })
+      setProducts(prev => prev.map(p => (p.id === id ? toProduct(res.data) : p)))
+      toast.success(product.isActive ? 'Product deactivated' : 'Product activated')
+    } catch (err) {
+      toast.error(apiError(err, 'Failed to update product'))
+    }
   }
+
+  if (loading) return <PageLoader />
 
   // ── Render ─────────────────────────────────────────────────────────────────
 

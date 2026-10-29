@@ -1,7 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Plus, Search, X, TrendingUp, ArrowRight, User, Phone, Calendar } from 'lucide-react'
 import { cn, formatDate, getCategoryLabel } from '@/lib/utils'
 import type { ClientCategory } from '@/types'
+import { leadService } from '@/lib/services/operationsService'
+import { useLookups, apiError } from '@/lib/services/lookupService'
+import PageLoader from '@/components/shared/PageLoader'
+import toast from 'react-hot-toast'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type LeadStatus = 'NEW' | 'CONTACTED' | 'QUALIFIED' | 'CONVERTED' | 'LOST'
@@ -18,25 +23,34 @@ interface Lead {
   interestedIn: string       // EVS, SANTRACK, etc.
   status: LeadStatus
   assignedTo: string
+  assignedToId: string
   followUpDate: string
   estimatedValue: number
   notes: string
   createdAt: string
 }
 
-// ─── Mock data (from Excel field visits) ─────────────────────────────────────
-const initialLeads: Lead[] = [
-  { id: '1', companyName: 'Free Trade LTD', contactName: 'CYUBAHIRO', contactPhone: '783334085', contactEmail: '', category: 'SELF_EMPLOYED', source: 'FIELD_VISIT', interestedIn: 'Mobile App', status: 'NEW', assignedTo: 'Alice Uwimana', followUpDate: '2026-10-15', estimatedValue: 1500000, notes: 'They want mobile app for stock management.', createdAt: '2026-09-17' },
-  { id: '2', companyName: 'SABAN Ltd Abattoir', contactName: 'GERARD MUGIRE', contactPhone: '0725307032', contactEmail: '', category: 'SELF_EMPLOYED', source: 'FIELD_VISIT', interestedIn: 'EVS', status: 'QUALIFIED', assignedTo: 'Alice Uwimana', followUpDate: '2026-10-12', estimatedValue: 12000000, notes: 'Appointment on Monday 10am. HR is Gerard Mugire. Company supplies meat for local consumption.', createdAt: '2026-09-17' },
-  { id: '3', companyName: 'Bloom Kigali', contactName: 'Denis (Owner)', contactPhone: '0786021700', contactEmail: '', category: 'SELF_EMPLOYED', source: 'FIELD_VISIT', interestedIn: 'SANTRACK', status: 'CONTACTED', assignedTo: 'Alice Uwimana', followUpDate: '2026-10-13', estimatedValue: 700000, notes: 'Sells flowers and artificial decorative materials. Interested in SanTrack customization for stock management at 700 RWF.', createdAt: '2026-09-11' },
-  { id: '4', companyName: 'BANK OF KIGALI', contactName: 'UMUTONI LUCKY', contactPhone: '', contactEmail: 'procurement@bk.rw', category: 'INSTITUTION', source: 'FIELD_VISIT', interestedIn: 'EVS', status: 'NEW', assignedTo: 'Alice Uwimana', followUpDate: '2026-10-20', estimatedValue: 20000000, notes: 'Talked with procurement. She will inform us of opportunities. Follow NewTimes for tenders.', createdAt: '2026-09-29' },
-  { id: '5', companyName: 'BPR Bank', contactName: 'Receptionist', contactPhone: '', contactEmail: 'info@bpr.rw', category: 'INSTITUTION', source: 'FIELD_VISIT', interestedIn: 'EVS', status: 'NEW', assignedTo: 'Alice Uwimana', followUpDate: '2026-10-18', estimatedValue: 18000000, notes: 'Did not meet team. Got email for appointment request.', createdAt: '2026-09-29' },
-  { id: '6', companyName: 'KABILA INDUSTRY COFFEE', contactName: 'Ange (Accountant)', contactPhone: '0783375049', contactEmail: '', category: 'INDUSTRY', source: 'FIELD_VISIT', interestedIn: 'SANTRACK', status: 'CONTACTED', assignedTo: 'Alice Uwimana', followUpDate: '2026-10-14', estimatedValue: 2500000, notes: 'Accountant chose SANTRACK. Will request appointment with boss.', createdAt: '2026-09-16' },
-  { id: '7', companyName: 'Food Supplements Shop', contactName: '', contactPhone: '788431118', contactEmail: '', category: 'SELF_EMPLOYED', source: 'FIELD_VISIT', interestedIn: 'Website', status: 'QUALIFIED', assignedTo: 'Alice Uwimana', followUpDate: '2026-09-23', estimatedValue: 120000, notes: 'Wants website at 120k. Will pay advance on Tuesday this coming week.', createdAt: '2026-09-11' },
-  { id: '8', companyName: 'HIKVISION Rwanda', contactName: '', contactPhone: '788529036', contactEmail: '', category: 'SELF_EMPLOYED', source: 'FIELD_VISIT', interestedIn: 'Custom System', status: 'QUALIFIED', assignedTo: 'Alice Uwimana', followUpDate: '2026-10-10', estimatedValue: 4000000, notes: 'Uses ODOO at 4M/year. Wants a one-time payable system. Good opportunity.', createdAt: '2026-09-28' },
-  { id: '9', companyName: 'MARRIOTT INTERNATIONAL', contactName: 'Receptionist (CPM contact)', contactPhone: '', contactEmail: 'ndahiriwejoseph@marriot.com', category: 'INSTITUTION', source: 'FIELD_VISIT', interestedIn: 'EVS', status: 'NEW', assignedTo: 'Alice Uwimana', followUpDate: '2026-10-15', estimatedValue: 25000000, notes: 'Got cluster purchasing manager contact. Need to write email.', createdAt: '2026-09-25' },
-  { id: '10', companyName: 'capital (transport agency)', contactName: 'HR', contactPhone: '785397723', contactEmail: '', category: 'SELF_EMPLOYED', source: 'FIELD_VISIT', interestedIn: 'Custom System', status: 'CONTACTED', assignedTo: 'Alice Uwimana', followUpDate: '2026-10-12', estimatedValue: 5000000, notes: 'Need system to manage drivers: shifts, road penalties, weekly/monthly performance.', createdAt: '2026-09-24' },
-]
+// ─── API → page shape ─────────────────────────────────────────────────────────
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toLead(l: any): Lead {
+  return {
+    id: l.id,
+    companyName: l.companyName,
+    contactName: l.contactName ?? '',
+    contactPhone: l.contactPhone ?? '',
+    contactEmail: l.contactEmail ?? '',
+    category: l.category,
+    source: l.source,
+    interestedIn: l.interestedIn,
+    status: l.status,
+    assignedTo: l.assignedTo ? `${l.assignedTo.firstName} ${l.assignedTo.lastName}` : '',
+    assignedToId: l.assignedToId ?? '',
+    followUpDate: l.followUpDate ? String(l.followUpDate).slice(0, 10) : '',
+    estimatedValue: Number(l.estimatedValue ?? 0),
+    notes: l.notes ?? '',
+    createdAt: String(l.createdAt).slice(0, 10),
+  }
+}
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const STATUS_CONFIG: Record<LeadStatus, { label: string; color: string; dot: string }> = {
@@ -53,7 +67,6 @@ const SOURCE_LABELS: Record<LeadSource, string> = {
 }
 
 const PRODUCTS = ['EVS', 'SANTRACK', 'REVIXSAN', 'SANBOOK', 'SANHUB', 'Website', 'Mobile App', 'Custom System', 'Other']
-const EMPLOYEES = ['Alice Uwimana', 'Bob Nkurunziza', 'Eve Ingabire']
 
 const ROWS_OPTIONS = [5, 10, 20, 'All'] as const
 
@@ -62,13 +75,31 @@ const emptyForm = {
   category: 'SELF_EMPLOYED' as ClientCategory,
   source: 'FIELD_VISIT' as LeadSource,
   interestedIn: 'EVS', status: 'NEW' as LeadStatus,
-  assignedTo: EMPLOYEES[0], followUpDate: '',
+  assignedToId: '', followUpDate: '',
   estimatedValue: '', notes: '',
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function LeadsPage() {
-  const [leads, setLeads] = useState<Lead[]>(initialLeads)
+  const navigate = useNavigate()
+  const [leads, setLeads] = useState<Lead[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const lookups = useLookups()
+  const salespeople = lookups.users.filter(u => ['SUPER_ADMIN', 'ADMIN', 'SALES_MANAGER', 'SALES_STAFF', 'MARKETING_MANAGER'].includes(u.role))
+
+  useEffect(() => {
+    leadService.getAll()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then((res: any) => setLeads((res.data ?? []).map(toLead)))
+      .catch(err => toast.error(apiError(err, 'Failed to load leads')))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const replaceLead = (saved: Lead) => {
+    setLeads(prev => prev.map(l => l.id === saved.id ? saved : l))
+    setViewLead(prev => prev?.id === saved.id ? saved : prev)
+  }
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<LeadStatus | 'ALL'>('ALL')
   const [categoryFilter, setCategoryFilter] = useState<ClientCategory | 'ALL'>('ALL')
@@ -102,46 +133,72 @@ export default function LeadsPage() {
     setForm(p => ({ ...p, [e.target.name]: e.target.value }))
   }
 
-  const openAdd = () => { setForm(emptyForm); setEditId(null); setError(''); setShowModal(true) }
+  const openAdd = () => { setForm({ ...emptyForm, assignedToId: salespeople[0]?.id ?? '' }); setEditId(null); setError(''); setShowModal(true) }
   const openEdit = (l: Lead) => {
-    setForm({ companyName: l.companyName, contactName: l.contactName, contactPhone: l.contactPhone, contactEmail: l.contactEmail, category: l.category, source: l.source, interestedIn: l.interestedIn, status: l.status, assignedTo: l.assignedTo, followUpDate: l.followUpDate, estimatedValue: String(l.estimatedValue), notes: l.notes })
+    setForm({ companyName: l.companyName, contactName: l.contactName, contactPhone: l.contactPhone, contactEmail: l.contactEmail, category: l.category, source: l.source, interestedIn: l.interestedIn, status: l.status, assignedToId: l.assignedToId, followUpDate: l.followUpDate, estimatedValue: String(l.estimatedValue), notes: l.notes })
     setEditId(l.id); setError(''); setShowModal(true); setViewLead(null)
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!form.companyName || !form.interestedIn) { setError('Company name and product are required.'); return }
-    const lead: Lead = {
-      id: editId || String(Date.now()),
+    const payload = {
       companyName: form.companyName, contactName: form.contactName,
       contactPhone: form.contactPhone, contactEmail: form.contactEmail,
-      category: form.category, source: form.source,
-      interestedIn: form.interestedIn, status: form.status,
-      assignedTo: form.assignedTo, followUpDate: form.followUpDate,
-      estimatedValue: parseFloat(form.estimatedValue) || 0,
-      notes: form.notes, createdAt: new Date().toISOString().split('T')[0],
+      category: form.category, source: form.source, interestedIn: form.interestedIn,
+      assignedToId: form.assignedToId || undefined, followUpDate: form.followUpDate || null,
+      estimatedValue: parseFloat(form.estimatedValue) || 0, notes: form.notes,
+      ...(editId && form.status !== 'CONVERTED' ? { status: form.status } : {}),
     }
-    if (editId) setLeads(prev => prev.map(l => l.id === editId ? lead : l))
-    else setLeads(prev => [lead, ...prev])
-    setShowModal(false)
+    setSaving(true)
+    try {
+      if (editId) {
+        const res = await leadService.update(editId, payload)
+        replaceLead(toLead(res.data))
+        toast.success('Lead updated')
+      } else {
+        const res = await leadService.create(payload)
+        setLeads(prev => [toLead(res.data), ...prev])
+        toast.success('Lead added')
+      }
+      setShowModal(false)
+    } catch (err) {
+      setError(apiError(err, 'Failed to save lead'))
+    } finally {
+      setSaving(false)
+    }
   }
 
   // ── Convert to Deal ────────────────────────────────────────────────────────
-  const convertToDeal = (id: string) => {
-    setLeads(prev => prev.map(l => l.id === id ? { ...l, status: 'CONVERTED' } : l))
-    setConvertId(null)
-    setViewLead(null)
+  const convertToDeal = async (id: string) => {
+    setSaving(true)
+    try {
+      const res = await leadService.convert(id)
+      replaceLead(toLead(res.data.lead))
+      setConvertId(null)
+      setViewLead(null)
+      toast.success((t) => (
+        <span className="text-sm">
+          {res.message}{' '}
+          <button className="underline font-medium" onClick={() => { toast.dismiss(t.id); navigate('/sales/pipeline') }}>Open pipeline</button>
+        </span>
+      ), { duration: 6000 })
+    } catch (err) {
+      toast.error(apiError(err, 'Failed to convert lead'))
+    } finally {
+      setSaving(false)
+    }
   }
 
   // ── Advance status ─────────────────────────────────────────────────────────
-  const advanceStatus = (id: string) => {
-    const order: LeadStatus[] = ['NEW', 'CONTACTED', 'QUALIFIED', 'CONVERTED']
-    setLeads(prev => prev.map(l => {
-      if (l.id !== id) return l
-      const idx = order.indexOf(l.status)
-      if (idx < 0 || idx >= order.length - 1) return l
-      return { ...l, status: order[idx + 1] }
-    }))
+  const advanceStatus = async (id: string) => {
+    try {
+      const res = await leadService.advance(id)
+      replaceLead(toLead(res.data))
+      toast.success(res.message)
+    } catch (err) {
+      toast.error(apiError(err, 'Failed to update lead'))
+    }
   }
 
   // ── Stats ──────────────────────────────────────────────────────────────────
@@ -151,6 +208,8 @@ export default function LeadsPage() {
     { label: 'Converted', value: leads.filter(l => l.status === 'CONVERTED').length, color: 'text-green-600' },
     { label: 'Pipeline Value', value: `RWF ${(leads.filter(l => l.status !== 'LOST').reduce((s, l) => s + l.estimatedValue, 0) / 1_000_000).toFixed(1)}M`, color: 'text-blue-600' },
   ]
+
+  if (loading) return <PageLoader />
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
@@ -244,7 +303,7 @@ export default function LeadsPage() {
                 <tr><td colSpan={10} className="text-center py-10 text-gray-400">No leads found.</td></tr>
               ) : paginated.map(lead => {
                 const cfg = STATUS_CONFIG[lead.status]
-                const order: LeadStatus[] = ['NEW', 'CONTACTED', 'QUALIFIED']
+                const order: LeadStatus[] = ['NEW', 'CONTACTED']
                 const canAdvance = order.includes(lead.status)
                 return (
                   <tr key={lead.id} className="hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => setViewLead(lead)}>
@@ -332,11 +391,11 @@ export default function LeadsPage() {
             </div>
             <h3 className="font-semibold text-gray-800 text-center mb-2">Convert to Deal?</h3>
             <p className="text-sm text-gray-500 text-center mb-5">
-              This lead will be marked as <strong>Converted</strong> and added to the <strong>Deal Pipeline</strong> as a new opportunity.
+              This lead will be marked as <strong>Converted</strong>, registered as a <strong>client</strong> (if new) and added to the <strong>Deal Pipeline</strong> as a qualified opportunity.
             </p>
             <div className="flex gap-3">
               <button onClick={() => setConvertId(null)} className="flex-1 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 font-medium">Cancel</button>
-              <button onClick={() => convertToDeal(convertId)} className="flex-1 py-2.5 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 font-medium">Convert to Deal</button>
+              <button disabled={saving} onClick={() => convertToDeal(convertId)} className="disabled:opacity-50 flex-1 py-2.5 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 font-medium">Convert to Deal</button>
             </div>
           </div>
         </div>
@@ -456,15 +515,15 @@ export default function LeadsPage() {
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Status</label>
                   <select name="status" value={form.status} onChange={handleChange} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500">
-                    {Object.entries(STATUS_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                    {Object.entries(STATUS_CONFIG).filter(([k]) => k !== 'CONVERTED' || form.status === 'CONVERTED').map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                   </select>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Assigned To</label>
-                  <select name="assignedTo" value={form.assignedTo} onChange={handleChange} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500">
-                    {EMPLOYEES.map(e => <option key={e}>{e}</option>)}
+                  <select name="assignedToId" value={form.assignedToId} onChange={handleChange} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500">
+                    {salespeople.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                   </select>
                 </div>
                 <div>
@@ -482,7 +541,7 @@ export default function LeadsPage() {
               </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 font-medium">Cancel</button>
-                <button type="submit" className="flex-1 py-2.5 bg-santech-600 text-white rounded-lg text-sm hover:bg-santech-700 font-medium">{editId ? 'Save Changes' : 'Add Lead'}</button>
+                <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-santech-600 text-white rounded-lg text-sm hover:bg-santech-700 font-medium disabled:opacity-50">{saving ? 'Saving…' : editId ? 'Save Changes' : 'Add Lead'}</button>
               </div>
             </form>
           </div>

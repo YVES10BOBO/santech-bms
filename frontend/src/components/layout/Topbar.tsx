@@ -1,6 +1,8 @@
 import { Bell, Menu, Search, X } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
+import { notificationService } from '@/lib/services/operationsService'
 import { getInitials } from '@/lib/utils'
 
 interface TopbarProps {
@@ -10,6 +12,19 @@ interface TopbarProps {
 
 export default function Topbar({ onToggleSidebar, onOpenMobileSidebar }: TopbarProps) {
   const { user, logout } = useAuthStore()
+  const navigate = useNavigate()
+  const location = useLocation()
+  const [unread, setUnread] = useState(0)
+
+  // Real unread count: refresh on page change, every 2 minutes, and when notifications are read
+  useEffect(() => {
+    let alive = true
+    const load = () => notificationService.unreadCount().then(n => { if (alive) setUnread(n) }).catch(() => { /* bell stays as is */ })
+    load()
+    const timer = window.setInterval(load, 120000)
+    window.addEventListener('santech:notifications-changed', load)
+    return () => { alive = false; window.clearInterval(timer); window.removeEventListener('santech:notifications-changed', load) }
+  }, [location.pathname])
   const [searchOpen, setSearchOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
 
@@ -53,9 +68,17 @@ export default function Topbar({ onToggleSidebar, onOpenMobileSidebar }: TopbarP
 
       <div className="flex items-center gap-2 ml-auto">
         {/* Notifications */}
-        <button className="relative p-1.5 rounded-md text-gray-500 hover:bg-gray-100 transition-colors">
+        <button
+          onClick={() => navigate('/notifications')}
+          title={unread ? `${unread} unread notification${unread === 1 ? '' : 's'}` : 'Notifications'}
+          className="relative p-1.5 rounded-md text-gray-500 hover:bg-gray-100 transition-colors"
+        >
           <Bell className="w-5 h-5" />
-          <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
+          {unread > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+              {unread > 99 ? '99+' : unread}
+            </span>
+          )}
         </button>
 
         {/* Profile dropdown */}

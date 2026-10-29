@@ -6,6 +6,7 @@
 import { PrismaClient } from '@prisma/client'
 import bcrypt from 'bcryptjs'
 import { seedFinanceAndWorkflows } from './seeds/financeAndWorkflows'
+import { seedSalesAndOperations } from './seeds/salesAndOperations'
 
 const prisma = new PrismaClient()
 
@@ -246,6 +247,8 @@ async function main() {
   console.log('✅ Field visits seeded')
 
   // ── 10. FINANCE, PAYROLL, CONTRACT SIGNING, MILESTONES, AUDIT TRAIL ─────
+  // Leads, quotations, support, products, departments, extra staff, reception, notifications
+  await seedSalesAndOperations(prisma)
   await seedFinanceAndWorkflows(prisma)
 
   console.log('\n🎉 All seed data loaded!')

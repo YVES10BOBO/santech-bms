@@ -137,6 +137,66 @@ enum MilestoneStatus {
   INVOICED
 }
 
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  CONVERTED
+  LOST
+}
+
+enum LeadSource {
+  FIELD_VISIT
+  REFERRAL
+  WEBSITE
+  SOCIAL_MEDIA
+  EVENT
+  COLD_CALL
+  OTHER
+}
+
+enum QuotationStatus {
+  DRAFT
+  INTERNAL_REVIEW
+  MANAGER_APPROVAL
+  CEO_APPROVAL
+  APPROVED
+  SENT
+  VIEWED
+  NEGOTIATION
+  ACCEPTED
+  REJECTED
+  CONVERTED
+  EXPIRED
+}
+
+enum TicketStatus {
+  NEW
+  ASSIGNED
+  IN_PROGRESS
+  WAITING_CUSTOMER
+  RESOLVED
+  CLOSED
+}
+
+enum VisitorStatus {
+  EXPECTED
+  CHECKED_IN
+  CHECKED_OUT
+  NO_SHOW
+  WALK_IN
+}
+
+enum VisitPurpose {
+  SALES_MEETING
+  CLIENT_MEETING
+  CONTRACT_SIGNING
+  DELIVERY
+  INTERVIEW
+  TRAINING
+  OTHER
+}
+
 enum EmploymentStatus {
   ACTIVE
   ON_LEAVE
@@ -193,6 +253,13 @@ model User {
   auditLogs             AuditLog[]
   incomeRecorded        IncomeEntry[]  @relation("IncomeRecordedBy")
   expensesRecorded      ExpenseEntry[] @relation("ExpenseRecordedBy")
+  leadsAssigned         Lead[]         @relation("LeadAssignedTo")
+  quotationsAssigned    Quotation[]    @relation("QuotationAssignedTo")
+  notifications         Notification[]
+  ticketsAssigned       SupportTicket[] @relation("TicketAssignedTo")
+  ticketsCreated        SupportTicket[] @relation("TicketCreatedBy")
+  departmentsHeaded     Department[]   @relation("DepartmentHead")
+  visitorsHosted        Visitor[]      @relation("VisitorHost")
 
   @@map("users")
 }
@@ -305,6 +372,8 @@ model Client {
   invoices     Invoice[]
   projects     Project[]
   incomeEntries IncomeEntry[]
+  quotations   Quotation[]
+  tickets      SupportTicket[]
 
   @@map("clients")
 }
@@ -365,6 +434,7 @@ model Product {
   price       Float
   cost        Float?
   taxRate     Float           @default(0)
+  sla         String?
   currency    String          @default("RWF")
   isActive    Boolean         @default(true)
   createdAt   DateTime        @default(now())
@@ -639,4 +709,156 @@ model ExpenseEntry {
   createdAt      DateTime      @default(now())
 
   @@map("expense_entries")
+}
+
+// ===========================
+// LEADS (before they become clients)
+// ===========================
+
+model Lead {
+  id             String         @id @default(cuid())
+  companyName    String
+  contactName    String?
+  contactPhone   String?
+  contactEmail   String?
+  category       ClientCategory
+  source         LeadSource     @default(FIELD_VISIT)
+  interestedIn   String
+  status         LeadStatus     @default(NEW)
+  assignedToId   String?
+  assignedTo     User?          @relation("LeadAssignedTo", fields: [assignedToId], references: [id])
+  followUpDate   DateTime?
+  estimatedValue Float          @default(0)
+  notes          String?        @db.Text
+  clientId       String?        // set when converted
+  opportunityId  String?        // set when converted
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@map("leads")
+}
+
+// ===========================
+// QUOTATIONS
+// ===========================
+
+model Quotation {
+  id              String          @id @default(cuid())
+  quotationNumber String          @unique
+  clientId        String
+  client          Client          @relation(fields: [clientId], references: [id])
+  contactName     String?
+  contactEmail    String?
+  contactPhone    String?
+  status          QuotationStatus @default(DRAFT)
+  items           Json            // [{ id, description, quantity, unitPrice, total }]
+  subtotal        Float
+  vatRate         Float           @default(0)
+  vatAmount       Float           @default(0)
+  totalAmount     Float
+  currency        String          @default("RWF")
+  validUntil      DateTime?
+  paymentTerms    String?
+  notes           String?         @db.Text
+  assignedToId    String?
+  assignedTo      User?           @relation("QuotationAssignedTo", fields: [assignedToId], references: [id])
+  linkedDeal      String?
+  approvalHistory Json?           // [{ status, action, actor, createdAt }]
+  sentAt          DateTime?
+  acceptedAt      DateTime?
+  contractId      String?         // set when converted to a contract
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@map("quotations")
+}
+
+// ===========================
+// NOTIFICATIONS (in-app reminders)
+// ===========================
+
+model Notification {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        String   // PAYMENT_DUE, OVERDUE, CONTRACT_EXPIRY, FOLLOW_UP, TASK_DEADLINE, SYSTEM
+  title       String
+  description String
+  link        String?
+  key         String?  // stops the same reminder being created twice
+  read        Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, key])
+  @@map("notifications")
+}
+
+// ===========================
+// SUPPORT TICKETS
+// ===========================
+
+model SupportTicket {
+  id           String       @id @default(cuid())
+  ticketNo     String       @unique
+  clientId     String
+  client       Client       @relation(fields: [clientId], references: [id])
+  subject      String
+  description  String       @db.Text
+  product      String
+  priority     Priority     @default(MEDIUM)
+  status       TicketStatus @default(NEW)
+  assignedToId String?
+  assignedTo   User?        @relation("TicketAssignedTo", fields: [assignedToId], references: [id])
+  createdById  String
+  createdBy    User         @relation("TicketCreatedBy", fields: [createdById], references: [id])
+  resolvedAt   DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@map("support_tickets")
+}
+
+// ===========================
+// DEPARTMENTS
+// ===========================
+
+model Department {
+  id          String   @id @default(cuid())
+  name        String   @unique // matches Employee.department
+  description String?
+  headId      String?
+  head        User?    @relation("DepartmentHead", fields: [headId], references: [id])
+  budget      Float    @default(0)
+  color       String   @default("bg-blue-100 text-blue-700")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("departments")
+}
+
+// ===========================
+// RECEPTION / VISITORS
+// ===========================
+
+model Visitor {
+  id               String        @id @default(cuid())
+  visitorName      String
+  company          String?
+  phone            String?
+  email            String?
+  idNumber         String?
+  purpose          VisitPurpose
+  hostId           String?
+  host             User?         @relation("VisitorHost", fields: [hostId], references: [id])
+  expectedDate     DateTime
+  expectedTime     String?
+  expectedDuration Int           @default(60)
+  checkInTime      DateTime?
+  checkOutTime     DateTime?
+  status           VisitorStatus @default(EXPECTED)
+  notes            String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@map("visitors")
 }

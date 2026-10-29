@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useEffect, useState, useMemo } from 'react'
 import {
   Search,
   Plus,
@@ -12,102 +12,19 @@ import {
 } from 'lucide-react'
 import { cn, formatDate } from '@/lib/utils'
 import type { User, UserRole } from '@/types'
+import { userService } from '@/lib/services/operationsService'
+import { apiError } from '@/lib/services/lookupService'
+import { useAuthStore } from '@/store/authStore'
+import PageLoader from '@/components/shared/PageLoader'
+import toast from 'react-hot-toast'
 
-// ─── Mock data ────────────────────────────────────────────────────────────────
-
-const INITIAL_USERS: User[] = [
-  {
-    id: '1',
-    firstName: 'Jean',
-    lastName: 'Mutabazi',
-    email: 'jean@santech.rw',
-    phone: '+250780001001',
-    role: 'SUPER_ADMIN',
-    department: 'Executive',
-    position: 'CEO',
-    isActive: true,
-    createdAt: '2024-01-01',
-    updatedAt: '2024-01-01',
-  },
-  {
-    id: '2',
-    firstName: 'Alice',
-    lastName: 'Uwimana',
-    email: 'alice@santech.rw',
-    phone: '+250780001002',
-    role: 'ADMIN',
-    department: 'Operations',
-    position: 'Operations Manager',
-    isActive: true,
-    createdAt: '2024-02-01',
-    updatedAt: '2024-02-01',
-  },
-  {
-    id: '3',
-    firstName: 'Bob',
-    lastName: 'Nkurunziza',
-    email: 'bob@santech.rw',
-    phone: '+250780001003',
-    role: 'SALES_STAFF',
-    department: 'Sales & Marketing',
-    position: 'Sales Rep',
-    isActive: true,
-    createdAt: '2024-03-01',
-    updatedAt: '2024-03-01',
-  },
-  {
-    id: '4',
-    firstName: 'Grace',
-    lastName: 'Ingabire',
-    email: 'grace@santech.rw',
-    phone: '+250780001004',
-    role: 'FINANCE_MANAGER',
-    department: 'Finance',
-    position: 'Finance Manager',
-    isActive: true,
-    createdAt: '2024-03-15',
-    updatedAt: '2024-03-15',
-  },
-  {
-    id: '5',
-    firstName: 'Eric',
-    lastName: 'Habimana',
-    email: 'eric@santech.rw',
-    phone: '+250780001005',
-    role: 'EMPLOYEE',
-    department: 'IT',
-    position: 'Developer',
-    isActive: false,
-    createdAt: '2024-04-01',
-    updatedAt: '2024-04-01',
-  },
-  {
-    id: '6',
-    firstName: 'Marie',
-    lastName: 'Umubyeyi',
-    email: 'marie@santech.rw',
-    phone: '+250780001006',
-    role: 'PROJECT_MANAGER',
-    department: 'Projects',
-    position: 'PM',
-    isActive: true,
-    createdAt: '2024-05-01',
-    updatedAt: '2024-05-01',
-  },
-  {
-    id: '7',
-    firstName: 'Paul',
-    lastName: 'Rugamba',
-    email: 'paul@santech.rw',
-    phone: '+250780001007',
-    role: 'SALES_MANAGER',
-    department: 'Sales & Marketing',
-    position: 'Sales Manager',
-    isActive: true,
-    createdAt: '2024-06-01',
-    updatedAt: '2024-06-01',
-  },
-]
+// ─── API → page shape ─────────────────────────────────────────────────────────
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toUser = (u: any): User => ({
+  id: u.id, firstName: u.firstName, lastName: u.lastName, email: u.email, phone: u.phone ?? '',
+  role: u.role, department: u.employee?.department ?? '', position: u.employee?.position ?? '',
+  isActive: u.isActive, createdAt: u.createdAt, updatedAt: u.updatedAt,
+})
 
 const ALL_ROLES: UserRole[] = [
   'SUPER_ADMIN',
@@ -175,7 +92,18 @@ const EMPTY_FORM: UserFormState = {
 
 export default function SettingsPage() {
   // Users state
-  const [users, setUsers] = useState<User[]>(INITIAL_USERS)
+  const [users, setUsers] = useState<User[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const { user: me } = useAuthStore()
+
+  useEffect(() => {
+    userService.getAll()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then((res: any) => setUsers((res.data ?? []).map(toUser)))
+      .catch(err => toast.error(apiError(err, 'Failed to load users')))
+      .finally(() => setLoading(false))
+  }, [])
 
   // Search / filter
   const [search, setSearch] = useState('')
@@ -290,8 +218,8 @@ export default function SettingsPage() {
       // Password required only for new users
       if (!form.password) {
         newErrors.password = 'Password is required'
-      } else if (form.password.length < 6) {
-        newErrors.password = 'Password must be at least 6 characters'
+      } else if (form.password.length < 8) {
+        newErrors.password = 'Password must be at least 8 characters'
       }
       if (!form.confirmPassword) {
         newErrors.confirmPassword = 'Please confirm the password'
@@ -301,8 +229,8 @@ export default function SettingsPage() {
     } else {
       // For edits, validate only if password is provided
       if (form.password) {
-        if (form.password.length < 6) {
-          newErrors.password = 'Password must be at least 6 characters'
+        if (form.password.length < 8) {
+          newErrors.password = 'Password must be at least 8 characters'
         }
         if (form.password !== form.confirmPassword) {
           newErrors.confirmPassword = 'Passwords do not match'
@@ -316,56 +244,48 @@ export default function SettingsPage() {
 
   // ── Save handler ─────────────────────────────────────────────────────────────
 
-  function handleSave() {
+  async function handleSave() {
     if (!validate()) return
-
-    if (editingUser) {
-      setUsers((prev) =>
-        prev.map((u) =>
-          u.id === editingUser.id
-            ? {
-                ...u,
-                firstName: form.firstName.trim(),
-                lastName: form.lastName.trim(),
-                email: form.email.trim(),
-                phone: form.phone.trim(),
-                role: form.role,
-                department: form.department.trim(),
-                position: form.position.trim(),
-                updatedAt: new Date().toISOString(),
-              }
-            : u
-        )
-      )
-    } else {
-      const newUser: User = {
-        id: String(Date.now()),
-        firstName: form.firstName.trim(),
-        lastName: form.lastName.trim(),
-        email: form.email.trim(),
-        phone: form.phone.trim(),
-        role: form.role,
-        department: form.department.trim(),
-        position: form.position.trim(),
-        isActive: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }
-      setUsers((prev) => [...prev, newUser])
+    const payload = {
+      firstName: form.firstName.trim(), lastName: form.lastName.trim(), phone: form.phone.trim(),
+      role: form.role, department: form.department.trim(), position: form.position.trim(),
+      ...(form.password ? { password: form.password } : {}),
     }
-
-    closeModal()
+    setSaving(true)
+    try {
+      if (editingUser) {
+        const res = await userService.update(editingUser.id, payload)
+        setUsers(prev => prev.map(u => (u.id === editingUser.id ? toUser(res.data) : u)))
+        toast.success('User updated')
+      } else {
+        const res = await userService.create({ ...payload, email: form.email.trim() })
+        setUsers(prev => [...prev, toUser(res.data)])
+        toast.success(`User created — they can log in with ${form.email.trim()}`)
+      }
+      closeModal()
+    } catch (err) {
+      toast.error(apiError(err, 'Failed to save user'))
+    } finally {
+      setSaving(false)
+    }
   }
 
   // ── Toggle active ────────────────────────────────────────────────────────────
 
-  function toggleActive(id: string) {
-    setUsers((prev) =>
-      prev.map((u) =>
-        u.id === id ? { ...u, isActive: !u.isActive, updatedAt: new Date().toISOString() } : u
-      )
-    )
+  async function toggleActive(id: string) {
+    const target = users.find(u => u.id === id)
+    if (!target) return
+    if (target.id === me?.id) { toast.error('You cannot deactivate your own account'); return }
+    try {
+      const res = await userService.update(id, { isActive: !target.isActive })
+      setUsers(prev => prev.map(u => (u.id === id ? toUser(res.data) : u)))
+      toast.success(res.message)
+    } catch (err) {
+      toast.error(apiError(err, 'Failed to update user'))
+    }
   }
+
+  if (loading) return <PageLoader />
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
@@ -697,6 +617,8 @@ export default function SettingsPage() {
                   name="email"
                   value={form.email}
                   onChange={handleFormChange}
+                  disabled={!!editingUser}
+                  title={editingUser ? 'Email is the login and cannot be changed' : undefined}
                   placeholder="user@santech.rw"
                   className={cn(
                     'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-santech-600',
@@ -845,9 +767,10 @@ export default function SettingsPage() {
               </button>
               <button
                 onClick={handleSave}
-                className="bg-santech-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-santech-700"
+                disabled={saving}
+                className="bg-santech-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-santech-700 disabled:opacity-50"
               >
-                {editingUser ? 'Save Changes' : 'Add User'}
+                {saving ? 'Saving…' : editingUser ? 'Save Changes' : 'Add User'}
               </button>
             </div>
 

@@ -1,8 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Search, X, FileText, CheckCircle2, Clock, ArrowRight, Trash2 } from 'lucide-react'
 import { cn, formatDate, formatCurrency } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
+import { quotationService } from '@/lib/services/operationsService'
+import { useLookups, apiError } from '@/lib/services/lookupService'
+import PageLoader from '@/components/shared/PageLoader'
+import toast from 'react-hot-toast'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type QuotationStatus = 'DRAFT' | 'INTERNAL_REVIEW' | 'MANAGER_APPROVAL' | 'CEO_APPROVAL' | 'APPROVED' | 'SENT' | 'VIEWED' | 'NEGOTIATION' | 'ACCEPTED' | 'REJECTED' | 'CONVERTED' | 'EXPIRED'
@@ -26,6 +30,8 @@ interface Quotation {
   id: string
   quotationNumber: string
   clientName: string
+  clientId: string
+  assignedToId: string
   contactName: string
   contactEmail: string
   contactPhone: string
@@ -48,92 +54,35 @@ interface Quotation {
 }
 
 // ─── Mock data ────────────────────────────────────────────────────────────────
-const mockQuotations: Quotation[] = [
-  {
-    id: '1', quotationNumber: 'QT-2026-001', clientName: 'ECOBANK', contactName: 'KAMIKAZI',
-    contactEmail: 'akamikazi@ecobank.com', contactPhone: '0786740490',
-    status: 'SENT', currency: 'RWF', validUntil: '2026-11-08',
-    paymentTerms: '25% on signing, 75% on delivery',
-    notes: 'Proposal sent as requested. Includes EVS and SANHR IMS.',
-    assignedTo: 'Alice Uwimana', linkedDeal: 'EVS + SANHR IMS — ECOBANK',
-    createdAt: '2026-10-08', sentAt: '2026-10-09', acceptedAt: '',
-    items: [
-      { id: 'i1', description: 'EVS System License', quantity: 1, unitPrice: 5000000, total: 5000000 },
-      { id: 'i2', description: 'SANHR IMS License', quantity: 1, unitPrice: 2000000, total: 2000000 },
-      { id: 'i3', description: 'Installation & Configuration', quantity: 1, unitPrice: 500000, total: 500000 },
-      { id: 'i4', description: 'Staff Training (3 days)', quantity: 1, unitPrice: 300000, total: 300000 },
-      { id: 'i5', description: '3 Months Support & Maintenance', quantity: 3, unitPrice: 150000, total: 450000 },
-    ],
-    subtotal: 8250000, vatRate: 18, vatAmount: 1485000, totalAmount: 9735000,
-  },
-  {
-    id: '2', quotationNumber: 'QT-2026-002', clientName: 'SABBAN ABATTOIR', contactName: 'HR THEONESTE',
-    contactEmail: '', contactPhone: '0788846240',
-    status: 'ACCEPTED', currency: 'RWF', validUntil: '2026-11-01',
-    paymentTerms: '30% on signing, 40% on installation, 30% on handover',
-    notes: 'EVS for 90 employees. Board approved.',
-    assignedTo: 'Alice Uwimana', linkedDeal: 'EVS System — SABBAN ABATTOIR',
-    createdAt: '2026-10-01', sentAt: '2026-10-02', acceptedAt: '2026-10-10',
-    items: [
-      { id: 'i1', description: 'EVS System License (up to 100 employees)', quantity: 1, unitPrice: 8000000, total: 8000000 },
-      { id: 'i2', description: 'Hardware — Access Control Terminals', quantity: 3, unitPrice: 800000, total: 2400000 },
-      { id: 'i3', description: 'Installation & Setup', quantity: 1, unitPrice: 600000, total: 600000 },
-      { id: 'i4', description: 'Staff Training (2 days)', quantity: 1, unitPrice: 200000, total: 200000 },
-      { id: 'i5', description: '6 Months Support & Maintenance', quantity: 6, unitPrice: 133333, total: 800000 },
-    ],
-    subtotal: 12000000, vatRate: 0, vatAmount: 0, totalAmount: 12000000,
-  },
-  {
-    id: '3', quotationNumber: 'QT-2026-003', clientName: 'NYARUGENGE HOSPITAL', contactName: 'Lt Col William KANYANKORE',
-    contactEmail: '', contactPhone: '0788305785',
-    status: 'MANAGER_APPROVAL', currency: 'RWF', validUntil: '2026-12-11',
-    paymentTerms: 'Milestone-based: 20% each milestone',
-    notes: 'Full EVS for hospital staff and visitors. 500+ employees.',
-    assignedTo: 'Alice Uwimana', linkedDeal: 'EVS — NYARUGENGE HOSPITAL',
-    createdAt: '2026-10-11', sentAt: '', acceptedAt: '',
-    approvalHistory: [
-      { status: 'MANAGER_APPROVAL', action: 'SUBMITTED', actor: 'Alice Uwimana', createdAt: '2026-10-11' },
-    ],
-    items: [
-      { id: 'i1', description: 'EVS System License (up to 600 employees)', quantity: 1, unitPrice: 10000000, total: 10000000 },
-      { id: 'i2', description: 'Visitor Management Module', quantity: 1, unitPrice: 2000000, total: 2000000 },
-      { id: 'i3', description: 'Hardware — Access Terminals x6', quantity: 6, unitPrice: 800000, total: 4800000 },
-      { id: 'i4', description: 'Installation & Configuration', quantity: 1, unitPrice: 1000000, total: 1000000 },
-      { id: 'i5', description: 'Staff Training (5 days)', quantity: 1, unitPrice: 500000, total: 500000 },
-      { id: 'i6', description: '12 Months Support & Maintenance', quantity: 12, unitPrice: 150000, total: 1800000 },
-    ],
-    subtotal: 20100000, vatRate: 0, vatAmount: 0, totalAmount: 20100000,
-  },
-  {
-    id: '4', quotationNumber: 'QT-2026-004', clientName: 'Bloom Kigali', contactName: 'Denis (Owner)',
-    contactEmail: '', contactPhone: '0786021700',
-    status: 'REJECTED', currency: 'RWF', validUntil: '2026-10-11',
-    paymentTerms: '100% upfront',
-    notes: 'Client found price too high. May revisit.',
-    assignedTo: 'Alice Uwimana', linkedDeal: 'SANTRACK — Bloom Kigali',
-    createdAt: '2026-09-15', sentAt: '2026-09-15', acceptedAt: '',
-    items: [
-      { id: 'i1', description: 'SANTRACK Customization for Flower Shop', quantity: 1, unitPrice: 600000, total: 600000 },
-      { id: 'i2', description: 'Training (1 day)', quantity: 1, unitPrice: 100000, total: 100000 },
-    ],
-    subtotal: 700000, vatRate: 0, vatAmount: 0, totalAmount: 700000,
-  },
-  {
-    id: '5', quotationNumber: 'QT-2026-005', clientName: 'N&T PLASTIC INDUSTRIES', contactName: 'MUGISHA',
-    contactEmail: '', contactPhone: '0780601661',
-    status: 'VIEWED', currency: 'RWF', validUntil: '2026-10-30',
-    paymentTerms: '100% on delivery',
-    notes: 'Negotiated down to 3M. Awaiting final decision.',
-    assignedTo: 'Alice Uwimana', linkedDeal: 'SANTRACK — N&T PLASTIC',
-    createdAt: '2026-10-05', sentAt: '2026-10-06', acceptedAt: '',
-    items: [
-      { id: 'i1', description: 'SANTRACK — Manufacturing Edition', quantity: 1, unitPrice: 2500000, total: 2500000 },
-      { id: 'i2', description: 'Custom Reports Module', quantity: 1, unitPrice: 300000, total: 300000 },
-      { id: 'i3', description: 'Installation & Training (2 days)', quantity: 1, unitPrice: 200000, total: 200000 },
-    ],
-    subtotal: 3000000, vatRate: 0, vatAmount: 0, totalAmount: 3000000,
-  },
-]
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toQuotation(q: any): Quotation {
+  return {
+    id: q.id,
+    quotationNumber: q.quotationNumber,
+    clientId: q.clientId,
+    clientName: q.client?.companyName ?? '',
+    contactName: q.contactName ?? '',
+    contactEmail: q.contactEmail ?? '',
+    contactPhone: q.contactPhone ?? '',
+    status: q.status,
+    items: Array.isArray(q.items) ? q.items : [],
+    subtotal: Number(q.subtotal),
+    vatRate: Number(q.vatRate),
+    vatAmount: Number(q.vatAmount),
+    totalAmount: Number(q.totalAmount),
+    currency: q.currency ?? 'RWF',
+    validUntil: q.validUntil ? String(q.validUntil).slice(0, 10) : '',
+    paymentTerms: q.paymentTerms ?? '',
+    notes: q.notes ?? '',
+    assignedTo: q.assignedTo ? `${q.assignedTo.firstName} ${q.assignedTo.lastName}` : '',
+    assignedToId: q.assignedToId ?? '',
+    linkedDeal: q.linkedDeal ?? '',
+    createdAt: String(q.createdAt).slice(0, 10),
+    sentAt: q.sentAt ? String(q.sentAt).slice(0, 10) : '',
+    acceptedAt: q.acceptedAt ? String(q.acceptedAt).slice(0, 10) : '',
+    approvalHistory: Array.isArray(q.approvalHistory) ? q.approvalHistory : [],
+  }
+}
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const STATUS_CONFIG: Record<QuotationStatus, { label: string; color: string; icon: React.ElementType }> = {
@@ -164,22 +113,38 @@ const NEXT_ACTION_LABEL: Partial<Record<QuotationStatus, string>> = {
   NEGOTIATION: 'Mark accepted',
 }
 
-const EMPLOYEES = ['Alice Uwimana', 'Bob Nkurunziza', 'Eve Ingabire']
 const PRODUCTS = ['EVS', 'SANTRACK', 'REVIXSAN', 'SANBOOK', 'SANHUB', 'Website', 'Mobile App', 'Training', 'Consultancy', 'Maintenance', 'Custom']
 
 const newItem = (): QuotationItem => ({ id: String(Date.now()), description: '', quantity: 1, unitPrice: 0, total: 0 })
 
 const emptyForm = {
-  clientName: '', contactName: '', contactEmail: '', contactPhone: '',
+  clientId: '', contactName: '', contactEmail: '', contactPhone: '',
   vatRate: '0', validUntil: '', paymentTerms: '', notes: '',
-  assignedTo: EMPLOYEES[0], linkedDeal: '',
+  assignedToId: '', linkedDeal: '',
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function QuotationsPage() {
   const { user } = useAuthStore()
   const navigate = useNavigate()
-  const [quotations, setQuotations] = useState<Quotation[]>(mockQuotations)
+  const [quotations, setQuotations] = useState<Quotation[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const lookups = useLookups()
+  const salespeople = lookups.users.filter(u => ['SUPER_ADMIN', 'ADMIN', 'SALES_MANAGER', 'SALES_STAFF', 'MARKETING_MANAGER'].includes(u.role))
+
+  useEffect(() => {
+    quotationService.getAll()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then((res: any) => setQuotations((res.data ?? []).map(toQuotation)))
+      .catch(err => toast.error(apiError(err, 'Failed to load quotations')))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const replaceQuotation = (saved: Quotation) => {
+    setQuotations(prev => prev.map(q => q.id === saved.id ? saved : q))
+    setViewQuotation(prev => prev?.id === saved.id ? saved : prev)
+  }
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<QuotationStatus | 'ALL'>('ALL')
   const [showModal, setShowModal] = useState(false)
@@ -228,81 +193,86 @@ export default function QuotationsPage() {
   }
 
   const openAdd = () => {
-    setForm(emptyForm); setItems([newItem()]); setEditId(null); setError(''); setShowModal(true)
+    setForm({ ...emptyForm, assignedToId: user?.id ?? '' }); setItems([newItem()]); setEditId(null); setError(''); setShowModal(true)
   }
 
   const openEdit = (q: Quotation) => {
-    setForm({ clientName: q.clientName, contactName: q.contactName, contactEmail: q.contactEmail, contactPhone: q.contactPhone, vatRate: String(q.vatRate), validUntil: q.validUntil, paymentTerms: q.paymentTerms, notes: q.notes, assignedTo: q.assignedTo, linkedDeal: q.linkedDeal })
+    setForm({ clientId: q.clientId, contactName: q.contactName, contactEmail: q.contactEmail, contactPhone: q.contactPhone, vatRate: String(q.vatRate), validUntil: q.validUntil, paymentTerms: q.paymentTerms, notes: q.notes, assignedToId: q.assignedToId, linkedDeal: q.linkedDeal })
     setItems(q.items.map(i => ({ ...i })))
     setEditId(q.id); setError(''); setShowModal(true); setViewQuotation(null)
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  /** Choosing a client fills the contact fields from the client record */
+  const pickClient = (clientId: string) => {
+    const c = lookups.clients.find(x => x.id === clientId)
+    setForm(p => ({ ...p, clientId, contactName: p.contactName || c?.contactName || '', contactPhone: p.contactPhone || c?.phone || '' }))
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!form.clientName) { setError('Client name is required.'); return }
+    if (!form.clientId) { setError('Choose a client.'); return }
     if (items.every(i => !i.description)) { setError('Add at least one line item.'); return }
-    const sub = calcSubtotal(items)
-    const vat = calcVat(sub, parseFloat(form.vatRate) || 0)
-    const q: Quotation = {
-      id: editId || String(Date.now()),
-      quotationNumber: editId ? quotations.find(x => x.id === editId)!.quotationNumber : `QT-${new Date().getFullYear()}-${String(quotations.length + 1).padStart(3, '0')}`,
-      clientName: form.clientName, contactName: form.contactName,
-      contactEmail: form.contactEmail, contactPhone: form.contactPhone,
-      status: editId ? quotations.find(x => x.id === editId)!.status : 'DRAFT',
-      items: items.filter(i => i.description),
-      subtotal: sub, vatRate: parseFloat(form.vatRate) || 0,
-      vatAmount: vat, totalAmount: sub + vat,
-      currency: 'RWF', validUntil: form.validUntil,
+    const payload = {
+      clientId: form.clientId, contactName: form.contactName, contactEmail: form.contactEmail, contactPhone: form.contactPhone,
+      vatRate: parseFloat(form.vatRate) || 0, validUntil: form.validUntil || null,
       paymentTerms: form.paymentTerms, notes: form.notes,
-      assignedTo: form.assignedTo, linkedDeal: form.linkedDeal,
-      createdAt: new Date().toISOString().split('T')[0],
-      sentAt: editId ? quotations.find(x => x.id === editId)!.sentAt : '',
-      acceptedAt: editId ? quotations.find(x => x.id === editId)!.acceptedAt : '',
-      approvalHistory: editId ? quotations.find(x => x.id === editId)!.approvalHistory ?? [] : [],
+      assignedToId: form.assignedToId || undefined, linkedDeal: form.linkedDeal,
+      items: items.filter(i => i.description).map(i => ({ id: i.id, description: i.description, quantity: Number(i.quantity), unitPrice: Number(i.unitPrice) })),
     }
-    if (editId) setQuotations(prev => prev.map(x => x.id === editId ? q : x))
-    else setQuotations(prev => [q, ...prev])
-    setShowModal(false)
-  }
-
-  const advanceStatus = (id: string) => {
-    setQuotations(prev => prev.map(q => {
-      if (q.id !== id) return q
-      const idx = WORKFLOW.indexOf(q.status)
-      if (idx < 0 || idx >= WORKFLOW.length - 1) return q
-      const next = WORKFLOW[idx + 1]
-      const today = new Date().toISOString().split('T')[0]
-      const action: ApprovalEvent['action'] = next === 'INTERNAL_REVIEW' || next === 'MANAGER_APPROVAL'
-        ? 'SUBMITTED'
-        : next === 'CEO_APPROVAL' || next === 'APPROVED' || next === 'ACCEPTED'
-          ? 'APPROVED'
-          : next === 'SENT' ? 'SENT' : 'UPDATED'
-      const actor = user ? `${user.firstName} ${user.lastName}` : 'Current user'
-      return {
-        ...q,
-        status: next,
-        sentAt: next === 'SENT' ? today : q.sentAt,
-        acceptedAt: next === 'ACCEPTED' ? today : q.acceptedAt,
-        approvalHistory: [...(q.approvalHistory ?? []), { status: next, action, actor, createdAt: today }],
+    setSaving(true)
+    try {
+      if (editId) {
+        const res = await quotationService.update(editId, payload)
+        replaceQuotation(toQuotation(res.data))
+        toast.success('Quotation updated')
+      } else {
+        const res = await quotationService.create(payload)
+        setQuotations(prev => [toQuotation(res.data), ...prev])
+        toast.success(res.message)
       }
-    }))
+      setShowModal(false)
+    } catch (err) {
+      setError(apiError(err, 'Failed to save quotation'))
+    } finally {
+      setSaving(false)
+    }
   }
 
-  const rejectQuotation = (id: string) => {
-    const today = new Date().toISOString().split('T')[0]
-    const actor = user ? `${user.firstName} ${user.lastName}` : 'Current user'
-    setQuotations(prev => prev.map(q => q.id === id ? {
-      ...q,
-      status: 'REJECTED',
-      approvalHistory: [...(q.approvalHistory ?? []), { status: 'REJECTED', action: 'REJECTED', actor, createdAt: today }],
-    } : q))
-    setViewQuotation(null)
+  const advanceStatus = async (id: string) => {
+    try {
+      const res = await quotationService.advance(id)
+      replaceQuotation(toQuotation(res.data))
+      toast.success(res.message)
+    } catch (err) {
+      toast.error(apiError(err, 'Failed to update quotation'))
+    }
   }
 
-  const convertToContract = (quotation: Quotation) => {
-    setQuotations(prev => prev.map(q => q.id === quotation.id ? { ...q, status: 'CONVERTED' } : q))
-    setViewQuotation(null)
-    navigate('/contracts', { state: { quotation } })
+  const rejectQuotation = async (id: string) => {
+    const q = quotations.find(x => x.id === id)
+    const internal = q && ['INTERNAL_REVIEW', 'MANAGER_APPROVAL', 'CEO_APPROVAL'].includes(q.status)
+    const reason = window.prompt(internal ? 'Reason for sending it back (shown to the salesperson):' : 'Why did the client reject it?', '')
+    if (reason === null) return
+    try {
+      const res = await quotationService.reject(id, reason)
+      replaceQuotation(toQuotation(res.data))
+      toast.success(res.message)
+    } catch (err) {
+      toast.error(apiError(err, 'Failed to reject quotation'))
+    }
+  }
+
+  const convertToContract = async (quotation: Quotation) => {
+    if (!window.confirm(`Create a draft contract from ${quotation.quotationNumber} (${formatCurrency(quotation.totalAmount)})?`)) return
+    try {
+      const res = await quotationService.convert(quotation.id)
+      setQuotations(prev => prev.map(q => q.id === quotation.id ? { ...q, status: 'CONVERTED' } : q))
+      setViewQuotation(null)
+      toast.success(res.message, { duration: 5000 })
+      navigate('/contracts')
+    } catch (err) {
+      toast.error(apiError(err, 'Failed to convert quotation'))
+    }
   }
 
   // ── Stats ──────────────────────────────────────────────────────────────────
@@ -314,6 +284,8 @@ export default function QuotationsPage() {
     { label: 'Pending Customer', value: quotations.filter(q => ['SENT', 'VIEWED', 'NEGOTIATION'].includes(q.status)).length, color: 'text-blue-600' },
     { label: 'Accepted Value', value: `RWF ${(acceptedValue / 1_000_000).toFixed(1)}M`, color: 'text-purple-600' },
   ]
+
+  if (loading) return <PageLoader />
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
@@ -438,7 +410,7 @@ export default function QuotationsPage() {
                             → Contract
                           </button>
                         )}
-                        <button onClick={() => openEdit(q)} className="text-xs text-gray-500 hover:underline font-medium">Edit</button>
+                        {['DRAFT', 'INTERNAL_REVIEW', 'NEGOTIATION'].includes(q.status) && <button onClick={() => openEdit(q)} className="text-xs text-gray-500 hover:underline font-medium">Edit</button>}
                       </div>
                     </td>
                   </tr>
@@ -579,7 +551,7 @@ export default function QuotationsPage() {
 
               {/* Actions */}
               <div className="flex gap-2 pt-2">
-                <button onClick={() => openEdit(viewQuotation)} className="flex-1 py-2 border border-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50">Edit</button>
+                <button disabled={!['DRAFT', 'INTERNAL_REVIEW', 'NEGOTIATION'].includes(viewQuotation.status)} title="Only draft, in-review or negotiation quotations can be edited" onClick={() => openEdit(viewQuotation)} className="disabled:opacity-40 flex-1 py-2 border border-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50">Edit</button>
                 {WORKFLOW.indexOf(viewQuotation.status) >= 0 && WORKFLOW.indexOf(viewQuotation.status) < WORKFLOW.length - 1 && viewQuotation.status !== 'ACCEPTED' && (
                   <button onClick={() => { advanceStatus(viewQuotation.id); setViewQuotation(null) }} className="flex-1 py-2 bg-santech-600 text-white rounded-lg text-sm font-medium hover:bg-santech-700">
                     {NEXT_ACTION_LABEL[viewQuotation.status] ?? `→ ${STATUS_CONFIG[WORKFLOW[WORKFLOW.indexOf(viewQuotation.status) + 1]].label}`}
@@ -587,7 +559,12 @@ export default function QuotationsPage() {
                 )}
                 {['INTERNAL_REVIEW', 'MANAGER_APPROVAL', 'CEO_APPROVAL'].includes(viewQuotation.status) && (
                   <button onClick={() => rejectQuotation(viewQuotation.id)} className="px-3 py-2 border border-red-200 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50">
-                    Reject
+                    Send back
+                  </button>
+                )}
+                {['SENT', 'VIEWED', 'NEGOTIATION'].includes(viewQuotation.status) && (
+                  <button onClick={() => rejectQuotation(viewQuotation.id)} className="px-3 py-2 border border-red-200 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50">
+                    Client rejected
                   </button>
                 )}
                 {viewQuotation.status === 'ACCEPTED' && (
@@ -617,8 +594,11 @@ export default function QuotationsPage() {
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Client Information</p>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="col-span-2">
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Client / Company Name *</label>
-                    <input name="clientName" value={form.clientName} onChange={handleChange} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500" />
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Client *</label>
+                    <select name="clientId" value={form.clientId} onChange={e => pickClient(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500">
+                      <option value="">Select client…</option>
+                      {lookups.clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1">Contact Person</label>
@@ -709,8 +689,8 @@ export default function QuotationsPage() {
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1">Assigned To</label>
-                    <select name="assignedTo" value={form.assignedTo} onChange={handleChange} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500">
-                      {EMPLOYEES.map(e => <option key={e}>{e}</option>)}
+                    <select name="assignedToId" value={form.assignedToId} onChange={handleChange} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500">
+                      {salespeople.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                     </select>
                   </div>
                   <div>
@@ -730,7 +710,7 @@ export default function QuotationsPage() {
 
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 font-medium">Cancel</button>
-                <button type="submit" className="flex-1 py-2.5 bg-santech-600 text-white rounded-lg text-sm hover:bg-santech-700 font-medium">{editId ? 'Save Changes' : 'Create Quotation'}</button>
+                <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-santech-600 text-white rounded-lg text-sm hover:bg-santech-700 font-medium disabled:opacity-50">{saving ? 'Saving…' : editId ? 'Save Changes' : 'Create Quotation'}</button>
               </div>
             </form>
           </div>
