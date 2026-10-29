@@ -60,12 +60,18 @@
     z-index: 0;
   }
 
-  /* The layer between the imigongo pattern and the cards.
-     Uses the brand light-blue (#e8edf8 = --imigongo-light) at low opacity so:
-     - the imigongo pattern shows through when you look carefully at the background
-     - cards sit clearly on top (they are solid white, z-index above this layer)  */
+  /* Page background behind the cards: the footer's light blue (#e8edf8) with the
+     Imigongo pattern painted on it. The light-blue wash on top keeps the pattern
+     gentle (about 10% strength) — visible when you look at it, never competing
+     with the white cards. The pattern stays still while the cards scroll over it. */
   main {
-    background-color: rgba(232, 237, 248, 0.60) !important;
+    background-color: #e8edf8 !important;
+    background-image:
+      linear-gradient(rgba(232, 237, 248, 0.9), rgba(232, 237, 248, 0.9)),
+      url('/assets/imingogo-trimmed.png') !important;
+    background-repeat: no-repeat, repeat !important;
+    background-size: 100% 100%, 150px auto !important;
+    background-attachment: fixed, fixed !important;
   }
 
   #root {
