@@ -25,6 +25,7 @@ const docInclude = {
   uploadedBy: userName,
   client: { select: { id: true, companyName: true } },
   project: { select: { id: true, name: true } },
+  folder: { select: { id: true, name: true } },
 }
 const ONE_DAY = 24 * 60 * 60 * 1000
 
@@ -34,6 +35,7 @@ const ONE_DAY = 24 * 60 * 60 * 1000
  *   ?category= CONTRACT | INVOICE | PROPOSAL | REPORT | POLICY | OTHER
  *   ?clientId= a client id, or "none" for documents not linked to a client
  *   ?projectId= a project id, or "none" for documents not linked to a project
+ *   ?folderId=  a folder id (admin-made folders), or "none" for documents in no folder
  *   ?status=ACTIVE|ARCHIVED ?from=YYYY-MM-DD ?to=YYYY-MM-DD ?limit= (newest first)
  * The totals always count the whole library, so the cards stay steady while filtering.
  */
@@ -45,6 +47,7 @@ export async function getDocuments(req: AuthRequest, res: Response): Promise<voi
     if (q.status && q.status !== 'ALL') where.status = String(q.status)
     if (q.clientId) where.clientId = q.clientId === 'none' ? null : String(q.clientId)
     if (q.projectId) where.projectId = q.projectId === 'none' ? null : String(q.projectId)
+    if (q.folderId) where.folderId = q.folderId === 'none' ? null : String(q.folderId)
     if (q.from || q.to) {
       where.date = {
         ...(q.from ? { gte: day(q.from) } : {}),
@@ -85,9 +88,13 @@ export async function getDocuments(req: AuthRequest, res: Response): Promise<voi
  */
 export async function getDocumentFolders(_req: AuthRequest, res: Response): Promise<void> {
   try {
-    const docs = await prisma.document.findMany({
-      select: { status: true, category: true, date: true, client: { select: { id: true, companyName: true } }, project: { select: { id: true, name: true } } },
-    })
+    const [docs, custom] = await Promise.all([
+      prisma.document.findMany({
+        select: { status: true, category: true, date: true, folderId: true, client: { select: { id: true, companyName: true } }, project: { select: { id: true, name: true } } },
+      }),
+      prisma.documentFolder.findMany({ include: { createdBy: userName }, orderBy: { name: 'asc' } }),
+    ])
+    const inFolder = new Map<string, { count: number; lastDate: Date | null }>()
     const latest = (a: Date | null, b: Date) => (!a || b > a ? b : a)
     const clients = new Map<string, { id: string; name: string; count: number; files: number; lastDate: Date | null; projects: Map<string, { id: string; name: string; count: number; lastDate: Date | null }> }>()
     const categories: Record<string, { count: number; lastDate: Date | null }> = Object.fromEntries(DOC_CATEGORIES.map(c => [c, { count: 0, lastDate: null }]))
@@ -95,6 +102,11 @@ export async function getDocumentFolders(_req: AuthRequest, res: Response): Prom
     const archive = { count: 0, lastDate: null as Date | null }
     for (const d of docs) {
       if (d.status !== 'ACTIVE') { archive.count++; archive.lastDate = latest(archive.lastDate, d.date); continue }
+      if (d.folderId) {
+        const f = inFolder.get(d.folderId) ?? { count: 0, lastDate: null }
+        f.count++; f.lastDate = latest(f.lastDate, d.date)
+        inFolder.set(d.folderId, f)
+      }
       const cat = categories[d.category]
       if (cat) { cat.count++; cat.lastDate = latest(cat.lastDate, d.date) }
       if (!d.client) { company.count++; company.lastDate = latest(company.lastDate, d.date); continue }
@@ -113,6 +125,11 @@ export async function getDocumentFolders(_req: AuthRequest, res: Response): Prom
       data: {
         clients: [...clients.values()].sort(byName).map(c => ({ ...c, projects: [...c.projects.values()].sort(byName) })),
         company, categories, archive,
+        // Folders admins made (flat list; parentId builds the tree). files = active documents directly inside
+        custom: custom.map(f => ({
+          id: f.id, name: f.name, color: f.color, parentId: f.parentId, createdBy: nameOf(f.createdBy),
+          files: inFolder.get(f.id)?.count ?? 0, lastDate: latest(inFolder.get(f.id)?.lastDate ?? null, f.updatedAt),
+        })),
       },
     })
   } catch (e) { fail(res, e, 'getDocumentFolders') }
@@ -152,6 +169,12 @@ export async function saveDocument(req: AuthRequest, res: Response): Promise<voi
       }
     }
 
+    // Folder (admin-made). The document still shows in its automatic client / type folders.
+    const folderId: string | null | undefined = b.folderId === undefined ? undefined : (b.folderId || null)
+    if (folderId && !(await prisma.documentFolder.findUnique({ where: { id: folderId }, select: { id: true } }))) {
+      res.status(400).json({ success: false, message: 'Folder not found' }); return
+    }
+
     const data = {
       ...(b.name !== undefined && { name: String(b.name).trim() }),
       ...(b.category !== undefined && { category: b.category }),
@@ -161,6 +184,7 @@ export async function saveDocument(req: AuthRequest, res: Response): Promise<voi
       ...(b.fileId !== undefined && { fileId: b.fileId || null }),
       ...(clientId !== undefined && { clientId }),
       ...(projectId !== undefined && { projectId }),
+      ...(folderId !== undefined && { folderId }),
     }
     const d = id
       ? await prisma.document.update({ where: { id }, data, include: docInclude })
@@ -170,21 +194,135 @@ export async function saveDocument(req: AuthRequest, res: Response): Promise<voi
         })
 
     const statusChanged = !!before && before.status !== d.status
+    const moved = !!before && folderId !== undefined && before.folderId !== d.folderId && Object.keys(b).every(k => k === 'folderId')
     const link = d.client ? ` for ${d.client.companyName}${d.project ? ` (${d.project.name})` : ''}` : ''
     await logAudit(req, {
       action: !before ? 'CREATE' : statusChanged ? 'STATUS_CHANGE' : 'UPDATE',
       entity: 'Document', entityId: d.id, entityName: d.name,
       description: !before ? `Added document ${d.name}${link}`
         : statusChanged ? `${d.status === 'ARCHIVED' ? 'Archived' : 'Restored'} document ${d.name}`
+        : moved ? `Moved document ${d.name} to ${d.folder ? `folder ${d.folder.name}` : 'no folder'}`
         : `Updated document ${d.name}${link}`,
-      ...(before ? { oldValue: { category: before.category, status: before.status, clientId: before.clientId, projectId: before.projectId } } : {}),
-      newValue: { category: d.category, status: d.status, client: d.client?.companyName ?? null, project: d.project?.name ?? null },
+      ...(before ? { oldValue: { category: before.category, status: before.status, clientId: before.clientId, projectId: before.projectId, folderId: before.folderId } } : {}),
+      newValue: { category: d.category, status: d.status, client: d.client?.companyName ?? null, project: d.project?.name ?? null, folder: d.folder?.name ?? null },
     })
     res.status(before ? 200 : 201).json({
       success: true, data: d,
-      message: !before ? 'Document added' : statusChanged ? (d.status === 'ARCHIVED' ? 'Document archived' : 'Document restored') : 'Document updated',
+      message: !before ? 'Document added' : statusChanged ? (d.status === 'ARCHIVED' ? 'Document archived' : 'Document restored')
+        : moved ? (d.folder ? `Moved to ${d.folder.name}` : 'Removed from its folder') : 'Document updated',
     })
   } catch (e) { fail(res, e, 'saveDocument') }
+}
+
+// ── DOCUMENT FOLDERS (admin-made, Drive-style) ───────────────────────────────
+
+const HEX = /^#[0-9a-fA-F]{6}$/
+const cleanName = (v: unknown) => String(v ?? '').trim().replace(/\s+/g, ' ').slice(0, 80)
+
+/** "Finance › Invoices" — for messages and the audit trail */
+async function folderPath(id: string | null): Promise<string> {
+  const names: string[] = []
+  for (let cur = id, guard = 0; cur && guard < 50; guard++) {
+    const f = await prisma.documentFolder.findUnique({ where: { id: cur }, select: { name: true, parentId: true } })
+    if (!f) break
+    names.unshift(f.name)
+    cur = f.parentId
+  }
+  return names.join(' › ') || 'top level'
+}
+
+const nameTaken = async (name: string, parentId: string | null, exceptIds: string[] = []) =>
+  !!(await prisma.documentFolder.findFirst({
+    where: { parentId, name: { equals: name, mode: 'insensitive' }, ...(exceptIds.length ? { id: { notIn: exceptIds } } : {}) },
+    select: { id: true },
+  }))
+
+/** New folder (admins). Body: { name, parentId?, color? } */
+export async function createDocumentFolder(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const name = cleanName(req.body.name)
+    const parentId: string | null = req.body.parentId || null
+    const color: string | null = req.body.color || null
+    if (!name) { res.status(400).json({ success: false, message: 'Folder name is required' }); return }
+    if (color && !HEX.test(color)) { res.status(400).json({ success: false, message: 'Pick a colour from the list' }); return }
+    if (parentId && !(await prisma.documentFolder.findUnique({ where: { id: parentId }, select: { id: true } }))) {
+      res.status(400).json({ success: false, message: 'Parent folder not found' }); return
+    }
+    if (await nameTaken(name, parentId)) { res.status(409).json({ success: false, message: `A folder named "${name}" already exists here` }); return }
+    const f = await prisma.documentFolder.create({ data: { name, parentId, color, createdById: req.user!.id } })
+    const path = await folderPath(f.id)
+    await logAudit(req, { action: 'CREATE', entity: 'Folder', entityId: f.id, entityName: f.name, description: `Created folder ${path}`, newValue: { path, color } })
+    res.status(201).json({ success: true, data: f, message: 'Folder created' })
+  } catch (e) { fail(res, e, 'createDocumentFolder') }
+}
+
+/** Rename, recolour or move a folder (admins). Body: { name?, color?, parentId? } */
+export async function updateDocumentFolder(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const f = await prisma.documentFolder.findUnique({ where: { id: req.params.id } })
+    if (!f) { res.status(404).json({ success: false, message: 'Folder not found' }); return }
+    const name = req.body.name !== undefined ? cleanName(req.body.name) : f.name
+    const color: string | null = req.body.color !== undefined ? (req.body.color || null) : f.color
+    const parentId: string | null = req.body.parentId !== undefined ? (req.body.parentId || null) : f.parentId
+    if (!name) { res.status(400).json({ success: false, message: 'Folder name is required' }); return }
+    if (color && !HEX.test(color)) { res.status(400).json({ success: false, message: 'Pick a colour from the list' }); return }
+    if (parentId && parentId !== f.parentId) {
+      if (!(await prisma.documentFolder.findUnique({ where: { id: parentId }, select: { id: true } }))) {
+        res.status(400).json({ success: false, message: 'Target folder not found' }); return
+      }
+      // A folder cannot go inside itself or one of its own subfolders
+      for (let cur: string | null = parentId, guard = 0; cur && guard < 50; guard++) {
+        if (cur === f.id) { res.status(400).json({ success: false, message: 'A folder cannot be moved inside itself' }); return }
+        const p: { parentId: string | null } | null = await prisma.documentFolder.findUnique({ where: { id: cur }, select: { parentId: true } })
+        cur = p?.parentId ?? null
+      }
+    }
+    if ((name.toLowerCase() !== f.name.toLowerCase() || parentId !== f.parentId) && await nameTaken(name, parentId, [f.id])) {
+      res.status(409).json({ success: false, message: `A folder named "${name}" already exists there` }); return
+    }
+    const oldPath = await folderPath(f.id)
+    const updated = await prisma.documentFolder.update({ where: { id: f.id }, data: { name, color, parentId } })
+    const newPath = await folderPath(f.id)
+    const movedTo = parentId !== f.parentId
+    await logAudit(req, {
+      action: 'UPDATE', entity: 'Folder', entityId: f.id, entityName: updated.name,
+      description: movedTo ? `Moved folder ${oldPath} to ${newPath}` : name !== f.name ? `Renamed folder ${oldPath} to ${updated.name}` : `Updated folder ${newPath}`,
+      oldValue: { path: oldPath, color: f.color }, newValue: { path: newPath, color },
+    })
+    res.json({ success: true, data: updated, message: movedTo ? 'Folder moved' : name !== f.name ? 'Folder renamed' : 'Folder updated' })
+  } catch (e) { fail(res, e, 'updateDocumentFolder') }
+}
+
+/**
+ * Delete a folder (admins). Nothing inside is lost: its documents and subfolders
+ * move up to the parent folder (or the top level).
+ */
+export async function deleteDocumentFolder(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const f = await prisma.documentFolder.findUnique({ where: { id: req.params.id } })
+    if (!f) { res.status(404).json({ success: false, message: 'Folder not found' }); return }
+    const path = await folderPath(f.id)
+    const parentPath = await folderPath(f.parentId)
+    const { docs, subfolders } = await prisma.$transaction(async tx => {
+      const kids = await tx.documentFolder.findMany({ where: { parentId: f.id }, orderBy: { name: 'asc' } })
+      for (const k of kids) {
+        // Keep names unique at the new level: "Invoices" becomes "Invoices (2)" if needed
+        let name = k.name
+        for (let n = 2; await tx.documentFolder.findFirst({ where: { parentId: f.parentId, name: { equals: name, mode: 'insensitive' }, id: { notIn: [k.id, f.id] } }, select: { id: true } }); n++) name = `${k.name} (${n})`
+        await tx.documentFolder.update({ where: { id: k.id }, data: { parentId: f.parentId, name } })
+      }
+      const moved = await tx.document.updateMany({ where: { folderId: f.id }, data: { folderId: f.parentId } })
+      await tx.documentFolder.delete({ where: { id: f.id } })
+      return { docs: moved.count, subfolders: kids.length }
+    })
+    await logAudit(req, {
+      action: 'DELETE', entity: 'Folder', entityId: f.id, entityName: f.name,
+      description: `Deleted folder ${path}; ${docs} document(s) and ${subfolders} subfolder(s) moved to ${parentPath}`,
+      oldValue: { path, documents: docs, subfolders },
+    })
+    const what = [docs ? `${docs} document${docs === 1 ? '' : 's'}` : '', subfolders ? `${subfolders} subfolder${subfolders === 1 ? '' : 's'}` : ''].filter(Boolean).join(' and ')
+    res.json({ success: true, message: what ? `Folder deleted — ${what} moved to ${parentPath}` : 'Folder deleted' })
+  } catch (e) { fail(res, e, 'deleteDocumentFolder') }
 }
 
 /**

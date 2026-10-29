@@ -83,3 +83,36 @@ export async function seedDocumentFolders(prisma: PrismaClient) {
   }
   console.log('✅ Documents for every folder seeded')
 }
+
+/**
+ * Demo folders made "by an admin" (Drive-style), with subfolders, and the demo documents filed in them.
+ * Fixed ids; folders are created only when missing and a document is filed only if it is in no folder yet,
+ * so changes made in the demo are never undone.
+ */
+export async function seedCustomFolders(prisma: PrismaClient) {
+  const admin = (await prisma.user.findUnique({ where: { email: 'admin@santech.rw' }, select: { id: true } }))!.id
+  const folders: { id: string; name: string; parent: string | null; color: string | null; docs: string[] }[] = [
+    { id: 'fld-contracts', name: 'Contracts', parent: null, color: '#1a73e8', docs: [] },
+    { id: 'fld-contracts-signed', name: 'Signed contracts', parent: 'fld-contracts', color: null, docs: ['doc-10'] },
+    { id: 'fld-contracts-drafts', name: 'Drafts', parent: 'fld-contracts', color: null, docs: ['doc-03', 'doc-15'] },
+    { id: 'fld-finance', name: 'Finance', parent: null, color: '#188038', docs: [] },
+    { id: 'fld-finance-invoices', name: 'Invoices', parent: 'fld-finance', color: null, docs: ['doc-06', 'doc-11'] },
+    { id: 'fld-finance-reports', name: 'Financial reports', parent: 'fld-finance', color: null, docs: ['doc-04', 'doc-18'] },
+    { id: 'fld-hr', name: 'HR & Policies', parent: null, color: '#d93025', docs: ['doc-01', 'doc-05', 'doc-17'] },
+    { id: 'fld-proposals', name: 'Proposals & Quotations', parent: null, color: '#9334e6', docs: ['doc-02', 'doc-07', 'doc-14'] },
+    { id: 'fld-projects', name: 'Project Files', parent: null, color: '#e8710a', docs: ['doc-16'] },
+    { id: 'fld-projects-surveys', name: 'Site surveys', parent: 'fld-projects', color: null, docs: ['doc-13'] },
+    { id: 'fld-projects-handover', name: 'Handover & training', parent: 'fld-projects', color: null, docs: ['doc-08', 'doc-12'] },
+  ]
+  for (const f of folders) {
+    if (!(await prisma.documentFolder.findUnique({ where: { id: f.id }, select: { id: true } }))) {
+      // Skip if an admin already made a folder with this name at the same level
+      const twin = await prisma.documentFolder.findFirst({ where: { parentId: f.parent, name: { equals: f.name, mode: 'insensitive' } }, select: { id: true } })
+      if (twin) continue
+      if (f.parent && !(await prisma.documentFolder.findUnique({ where: { id: f.parent }, select: { id: true } }))) continue
+      await prisma.documentFolder.create({ data: { id: f.id, name: f.name, parentId: f.parent, color: f.color, createdById: admin } })
+    }
+    for (const docId of f.docs) await prisma.document.updateMany({ where: { id: docId, folderId: null }, data: { folderId: f.id } })
+  }
+  console.log('✅ Demo document folders seeded')
+}

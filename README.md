@@ -372,7 +372,13 @@ again. On phones, the menu button in the top bar opens the sidebar, and its X bu
 
 ### Documents
 **Where:** Documents → All Documents (Super Admin and Admin). Works like Google Drive.
-- **Automatic folders.** Each document's client, project and type decide where it shows:
+- **My folders (admins create them):** folders and subfolders the company manages itself, e.g.
+  *Contracts › Signed contracts* or *Finance › Invoices*. Use **New → New folder**, or the folder's ⋮
+  menu: *New subfolder*, *Rename / colour*, *Move to…*, *Delete folder*. Deleting a folder never deletes
+  documents; its contents move up one level. File a document with ⋮ → *Move to folder…*, the Folder
+  field, or by dragging it onto a folder.
+- **Automatic folders.** Each document's client, project and type also decide where it shows, even when
+  it is filed in one of your folders:
   - **Clients** → one folder per client → one per project;
   - **Company documents** (no client);
   - one folder per type (**Contracts, Invoices, Proposals, Reports, Policies, Other documents**);
@@ -677,7 +683,7 @@ pnpm dev        # → http://localhost:3000
 
 ## Database Schema
 
-PostgreSQL on Neon, managed with Prisma (see `backend/prisma/schema.prisma`; 9 migrations).
+PostgreSQL on Neon, managed with Prisma (see `backend/prisma/schema.prisma`; 10 migrations).
 
 | Area | Models |
 |---|---|
@@ -687,7 +693,7 @@ PostgreSQL on Neon, managed with Prisma (see `backend/prisma/schema.prisma`; 9 m
 | Contracts & services | Contract, ClientSubscription |
 | Finance | Invoice, Payment, IncomeEntry, ExpenseEntry, PurchaseRequest |
 | Projects | Project, Milestone, Task, Timesheet |
-| Documents & files | Document (linked to a client and project), StoredFile (the uploaded file itself) |
+| Documents & files | Document (linked to a client, project and folder), DocumentFolder (admin-made folders and subfolders), StoredFile (the uploaded file itself) |
 | Support & knowledge | SupportTicket, KnowledgeArticle, TrainingSession, TrainingAttendee |
 | System | Notification, AuditLog, Setting |
 
@@ -710,7 +716,7 @@ PostgreSQL on Neon, managed with Prisma (see `backend/prisma/schema.prisma`; 9 m
 - [x] File storage for documents and signed contracts (in the database, 5 MB per file)
 - [x] PDF quotations and invoices (branded A4, Save as PDF)
 - [x] Financial statements: balance sheet, cash flow, accounts payable and receivable
-- [x] Document library: client/project links, search and filters, edit, archive, admin delete
+- [x] Document library like Google Drive: automatic folders, admin-made folders and subfolders, grid/list views, search, archive, admin delete
 - [x] Clear login errors; only failed logins count toward the login limit
 
 ### 📋 Possible next steps
@@ -720,7 +726,6 @@ PostgreSQL on Neon, managed with Prisma (see `backend/prisma/schema.prisma`; 9 m
 - [ ] Customer portal (client self-service login)
 - [ ] Supplier portal
 - [ ] Multi-currency
-- [ ] Folder view for documents (automatic folders by client → project, or Drive-style folders)
 - [ ] Save the file from the customer form's *Attach Document* field (today only its name is kept)
 
 ---

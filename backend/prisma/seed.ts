@@ -11,7 +11,7 @@ import { seedActivity } from './seeds/activity'
 import { seedGrowth } from './seeds/growth'
 import { seedOffice } from './seeds/office'
 import { seedDocumentLinks } from './seeds/documentLinks'
-import { seedDocumentFolders } from './seeds/documentFolders'
+import { seedDocumentFolders, seedCustomFolders } from './seeds/documentFolders'
 import { seedTasksForEveryone } from './seeds/tasksForEveryone'
 
 const prisma = new PrismaClient()
@@ -272,6 +272,7 @@ async function main() {
   // Documents linked to clients/projects + sample files
   await seedDocumentLinks(prisma)
   await seedDocumentFolders(prisma)
+  await seedCustomFolders(prisma)
   // Every demo login gets tasks on My Tasks
   await seedTasksForEveryone(prisma)
 

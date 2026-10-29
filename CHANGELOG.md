@@ -22,6 +22,42 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 
 ## 1.2.0 — 29 October 2026
 
+### Documents: your own folders and subfolders (admins)
+- **What:** Next to the automatic folders, admins now create their own folders, as in Google Drive. They
+  work as categories the company manages itself, for example *Contracts › Signed contracts*,
+  *Finance › Invoices*, *Receipts* or *Certificates*.
+  - **New ▾ → New folder** (or **New subfolder** inside a folder). Pick a name and a colour.
+  - **Each folder's ⋮ menu** has *Open*, *Upload here*, *New subfolder*, *Rename / colour*, *Move to…*
+    and *Delete folder*.
+  - **File a document** with ⋮ → *Move to folder…*, with the Folder field when you upload or edit, or by
+    **dragging the file onto a folder**. Uploading from inside a folder files it there.
+  - **A filed document still shows in its automatic client, project and type folders.** Its location
+    shows its folder path, e.g. *Finance › Invoices*.
+- **Where:** Documents → All Documents → *My folders*.
+- **Rules:**
+  - Only Super Admin and Admin create, rename, move or delete folders. Moving a document follows the
+    usual rule (the uploader or an admin).
+  - Folder names can't repeat at the same level. A folder can't be moved inside itself or one of its
+    own subfolders.
+  - Deleting a folder never deletes documents: its documents and subfolders move up one level.
+  - Every folder action is in the Audit Trail (created, renamed, moved, deleted, document moved).
+- **Technical:**
+  - New table `document_folders` (name, colour, parent) and `documents.folderId`; migration
+    `20261029220000_document_folders`, which only adds things.
+  - `POST /api/documents/folders`, `PUT /api/documents/folders/:id` and `DELETE /api/documents/folders/:id`
+    (admins). The folder tree includes the custom folders, and `GET /api/documents` accepts `folderId`.
+- **Demo data:**
+  - *Contracts* (*Signed contracts*, *Drafts*), *Finance* (*Invoices*, *Financial reports*),
+    *HR & Policies*, *Proposals & Quotations*, and *Project Files* (*Site surveys*,
+    *Handover & training*), with the demo documents filed in them.
+  - `seedCustomFolders` in `prisma/seeds/documentFolders.ts` only fills documents that are in no
+    folder yet.
+- **Tested:**
+  - 22 API checks: create, permissions, duplicate names, colours, subfolders, rename, move and the
+    "inside itself" rule, filing, and delete moving contents up, plus the audit entries.
+  - The earlier 20 folder-tree checks still pass.
+  - Screenshots of the root, a folder and the list view were checked on a local copy.
+
 ### Documents: Google Drive-style folders, grid and list views
 - **What:** The Documents page now works like Google Drive:
   - **Folders** fill themselves from each document's client, project and type, so nobody has to file

@@ -101,8 +101,12 @@ export const documentService = {
     const qs = new URLSearchParams(Object.entries(filters).filter(([, v]) => v)).toString()
     return get(`/documents${qs ? `?${qs}` : ''}`)
   },
-  /** Automatic folder tree: clients → projects, company documents, one folder per type, archive */
+  /** Folder tree: automatic folders (clients → projects, company, types, archive) + admin-made folders */
   folders: () => get('/documents/folders'),
+  /** Admin-made folders (admins only). Deleting moves the contents up one level. */
+  createFolder: (b: Body) => post('/documents/folders', b),
+  updateFolder: (id: string, b: Body) => put(`/documents/folders/${id}`, b),
+  deleteFolder: (id: string) => del(`/documents/folders/${id}`),
   create: (b: Body) => post('/documents', b),
   update: (id: string, b: Body) => put(`/documents/${id}`, b),
   /** Permanent delete — admins only, document must be archived first */

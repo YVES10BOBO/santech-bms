@@ -266,6 +266,7 @@ model User {
   timesheets            Timesheet[]    @relation("TimesheetUser")
   timesheetsReviewed    Timesheet[]    @relation("TimesheetReviewer")
   documentsUploaded     Document[]     @relation("DocumentUploadedBy")
+  documentFolders       DocumentFolder[] @relation("DocumentFolderCreatedBy")
   attendance            Attendance[]   @relation("AttendanceUser")
   leaveRequests         LeaveRequest[] @relation("LeaveUser")
   leaveReviews          LeaveRequest[] @relation("LeaveReviewer")
@@ -1039,12 +1040,33 @@ model Document {
   project      Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
   uploadedById String
   uploadedBy   User     @relation("DocumentUploadedBy", fields: [uploadedById], references: [id])
+  folderId     String?  // folder an admin filed it in (Drive-style); it still shows in the automatic folders
+  folder       DocumentFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
   date         DateTime @default(now())
   createdAt    DateTime @default(now())
 
   @@index([clientId])
   @@index([projectId])
+  @@index([folderId])
   @@map("documents")
+}
+
+/// Folders admins create on the Documents page (Drive-style), with subfolders
+model DocumentFolder {
+  id          String           @id @default(cuid())
+  name        String
+  color       String?          // hex colour of the folder icon
+  parentId    String?          // null = top level
+  parent      DocumentFolder?  @relation("FolderTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children    DocumentFolder[] @relation("FolderTree")
+  documents   Document[]
+  createdById String
+  createdBy   User             @relation("DocumentFolderCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([parentId])
+  @@map("document_folders")
 }
 
 // ===========================

@@ -14,7 +14,7 @@ import { getCommunications, createCommunication, updateCommunication, getMeeting
 import { getSubscriptions, saveSubscription, paySubscription, renewSubscription, getCampaigns, saveCampaign, getTimesheets, createTimesheet, reviewTimesheet } from '../controllers/growthController'
 import { FINANCE, PROJECT_LEADS } from '../lib/roles'
 import {
-  getDocuments, getDocumentFolders, saveDocument, deleteDocument, getAttendance, saveAttendance, requestLeave, reviewLeave,
+  getDocuments, getDocumentFolders, createDocumentFolder, updateDocumentFolder, deleteDocumentFolder, saveDocument, deleteDocument, getAttendance, saveAttendance, requestLeave, reviewLeave,
   getTenders, saveTender, getPurchases, createPurchase, updatePurchaseStatus,
   getTrainings, saveTraining, addAttendee, updateAttendee,
   getArticles, saveArticle, viewArticle, getCompany, saveCompany,
@@ -97,6 +97,9 @@ router.post('/timesheets/:id/:decision', authorize(...PROJECT_LEADS), reviewTime
 
 // Documents
 router.get('/documents/folders', getDocumentFolders) // automatic folder tree (Drive-style page)
+router.post('/documents/folders', authorize(...ADMINS), createDocumentFolder)        // admin-made folders
+router.put('/documents/folders/:id', authorize(...ADMINS), updateDocumentFolder)    // rename / colour / move
+router.delete('/documents/folders/:id', authorize(...ADMINS), deleteDocumentFolder) // contents move up a level
 router.get('/documents', getDocuments)
 router.post('/documents', saveDocument)
 router.put('/documents/:id', saveDocument)
