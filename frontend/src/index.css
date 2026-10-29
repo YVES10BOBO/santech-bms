@@ -114,13 +114,13 @@
 }
 
 /* ── Tighten page spacing globally ── */
-main > div.space-y-6 > * + * { margin-top: 0.6rem; }
-main > div.space-y-5 > * + * { margin-top: 0.55rem; }
-main > div.space-y-4 > * + * { margin-top: 0.5rem; }
-main > div.space-y-3 > * + * { margin-top: 0.45rem; }
+main div.space-y-6 > * + * { margin-top: 0.4rem !important; }
+main div.space-y-5 > * + * { margin-top: 0.4rem !important; }
+main div.space-y-4 > * + * { margin-top: 0.35rem !important; }
+main div.space-y-3 > * + * { margin-top: 0.3rem !important; }
 
 /* Reduce ALL grid gaps globally */
-main .grid { gap: 0.5rem !important; }
+main .grid { gap: 0.35rem !important; }
 
 /* KPI stat cards — compact */
 .kpi-card { padding: 0.6rem 0.85rem !important; }
