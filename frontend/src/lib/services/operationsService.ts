@@ -4,6 +4,7 @@ type Body = Record<string, unknown>
 const get = async (url: string) => (await api.get(url)).data
 const post = async (url: string, body?: Body) => (await api.post(url, body ?? {})).data
 const put = async (url: string, body: Body) => (await api.put(url, body)).data
+const del = async (url: string) => (await api.delete(url)).data
 
 export const leadService = {
   getAll: () => get('/leads'),
@@ -102,6 +103,8 @@ export const documentService = {
   },
   create: (b: Body) => post('/documents', b),
   update: (id: string, b: Body) => put(`/documents/${id}`, b),
+  /** Permanent delete — admins only, document must be archived first */
+  remove: (id: string) => del(`/documents/${id}`),
 }
 
 export const attendanceService = {

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { FolderOpen, Plus, Search, Eye, X, FileText, Archive, Download, Upload, Edit2, Building2 } from 'lucide-react'
+import { FolderOpen, Plus, Search, Eye, X, FileText, Archive, Download, Upload, Edit2, Building2, Trash2 } from 'lucide-react'
 import { cn, formatDate } from '@/lib/utils'
 import { documentService } from '@/lib/services/operationsService'
 import { useLookups, apiError } from '@/lib/services/lookupService'
@@ -138,6 +138,24 @@ export default function DocumentsPage() {
       await load()
     } catch (err) {
       toast.error(apiError(err, 'Failed to update document'))
+    }
+  }
+
+  /** Permanent delete: admins only, after archiving (the server checks both) */
+  const removeDoc = async (doc: Document) => {
+    const ok = window.confirm(
+      `Delete "${doc.name}" permanently?\n\n` +
+      'The document and its file will be removed and cannot be recovered.\n' +
+      'The Audit Trail keeps a record that it was deleted.',
+    )
+    if (!ok) return
+    try {
+      const res = await documentService.remove(doc.id)
+      toast.success(res.message)
+      setViewDoc(null)
+      await load()
+    } catch (err) {
+      toast.error(apiError(err, 'Failed to delete document'))
     }
   }
 
@@ -339,6 +357,11 @@ export default function DocumentsPage() {
                           </button>
                         </>
                       )}
+                      {isAdmin && doc.status === 'ARCHIVED' && (
+                        <button onClick={() => removeDoc(doc)} className="flex items-center gap-1 text-xs bg-red-50 text-red-600 px-2 py-1 rounded-lg hover:bg-red-100 font-medium transition-colors">
+                          <Trash2 className="w-3 h-3" /> Delete
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -349,6 +372,7 @@ export default function DocumentsPage() {
         <div className="px-4 py-3 border-t border-gray-100">
           <p className="text-xs text-gray-400">
             {fetching ? 'Searching…' : `${documents.length} document${documents.length !== 1 ? 's' : ''}${hasFilters ? ' match the filters' : ''}`}
+            {isAdmin && statusFilter !== 'ACTIVE' && ' · Archived documents can be deleted permanently by admins'}
           </p>
         </div>
       </div>
@@ -457,6 +481,12 @@ export default function DocumentsPage() {
                 <button onClick={() => openEdit(viewDoc)}
                   className="flex-1 py-2 border border-santech-200 text-santech-700 rounded-lg text-sm font-medium hover:bg-santech-50">
                   Edit
+                </button>
+              )}
+              {isAdmin && viewDoc.status === 'ARCHIVED' && (
+                <button onClick={() => removeDoc(viewDoc)}
+                  className="flex-1 py-2 border border-red-200 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50">
+                  Delete
                 </button>
               )}
               <button onClick={() => setViewDoc(null)}

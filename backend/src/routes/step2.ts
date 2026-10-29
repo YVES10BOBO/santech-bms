@@ -14,7 +14,7 @@ import { getCommunications, createCommunication, updateCommunication, getMeeting
 import { getSubscriptions, saveSubscription, paySubscription, renewSubscription, getCampaigns, saveCampaign, getTimesheets, createTimesheet, reviewTimesheet } from '../controllers/growthController'
 import { FINANCE, PROJECT_LEADS } from '../lib/roles'
 import {
-  getDocuments, saveDocument, getAttendance, saveAttendance, requestLeave, reviewLeave,
+  getDocuments, saveDocument, deleteDocument, getAttendance, saveAttendance, requestLeave, reviewLeave,
   getTenders, saveTender, getPurchases, createPurchase, updatePurchaseStatus,
   getTrainings, saveTraining, addAttendee, updateAttendee,
   getArticles, saveArticle, viewArticle, getCompany, saveCompany,
@@ -99,6 +99,7 @@ router.post('/timesheets/:id/:decision', authorize(...PROJECT_LEADS), reviewTime
 router.get('/documents', getDocuments)
 router.post('/documents', saveDocument)
 router.put('/documents/:id', saveDocument)
+router.delete('/documents/:id', authorize(...ADMINS), deleteDocument) // permanent, archived only
 
 // Attendance & leave (staff see their own; admins see everyone)
 router.get('/attendance', getAttendance)

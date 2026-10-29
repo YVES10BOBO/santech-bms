@@ -145,6 +145,43 @@ export async function saveDocument(req: AuthRequest, res: Response): Promise<voi
   } catch (e) { fail(res, e, 'saveDocument') }
 }
 
+/**
+ * Permanent delete — admins only, and only after the document was archived,
+ * so nothing disappears with one wrong click. The stored file is removed too
+ * (unless another document or a contract still uses it). The audit trail keeps
+ * a record of what was deleted, by whom and when.
+ */
+export async function deleteDocument(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const doc = await prisma.document.findUnique({ where: { id: req.params.id }, include: docInclude })
+    if (!doc) { res.status(404).json({ success: false, message: 'Document not found' }); return }
+    if (doc.status !== 'ARCHIVED') {
+      res.status(400).json({ success: false, message: 'Archive the document first, then delete it' }); return
+    }
+    let fileRemoved = false
+    await prisma.$transaction(async tx => {
+      await tx.document.delete({ where: { id: doc.id } })
+      if (doc.fileId) {
+        const stillUsed = (await tx.document.count({ where: { fileId: doc.fileId } }))
+          + (await tx.contract.count({ where: { signedDocumentUrl: `/files/${doc.fileId}` } }))
+        if (!stillUsed) {
+          await tx.storedFile.deleteMany({ where: { id: doc.fileId } })
+          fileRemoved = true
+        }
+      }
+    })
+    await logAudit(req, {
+      action: 'DELETE', entity: 'Document', entityId: doc.id, entityName: doc.name,
+      description: `Permanently deleted document ${doc.name}${doc.client ? ` (${doc.client.companyName})` : ''}`,
+      oldValue: {
+        category: doc.category, client: doc.client?.companyName ?? null, project: doc.project?.name ?? null,
+        size: doc.size, uploadedBy: nameOf(doc.uploadedBy), fileRemoved,
+      },
+    })
+    res.json({ success: true, message: 'Document deleted permanently' })
+  } catch (e) { fail(res, e, 'deleteDocument') }
+}
+
 // ── ATTENDANCE & LEAVE ────────────────────────────────────────────────────────
 
 const staffInclude = { user: { select: { id: true, firstName: true, lastName: true, employee: { select: { department: true } } } } }
