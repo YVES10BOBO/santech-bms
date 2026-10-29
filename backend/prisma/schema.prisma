@@ -260,6 +260,8 @@ model User {
   ticketsCreated        SupportTicket[] @relation("TicketCreatedBy")
   departmentsHeaded     Department[]   @relation("DepartmentHead")
   visitorsHosted        Visitor[]      @relation("VisitorHost")
+  communicationsLogged  Communication[] @relation("CommunicationLoggedBy")
+  meetingsCreated       Meeting[]      @relation("MeetingCreatedBy")
 
   @@map("users")
 }
@@ -374,6 +376,8 @@ model Client {
   incomeEntries IncomeEntry[]
   quotations   Quotation[]
   tickets      SupportTicket[]
+  communications Communication[]
+  meetings     Meeting[]
 
   @@map("clients")
 }
@@ -861,4 +865,61 @@ model Visitor {
   updatedAt        DateTime      @updatedAt
 
   @@map("visitors")
+}
+
+// ===========================
+// COMMUNICATION LOG
+// ===========================
+
+model Communication {
+  id             String    @id @default(cuid())
+  type           String    // CALL, EMAIL, WHATSAPP, SMS, MEETING, NOTE, STATUS_CHANGE
+  direction      String?   // INBOUND, OUTBOUND
+  clientId       String?
+  client         Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  company        String?   // shown when there is no client (e.g. "Internal")
+  contactName    String?
+  dateTime       DateTime
+  duration       Int?      // minutes, for calls
+  subject        String
+  summary        String    @db.Text
+  linkedTo       String?   // e.g. quotation or deal reference
+  followUpNeeded Boolean   @default(false)
+  followUpDate   DateTime?
+  loggedById     String
+  loggedBy       User      @relation("CommunicationLoggedBy", fields: [loggedById], references: [id])
+  createdAt      DateTime  @default(now())
+
+  @@map("communications")
+}
+
+// ===========================
+// MEETINGS & APPOINTMENTS
+// ===========================
+
+model Meeting {
+  id           String    @id @default(cuid())
+  title        String
+  type         String    // CLIENT_MEETING, PROJECT_MEETING, INTERNAL, SALES_MEETING, CONTRACT_MEETING, TRAINING
+  status       String    @default("SCHEDULED") // SCHEDULED, IN_PROGRESS, COMPLETED, CANCELLED, POSTPONED
+  date         DateTime
+  startTime    String
+  endTime      String
+  clientId     String?
+  client       Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  location     String?
+  isOnline     Boolean   @default(false)
+  link         String?
+  participants String[]  @default([])
+  agenda       String?   @db.Text
+  notes        String?   @db.Text
+  decisions    String?   @db.Text
+  actionItems  String[]  @default([])
+  followUpDate DateTime?
+  createdById  String
+  createdBy    User      @relation("MeetingCreatedBy", fields: [createdById], references: [id])
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@map("meetings")
 }

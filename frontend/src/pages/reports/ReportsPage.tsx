@@ -1,82 +1,53 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { BarChart2, Users, DollarSign, UserCheck, TrendingUp, Award, Briefcase } from 'lucide-react'
 import { cn, formatCurrency } from '@/lib/utils'
+import api from '@/lib/api'
+import { apiError } from '@/lib/services/lookupService'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type TabId = 'sales' | 'finance' | 'team' | 'clients'
 
-// ─── Mock Data ────────────────────────────────────────────────────────────────
+// ─── Data (all calculated by the API from live records) ───────────────────────
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
 ]
 
-const YEARS = [2024, 2025, 2026, 2027]
+const NOW_YEAR = new Date().getFullYear()
+const YEARS = [NOW_YEAR - 2, NOW_YEAR - 1, NOW_YEAR, NOW_YEAR + 1]
 
-// Sales
-const mockSalesData = [
-  { name: 'Alice Uwimana',   assigned: 12, converted: 7, won: 5, value: 18500000, winRate: 58 },
-  { name: 'Bob Nkurunziza',  assigned: 8,  converted: 4, won: 3, value: 12000000, winRate: 50 },
-  { name: 'Carol Ingabire',  assigned: 10, converted: 6, won: 4, value: 9500000,  winRate: 60 },
-]
+interface SalesRow { name: string; assigned: number; converted: number; deals: number; won: number; closed: number; value: number; wonValue: number; winRate: number }
+interface FinanceData { kpis: { revenue: number; expenses: number; netProfit: number; outstanding: number }; revenueByService: { service: string; revenue: number }[]; topClients: { name: string; revenue: number }[] }
+interface TeamData { kpis: { employees: number; tasksAssigned: number; tasksCompleted: number; avgScore: number }; rows: { name: string; dept: string; assigned: number; completed: number; rate: number; score: number }[] }
+interface ClientsData { kpis: { total: number; contractors: number; prospects: number; newThisMonth: number }; categories: { category: string; total: number; contractors: number; prospects: number; leads: number; rate: number }[] }
 
-// Finance
-const mockFinanceKPIs = {
-  revenue:     18600000,
-  expenses:    5600000,
-  netProfit:   13000000,
-  outstanding: 4500000,
+/** Loads one report section; month -1 means the whole year. */
+function useReport<T>(section: string, year?: number, month?: number) {
+  const [data, setData] = useState<T | null>(null)
+  const [error, setError] = useState('')
+  useEffect(() => {
+    let alive = true
+    setData(null); setError('')
+    const params = new URLSearchParams()
+    if (year) params.set('year', String(year))
+    if (month !== undefined && month >= 0) params.set('month', String(month + 1))
+    api.get(`/reports/${section}?${params}`)
+      .then(r => { if (alive) setData(r.data.data as T) })
+      .catch(err => { if (alive) setError(apiError(err, 'Failed to load report')) })
+    return () => { alive = false }
+  }, [section, year, month])
+  return { data, error }
 }
 
-const mockRevenueByService = [
-  { service: 'Software Development', revenue: 4500000 },
-  { service: 'EVS System',           revenue: 8500000 },
-  { service: 'SANTRACK',             revenue: 3000000 },
-  { service: 'Websites',             revenue: 800000 },
-  { service: 'Training',             revenue: 600000 },
-  { service: 'Maintenance',          revenue: 1200000 },
-]
-
-const mockTopClients = [
-  { name: 'SABBAN ABATTOIR',        revenue: 12000000 },
-  { name: 'NYARUGENGE HOSPITAL',    revenue: 15000000 },
-  { name: 'ECOBANK',                revenue: 8000000 },
-  { name: 'East African Seed Ltd',  revenue: 1500000 },
-  { name: 'N&T PLASTIC INDUSTRIES', revenue: 3000000 },
-]
-
-// Team
-const mockTeamKPIs = {
-  employees:      12,
-  tasksAssigned:  45,
-  tasksCompleted: 38,
-  avgScore:       76,
+function ReportState({ error }: { error: string }) {
+  return (
+    <div className="bms-card p-10 text-center text-sm text-gray-400">
+      {error || 'Loading report…'}
+    </div>
+  )
 }
-
-const mockTeamData = [
-  { name: 'Alice Uwimana',  dept: 'Engineering', assigned: 12, completed: 11, rate: 92, score: 88 },
-  { name: 'Bob Nkurunziza', dept: 'Sales',       assigned: 8,  completed: 6,  rate: 75, score: 72 },
-  { name: 'Carol Ingabire', dept: 'Operations',  assigned: 10, completed: 9,  rate: 90, score: 85 },
-  { name: 'David Habimana', dept: 'Finance',     assigned: 7,  completed: 5,  rate: 71, score: 65 },
-  { name: 'Eve Mukamana',   dept: 'HR',          assigned: 8,  completed: 7,  rate: 88, score: 79 },
-]
-
-// Clients
-const mockClientKPIs = {
-  total:        22,
-  contractors:  10,
-  prospects:    7,
-  newThisMonth: 3,
-}
-
-const mockClientCategories = [
-  { category: 'Self Employed', total: 8, contractors: 3, prospects: 3, leads: 2, rate: 38 },
-  { category: 'Institution',   total: 6, contractors: 4, prospects: 1, leads: 1, rate: 67 },
-  { category: 'Industry',      total: 5, contractors: 2, prospects: 2, leads: 1, rate: 40 },
-  { category: 'Distributor',   total: 3, contractors: 1, prospects: 1, leads: 1, rate: 33 },
-]
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -120,15 +91,18 @@ function KpiCard({ label, value, icon: Icon, color }: KpiCardProps) {
 // ─── Tab: Sales ───────────────────────────────────────────────────────────────
 
 function SalesTab() {
-  const [month, setMonth] = useState(9) // October (0-indexed)
-  const [year, setYear]   = useState(2026)
+  const [month, setMonth] = useState(-1) // whole year
+  const [year, setYear]   = useState(NOW_YEAR)
+  const { data, error } = useReport<{ rows: SalesRow[] }>('sales', year, month)
+  const rows = data?.rows ?? []
 
-  const totalLeads     = mockSalesData.reduce((s, r) => s + r.assigned, 0)
-  const totalConverted = mockSalesData.reduce((s, r) => s + r.converted, 0)
-  const totalWon       = mockSalesData.reduce((s, r) => s + r.won, 0)
-  const totalPipeline  = mockSalesData.reduce((s, r) => s + r.value, 0)
-  const wonValue       = mockSalesData.reduce((s, r) => s + (r.won / r.assigned) * r.value, 0)
-  const overallWinRate = Math.round((totalWon / totalLeads) * 100)
+  const totalLeads     = rows.reduce((s, r) => s + r.assigned, 0)
+  const totalConverted = rows.reduce((s, r) => s + r.converted, 0)
+  const totalWon       = rows.reduce((s, r) => s + r.won, 0)
+  const totalPipeline  = rows.reduce((s, r) => s + r.value, 0)
+  const wonValue       = rows.reduce((s, r) => s + r.wonValue, 0)
+  const closed         = rows.reduce((s, r) => s + r.closed, 0)
+  const overallWinRate = closed > 0 ? Math.round((totalWon / closed) * 100) : 0
 
   return (
     <div className="space-y-5">
@@ -140,6 +114,7 @@ function SalesTab() {
           onChange={e => setMonth(Number(e.target.value))}
           className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500"
         >
+          <option value={-1}>All months</option>
           {MONTHS.map((m, i) => <option key={m} value={i}>{m}</option>)}
         </select>
         <select
@@ -149,8 +124,10 @@ function SalesTab() {
         >
           {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
         </select>
-        <span className="text-xs text-gray-400 ml-1">Showing data for {MONTHS[month]} {year}</span>
+        <span className="text-xs text-gray-400 ml-1">Showing data for {month >= 0 ? MONTHS[month] : 'all of'} {year}</span>
       </div>
+
+      {!data ? <ReportState error={error} /> : (<>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
@@ -170,17 +147,21 @@ function SalesTab() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
-                {['Salesperson', 'Leads Assigned', 'Leads Converted', 'Deals Won', 'Total Value', 'Win Rate'].map(h => (
+                {['Salesperson', 'Leads Assigned', 'Leads Converted', 'Deals', 'Deals Won', 'Pipeline Value', 'Win Rate'].map(h => (
                   <th key={h} className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {mockSalesData.map(row => (
+              {rows.length === 0 && (
+                <tr><td colSpan={7} className="text-center py-8 text-gray-400 text-sm">No sales activity in this period.</td></tr>
+              )}
+              {rows.map(row => (
                 <tr key={row.name} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3 font-medium text-gray-800 whitespace-nowrap">{row.name}</td>
                   <td className="px-4 py-3 text-gray-600">{row.assigned}</td>
                   <td className="px-4 py-3 text-gray-600">{row.converted}</td>
+                  <td className="px-4 py-3 text-gray-600">{row.deals}</td>
                   <td className="px-4 py-3 text-gray-600">{row.won}</td>
                   <td className="px-4 py-3 text-gray-700 font-medium whitespace-nowrap">{formatCurrency(row.value)}</td>
                   <td className="px-4 py-3">
@@ -192,6 +173,7 @@ function SalesTab() {
           </table>
         </div>
       </div>
+      </>)}
     </div>
   )
 }
@@ -199,18 +181,31 @@ function SalesTab() {
 // ─── Tab: Finance ─────────────────────────────────────────────────────────────
 
 function FinanceTab() {
-  const totalRevenue = mockRevenueByService.reduce((s, r) => s + r.revenue, 0)
+  const [year, setYear] = useState(NOW_YEAR)
+  const { data, error } = useReport<FinanceData>('finance', year)
+  if (!data) return <ReportState error={error} />
+  const finance = data.kpis
+  const revenueByService = data.revenueByService
+  const topClients = data.topClients
+  const totalRevenue = revenueByService.reduce((s, r) => s + r.revenue, 0) || 1
 
-  const sortedClients = [...mockTopClients].sort((a, b) => b.revenue - a.revenue).slice(0, 5)
+  const sortedClients = [...topClients].sort((a, b) => b.revenue - a.revenue).slice(0, 5)
 
   return (
     <div className="space-y-5">
+      <div className="bms-card p-4 flex flex-wrap items-center gap-3">
+        <span className="text-sm font-medium text-gray-600">Year:</span>
+        <select value={year} onChange={e => setYear(Number(e.target.value))} className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500">
+          {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+        </select>
+        <span className="text-xs text-gray-400">Income and expenses recorded in Finance, including invoice payments and paid salaries</span>
+      </div>
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KpiCard label="Total Revenue"          value={formatCurrency(mockFinanceKPIs.revenue)}     icon={DollarSign} color="bg-green-100 text-green-600" />
-        <KpiCard label="Total Expenses"         value={formatCurrency(mockFinanceKPIs.expenses)}    icon={BarChart2}  color="bg-red-100 text-red-500" />
-        <KpiCard label="Net Profit"             value={formatCurrency(mockFinanceKPIs.netProfit)}   icon={TrendingUp} color="bg-blue-100 text-blue-600" />
-        <KpiCard label="Outstanding Receivables" value={formatCurrency(mockFinanceKPIs.outstanding)} icon={Briefcase}  color="bg-amber-100 text-amber-600" />
+        <KpiCard label="Total Revenue"          value={formatCurrency(finance.revenue)}     icon={DollarSign} color="bg-green-100 text-green-600" />
+        <KpiCard label="Total Expenses"         value={formatCurrency(finance.expenses)}    icon={BarChart2}  color="bg-red-100 text-red-500" />
+        <KpiCard label="Net Profit"             value={formatCurrency(finance.netProfit)}   icon={TrendingUp} color="bg-blue-100 text-blue-600" />
+        <KpiCard label="Outstanding Receivables" value={formatCurrency(finance.outstanding)} icon={Briefcase}  color="bg-amber-100 text-amber-600" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -229,7 +224,7 @@ function FinanceTab() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {mockRevenueByService.map(row => {
+                {revenueByService.map(row => {
                   const pct = Math.round((row.revenue / totalRevenue) * 100)
                   return (
                     <tr key={row.service} className="hover:bg-gray-50 transition-colors">
@@ -287,14 +282,18 @@ function FinanceTab() {
 // ─── Tab: Team ────────────────────────────────────────────────────────────────
 
 function TeamTab() {
+  const { data, error } = useReport<TeamData>('team')
+  if (!data) return <ReportState error={error} />
+  const teamKpis = data.kpis
+  const teamRows = data.rows
   return (
     <div className="space-y-5">
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KpiCard label="Total Employees"    value={mockTeamKPIs.employees}                                           icon={Users}      color="bg-blue-100 text-blue-600" />
-        <KpiCard label="Tasks Assigned"     value={mockTeamKPIs.tasksAssigned}                                       icon={Briefcase}  color="bg-amber-100 text-amber-600" />
-        <KpiCard label="Tasks Completed"    value={mockTeamKPIs.tasksCompleted}                                      icon={UserCheck}  color="bg-green-100 text-green-600" />
-        <KpiCard label="Avg Performance"    value={`${mockTeamKPIs.avgScore}/100`}                                   icon={Award}      color="bg-purple-100 text-purple-600" />
+        <KpiCard label="Total Employees"    value={teamKpis.employees}                                           icon={Users}      color="bg-blue-100 text-blue-600" />
+        <KpiCard label="Tasks Assigned"     value={teamKpis.tasksAssigned}                                       icon={Briefcase}  color="bg-amber-100 text-amber-600" />
+        <KpiCard label="Tasks Completed"    value={teamKpis.tasksCompleted}                                      icon={UserCheck}  color="bg-green-100 text-green-600" />
+        <KpiCard label="Avg Performance"    value={`${teamKpis.avgScore}/100`}                                   icon={Award}      color="bg-purple-100 text-purple-600" />
       </div>
 
       {/* Table */}
@@ -312,7 +311,7 @@ function TeamTab() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {mockTeamData.map(row => (
+              {teamRows.map(row => (
                 <tr key={row.name} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3 font-medium text-gray-800 whitespace-nowrap">{row.name}</td>
                   <td className="px-4 py-3">
@@ -347,14 +346,18 @@ function TeamTab() {
 // ─── Tab: Clients ─────────────────────────────────────────────────────────────
 
 function ClientsTab() {
+  const { data, error } = useReport<ClientsData>('clients')
+  if (!data) return <ReportState error={error} />
+  const clientKpis = data.kpis
+  const clientCategories = data.categories
   return (
     <div className="space-y-5">
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KpiCard label="Total Clients"    value={mockClientKPIs.total}        icon={Users}      color="bg-blue-100 text-blue-600" />
-        <KpiCard label="Contractors"      value={mockClientKPIs.contractors}  icon={UserCheck}  color="bg-green-100 text-green-600" />
-        <KpiCard label="Prospects"        value={mockClientKPIs.prospects}    icon={TrendingUp} color="bg-purple-100 text-purple-600" />
-        <KpiCard label="New This Month"   value={mockClientKPIs.newThisMonth} icon={Award}      color="bg-amber-100 text-amber-600" />
+        <KpiCard label="Total Clients"    value={clientKpis.total}        icon={Users}      color="bg-blue-100 text-blue-600" />
+        <KpiCard label="Contractors"      value={clientKpis.contractors}  icon={UserCheck}  color="bg-green-100 text-green-600" />
+        <KpiCard label="Prospects"        value={clientKpis.prospects}    icon={TrendingUp} color="bg-purple-100 text-purple-600" />
+        <KpiCard label="New This Month"   value={clientKpis.newThisMonth} icon={Award}      color="bg-amber-100 text-amber-600" />
       </div>
 
       {/* Table */}
@@ -372,7 +375,7 @@ function ClientsTab() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {mockClientCategories.map(row => (
+              {clientCategories.map(row => (
                 <tr key={row.category} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3 font-medium text-gray-800">{row.category}</td>
                   <td className="px-4 py-3 text-gray-600">{row.total}</td>

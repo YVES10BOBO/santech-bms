@@ -59,3 +59,15 @@ export const notificationService = {
   unreadCount: async (): Promise<number> => (await get('/notifications/unread-count')).data.unread,
   markRead: (ids?: string[]) => post('/notifications/read', ids ? { ids } : {}),
 }
+
+export const communicationService = {
+  getAll: (clientId?: string) => get(`/communications${clientId ? `?clientId=${clientId}` : ''}`),
+  create: (b: Body) => post('/communications', b),
+  update: (id: string, b: Body) => put(`/communications/${id}`, b),
+}
+
+export const meetingService = {
+  getAll: () => get('/meetings'),
+  create: (b: Body) => post('/meetings', b),
+  update: (id: string, b: Body) => put(`/meetings/${id}`, b),
+}

@@ -158,5 +158,26 @@ export async function generateReminders(userId: string, role: UserRole): Promise
     }
   }
 
+  // Everyone: own communication follow-ups and today's meetings
+  const [followUps, meetings] = await Promise.all([
+    prisma.communication.findMany({
+      where: { loggedById: userId, followUpNeeded: true, followUpDate: { lte: new Date(today.getTime() + 1 * DAY) } },
+      include: { client: { select: { companyName: true } } },
+    }),
+    prisma.meeting.findMany({ where: { createdById: userId, status: 'SCHEDULED', date: { gte: today, lt: new Date(today.getTime() + DAY) } } }),
+  ])
+  for (const c of followUps) {
+    jobs.push(notify(userId, {
+      type: 'FOLLOW_UP', title: 'Follow-up Due', link: '/communication/log', key: `comm-fu-${c.id}-${c.followUpDate!.getTime()}`,
+      description: `${c.client?.companyName ?? c.company ?? 'Contact'}: ${c.subject} (${fmtDate(c.followUpDate!)})`,
+    }))
+  }
+  for (const m of meetings) {
+    jobs.push(notify(userId, {
+      type: 'SYSTEM', title: 'Meeting Today', link: '/communication/meetings', key: `meeting-today-${m.id}`,
+      description: `${m.title} at ${m.startTime}${m.location ? ` — ${m.location}` : ''}`,
+    }))
+  }
+
   await Promise.all(jobs)
 }

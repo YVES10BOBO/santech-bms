@@ -1,6 +1,10 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Plus, Search, X, MapPin, Video, Edit2, Eye, CheckCircle2, Calendar, Clock, Users, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn, formatDate } from '@/lib/utils'
+import { meetingService } from '@/lib/services/operationsService'
+import { useLookups, apiError } from '@/lib/services/lookupService'
+import PageLoader from '@/components/shared/PageLoader'
+import toast from 'react-hot-toast'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -98,75 +102,14 @@ function avatarColor(name: string): string {
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
 
-const mockMeetings: Meeting[] = [
-  {
-    id: 'meet1', title: 'EVS Demo', type: 'CLIENT_MEETING', status: 'SCHEDULED',
-    date: '2026-10-12', startTime: '10:00', endTime: '12:00',
-    client: 'GAMICO LTD', location: 'GAMICO LTD Office', isOnline: false,
-    participants: ['Alice Uwimana', 'Bob Nkurunziza'],
-    agenda: 'Present EVS system capabilities and pricing',
-    notes: '', decisions: '', actionItems: [], followUpDate: '2026-10-15',
-  },
-  {
-    id: 'meet2', title: 'SANTRACK Progress Review', type: 'PROJECT_MEETING', status: 'SCHEDULED',
-    date: '2026-10-13', startTime: '14:00', endTime: '15:00',
-    client: 'East African Seed', location: '', isOnline: true, link: 'meet.google.com/abc',
-    participants: ['Bob Nkurunziza', 'Alice Uwimana'],
-    agenda: 'Review SANTRACK installation progress',
-    notes: '', decisions: '', actionItems: [],
-  },
-  {
-    id: 'meet3', title: 'Weekly Team Standup', type: 'INTERNAL', status: 'SCHEDULED',
-    date: '2026-10-14', startTime: '09:00', endTime: '09:30',
-    client: 'Internal', location: 'Santech Office', isOnline: false,
-    participants: ['All team'],
-    agenda: 'Weekly sync',
-    notes: '', decisions: '', actionItems: [],
-  },
-  {
-    id: 'meet4', title: 'EVS Contract Signing', type: 'CONTRACT_MEETING', status: 'SCHEDULED',
-    date: '2026-10-15', startTime: '11:00', endTime: '12:00',
-    client: 'SABBAN ABATTOIR', location: 'SABBAN Office', isOnline: false,
-    participants: ['Alice Uwimana', 'Admin'],
-    agenda: 'Sign EVS system contract for 12M RWF',
-    notes: '', decisions: '', actionItems: [],
-  },
-  {
-    id: 'meet5', title: 'Ecobank Proposal Presentation', type: 'SALES_MEETING', status: 'SCHEDULED',
-    date: '2026-10-16', startTime: '10:00', endTime: '11:30',
-    client: 'ECOBANK', location: 'Ecobank HQ', isOnline: false,
-    participants: ['Alice Uwimana'],
-    agenda: 'Present EVS + SANHR IMS proposal',
-    notes: '', decisions: '', actionItems: [],
-  },
-  {
-    id: 'meet6', title: 'SanHub Training Session', type: 'TRAINING', status: 'COMPLETED',
-    date: '2026-10-10', startTime: '09:00', endTime: '13:00',
-    client: 'Internal', location: 'Santech Office', isOnline: false,
-    participants: ['All team'],
-    agenda: 'Train staff on SanHub features',
-    notes: 'Training completed successfully', decisions: 'All staff trained',
-    actionItems: ['Follow up quiz next week'],
-  },
-  {
-    id: 'meet7', title: 'Website Review', type: 'PROJECT_MEETING', status: 'COMPLETED',
-    date: '2026-10-08', startTime: '15:00', endTime: '16:00',
-    client: 'Rwanda Mountain Ride', location: '', isOnline: true, link: 'zoom.us/j/123',
-    participants: ['Bob Nkurunziza', 'Alice Uwimana'],
-    agenda: 'Review website design and content',
-    notes: 'Client approved design', decisions: 'Design approved, proceed to development',
-    actionItems: ['Bob to start development', 'Send revised proposal'],
-  },
-  {
-    id: 'meet8', title: 'Q3 Performance Review', type: 'INTERNAL', status: 'COMPLETED',
-    date: '2026-10-05', startTime: '10:00', endTime: '12:00',
-    client: 'Internal', location: 'Santech Boardroom', isOnline: false,
-    participants: ['All team'],
-    agenda: 'Review Q3 targets and achievements',
-    notes: 'Reviewed Q3 targets', decisions: 'Targets partially met',
-    actionItems: ['Increase EVS sales focus', 'Follow up on pipeline deals'],
-  },
-]
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toMeeting = (m: any): Meeting => ({
+  id: m.id, title: m.title, type: m.type, status: m.status,
+  date: String(m.date).slice(0, 10), startTime: m.startTime, endTime: m.endTime,
+  client: m.client?.companyName ?? 'Internal', location: m.location ?? '', isOnline: !!m.isOnline, link: m.link ?? undefined,
+  participants: m.participants ?? [], agenda: m.agenda ?? '', notes: m.notes ?? '', decisions: m.decisions ?? '',
+  actionItems: m.actionItems ?? [], followUpDate: m.followUpDate ? String(m.followUpDate).slice(0, 10) : undefined,
+})
 
 // ─── Empty form ───────────────────────────────────────────────────────────────
 
@@ -195,7 +138,8 @@ const emptyForm: MeetingForm = {
 // ─── Date grouping helpers ─────────────────────────────────────────────────────
 
 function getToday(): string {
-  return new Date().toISOString().split('T')[0]
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
 function getTomorrow(): string {
@@ -258,7 +202,18 @@ function ParticipantAvatars({ participants }: { participants: string[] }) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function MeetingsPage() {
-  const [meetings, setMeetings] = useState<Meeting[]>(mockMeetings)
+  const [meetings, setMeetings] = useState<Meeting[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const lookups = useLookups()
+
+  useEffect(() => {
+    meetingService.getAll()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then((res: any) => setMeetings((res.data ?? []).map(toMeeting)))
+      .catch(err => toast.error(apiError(err, 'Failed to load meetings')))
+      .finally(() => setLoading(false))
+  }, [])
   const [view, setView] = useState<'list' | 'table'>('list')
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState<MeetingType | 'ALL'>('ALL')
@@ -303,38 +258,51 @@ export default function MeetingsPage() {
     }
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!form.title.trim() || !form.date) { setFormError('Title and date are required.'); return }
-    const m: Meeting = {
-      id: `meet${Date.now()}`,
-      title: form.title.trim(),
-      type: form.type,
-      status: 'SCHEDULED',
-      date: form.date,
-      startTime: form.startTime,
-      endTime: form.endTime,
-      client: form.client.trim(),
-      location: form.isOnline ? '' : form.location.trim(),
-      isOnline: form.isOnline,
-      link: form.isOnline ? form.link.trim() : undefined,
-      participants: form.participants.split(',').map(p => p.trim()).filter(Boolean),
-      agenda: form.agenda.trim(),
-      notes: form.notes.trim(),
-      decisions: '',
-      actionItems: [],
-      followUpDate: form.followUpDate || undefined,
+    if (!form.startTime || !form.endTime) { setFormError('Start and end times are required.'); return }
+    setSaving(true)
+    try {
+      const res = await meetingService.create({
+        title: form.title.trim(), type: form.type, date: form.date, startTime: form.startTime, endTime: form.endTime,
+        clientId: form.client || undefined, location: form.isOnline ? '' : form.location.trim(), isOnline: form.isOnline,
+        link: form.isOnline ? form.link.trim() : undefined, participants: form.participants,
+        agenda: form.agenda.trim(), notes: form.notes.trim(), followUpDate: form.followUpDate || undefined,
+      })
+      setMeetings(prev => [toMeeting(res.data), ...prev])
+      toast.success(res.message)
+      setShowModal(false)
+      setForm(emptyForm)
+      setFormError('')
+    } catch (err) {
+      setFormError(apiError(err, 'Failed to save meeting'))
+    } finally {
+      setSaving(false)
     }
-    setMeetings(prev => [m, ...prev])
-    setShowModal(false)
-    setForm(emptyForm)
-    setFormError('')
+  }
+
+  const saveMeeting = async (id: string, changes: Record<string, unknown>) => {
+    try {
+      const res = await meetingService.update(id, changes)
+      const saved = toMeeting(res.data)
+      setMeetings(prev => prev.map(m => (m.id === id ? saved : m)))
+      setSelectedMeeting(prev => (prev?.id === id ? saved : prev))
+      toast.success(res.message)
+    } catch (err) {
+      toast.error(apiError(err, 'Failed to update meeting'))
+    }
   }
 
   const markCompleted = (id: string) => {
-    setMeetings(prev => prev.map(m => m.id === id ? { ...m, status: 'COMPLETED' } : m))
-    setSelectedMeeting(prev => prev?.id === id ? { ...prev, status: 'COMPLETED' } : prev)
+    const decisions = window.prompt('Decisions made (optional):', '')
+    if (decisions === null) return
+    const actions = window.prompt('Action items, comma separated (optional):', '')
+    if (actions === null) return
+    saveMeeting(id, { status: 'COMPLETED', ...(decisions ? { decisions } : {}), ...(actions ? { actionItems: actions } : {}) })
   }
+
+  if (loading) return <PageLoader />
 
   // ── Calendar list grouped view ──
   const grouped: Partial<Record<DateGroup, Meeting[]>> = {}
@@ -669,8 +637,11 @@ export default function MeetingsPage() {
               </div>
               {/* Client */}
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Client / Company</label>
-                <input name="client" value={form.client} onChange={handleFormChange} placeholder="e.g. GAMICO LTD" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500" />
+                <label className="block text-xs font-medium text-gray-700 mb-1">Client</label>
+                <select name="client" value={form.client} onChange={handleFormChange} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500">
+                  <option value="">Internal (no client)</option>
+                  {lookups.clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
               </div>
               {/* Online toggle */}
               <div className="flex items-center gap-3">
@@ -717,7 +688,7 @@ export default function MeetingsPage() {
               {/* Buttons */}
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => { setShowModal(false); setForm(emptyForm); setFormError('') }} className="flex-1 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 font-medium">Cancel</button>
-                <button type="submit" className="flex-1 py-2.5 bg-santech-600 text-white rounded-lg text-sm hover:bg-santech-700 font-medium">Save Meeting</button>
+                <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-santech-600 text-white rounded-lg text-sm hover:bg-santech-700 font-medium disabled:opacity-50">{saving ? 'Saving…' : 'Save Meeting'}</button>
               </div>
             </form>
           </div>
@@ -866,6 +837,12 @@ export default function MeetingsPage() {
                   className="w-full flex items-center justify-center gap-2 py-2.5 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 font-medium transition-colors"
                 >
                   <CheckCircle2 className="w-4 h-4" /> Mark Completed
+                </button>
+                <button
+                  onClick={() => saveMeeting(selectedMeeting.id, { status: 'CANCELLED' })}
+                  className="w-full mt-2 py-2 border border-red-200 text-red-600 rounded-lg text-sm hover:bg-red-50 font-medium transition-colors"
+                >
+                  Cancel Meeting
                 </button>
               </div>
             )}

@@ -8,6 +8,9 @@ import {
 } from 'lucide-react'
 import { cn, formatDate, formatCurrency } from '@/lib/utils'
 import { clientService } from '@/lib/services/clientService'
+import { communicationService } from '@/lib/services/operationsService'
+import { apiError } from '@/lib/services/lookupService'
+import toast from 'react-hot-toast'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type ClientKind = 'INDIVIDUAL' | 'BUSINESS' | 'TEAM' | 'DELEGATION'
@@ -252,12 +255,24 @@ interface AddInteractionModalProps {
   onSave: (event: TimelineEvent) => void
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toTimelineEvent(c: any): TimelineEvent {
+  const kind = String(c.type)
+  const type: TimelineEventType = kind === 'CALL' || kind === 'WHATSAPP' || kind === 'SMS' ? 'CALL'
+    : kind === 'EMAIL' ? 'EMAIL' : kind === 'MEETING' ? 'MEETING' : kind === 'STATUS_CHANGE' ? 'STATUS_CHANGE' : 'NOTE'
+  const by = c.loggedBy ? `${c.loggedBy.firstName} ${c.loggedBy.lastName}` : ''
+  const channel = kind === 'WHATSAPP' ? 'WhatsApp: ' : kind === 'SMS' ? 'SMS: ' : ''
+  return {
+    id: String(c.id), type, date: String(c.dateTime ?? '').slice(0, 10),
+    title: channel + String(c.subject ?? ''), description: String(c.summary ?? ''), addedBy: by,
+  }
+}
+
 function AddInteractionModal({ onClose, onSave }: AddInteractionModalProps) {
   const [type, setType] = useState<InteractionType>('CALL')
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
-  const [addedBy, setAddedBy] = useState('')
 
   const handleSave = () => {
     if (!title.trim() || !date) return
@@ -267,7 +282,7 @@ function AddInteractionModal({ onClose, onSave }: AddInteractionModalProps) {
       date,
       title: title.trim(),
       description: description.trim(),
-      addedBy: addedBy.trim() || 'Admin',
+      addedBy: '',
     })
   }
 
@@ -305,11 +320,7 @@ function AddInteractionModal({ onClose, onSave }: AddInteractionModalProps) {
             <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} placeholder="Details..."
               className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500" />
           </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Added By</label>
-            <input type="text" value={addedBy} onChange={e => setAddedBy(e.target.value)} placeholder="Your name..."
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500" />
-          </div>
+
         </div>
         <div className="flex gap-3 px-6 pb-5">
           <button onClick={onClose}
@@ -341,6 +352,10 @@ export default function ClientProfilePage() {
         const invoices = (c.invoices as Record<string, unknown>[] | undefined) ?? []
         const contracts = (c.contracts as Record<string, unknown>[] | undefined) ?? []
         const fieldVisits = (c.fieldVisits as Record<string, unknown>[] | undefined) ?? []
+        const communications = (c.communications as Record<string, unknown>[] | undefined) ?? []
+        const meetings = (c.meetings as Record<string, unknown>[] | undefined) ?? []
+        const quotations = (c.quotations as Record<string, unknown>[] | undefined) ?? []
+        const tickets = (c.tickets as Record<string, unknown>[] | undefined) ?? []
 
         const totalInvoiced = invoices.reduce((sum, inv) => sum + Number(inv.totalAmount ?? 0), 0)
         const totalPaid = invoices.reduce((sum, inv) => sum + Number(inv.paidAmount ?? 0), 0)
@@ -404,24 +419,69 @@ export default function ClientProfilePage() {
             status: mapInvoiceStatus(String(inv.status ?? '')),
             date: inv.issueDate ? String(inv.issueDate).slice(0, 10) : '',
           })),
-          timeline: fieldVisits.map((v) => ({
-            id: String(v.id),
-            type: 'FIELD_VISIT' as const,
-            date: v.visitDate ? String(v.visitDate).slice(0, 10) : '',
-            title: 'Field visit to ' + String(v.companyName ?? ''),
-            description: String(v.needsAndObservation ?? ''),
-            addedBy: (v.recordedBy as Record<string, unknown> | undefined)
-              ? String((v.recordedBy as Record<string, unknown>).firstName ?? '')
-              : '',
-          })),
-          // TODO: wire to real service catalog
+          timeline: [
+            ...fieldVisits.map((v): TimelineEvent => ({
+              id: String(v.id),
+              type: 'FIELD_VISIT',
+              date: v.visitDate ? String(v.visitDate).slice(0, 10) : '',
+              title: 'Field visit to ' + String(v.companyName ?? ''),
+              description: String(v.needsAndObservation ?? ''),
+              addedBy: '',
+            })),
+            ...communications.map(toTimelineEvent),
+            ...meetings.map((m): TimelineEvent => ({
+              id: String(m.id),
+              type: 'MEETING',
+              date: m.date ? String(m.date).slice(0, 10) : '',
+              title: `${String(m.title)} (${String(m.status ?? '').toLowerCase()})`,
+              description: String(m.decisions || m.agenda || ''),
+              addedBy: '',
+            })),
+            ...quotations.map((q): TimelineEvent => ({
+              id: String(q.id),
+              type: 'QUOTATION',
+              date: q.createdAt ? String(q.createdAt).slice(0, 10) : '',
+              title: `Quotation ${String(q.quotationNumber)} — ${formatCurrency(Number(q.totalAmount ?? 0))}`,
+              description: `Status: ${String(q.status ?? '').replace(/_/g, ' ').toLowerCase()}`,
+              addedBy: '',
+            })),
+            ...contracts.map((ct): TimelineEvent => ({
+              id: String(ct.id),
+              type: 'CONTRACT',
+              date: ct.startDate ? String(ct.startDate).slice(0, 10) : '',
+              title: `Contract ${String(ct.contractNumber)} — ${String(ct.projectName ?? '')}`,
+              description: `Value ${formatCurrency(Number(ct.value ?? 0))} · ${String(ct.status ?? '').toLowerCase()}`,
+              addedBy: '',
+            })),
+            ...invoices.map((inv): TimelineEvent => ({
+              id: String(inv.id),
+              type: Number(inv.paidAmount ?? 0) > 0 ? 'PAYMENT' : 'INVOICE',
+              date: inv.issueDate ? String(inv.issueDate).slice(0, 10) : '',
+              title: `Invoice ${String(inv.invoiceNumber)} — ${formatCurrency(Number(inv.totalAmount ?? 0))}`,
+              description: `Paid ${formatCurrency(Number(inv.paidAmount ?? 0))} · ${String(inv.status ?? '').replace(/_/g, ' ').toLowerCase()}`,
+              addedBy: '',
+            })),
+            ...tickets.map((t): TimelineEvent => ({
+              id: String(t.id),
+              type: 'NOTE',
+              date: t.createdAt ? String(t.createdAt).slice(0, 10) : '',
+              title: `Support ticket ${String(t.ticketNo)}: ${String(t.subject)}`,
+              description: `Status: ${String(t.status ?? '').replace(/_/g, ' ').toLowerCase()}`,
+              addedBy: '',
+            })),
+          ],
+          // A service is active while the client has an active contract
           services: ((c.services as string[] | undefined) ?? []).map((s) => ({
             name: s,
             description: '',
-            status: 'PENDING' as const,
+            status: (contracts.some(ct => ct.status === 'ACTIVE') ? 'ACTIVE' : contracts.length ? 'EXPIRED' : 'PENDING') as ServiceStatus,
           })),
-          // TODO: Document model is a follow-up
-          documents: [],
+          // Documents this client has in the system
+          documents: [
+            ...contracts.filter(ct => ct.signedDocumentName).map((ct): ClientDocument => ({ name: String(ct.signedDocumentName), type: 'Contract', date: ct.signedAt ? String(ct.signedAt).slice(0, 10) : String(ct.startDate ?? '').slice(0, 10) })),
+            ...quotations.map((q): ClientDocument => ({ name: `${String(q.quotationNumber)}.pdf`, type: 'Proposal', date: String(q.createdAt ?? '').slice(0, 10) })),
+            ...invoices.map((inv): ClientDocument => ({ name: `${String(inv.invoiceNumber)}.pdf`, type: 'Invoice', date: String(inv.issueDate ?? '').slice(0, 10) })),
+          ],
         }
         setProfile(mapped)
       })
@@ -458,10 +518,19 @@ export default function ClientProfilePage() {
     ? Math.round((profile.totalPaid / profile.totalInvoiced) * 100)
     : 0
 
-  const handleAddInteraction = (event: TimelineEvent) => {
-    // TODO: POST to interaction endpoint when model is built
-    setProfile(prev => prev ? { ...prev, timeline: [event, ...prev.timeline] } : prev)
-    setShowAddInteraction(false)
+  const handleAddInteraction = async (event: TimelineEvent) => {
+    try {
+      const res = await communicationService.create({
+        type: event.type, clientId: profile.id, dateTime: `${event.date}T${new Date().toTimeString().slice(0, 8)}`,
+        subject: event.title, summary: event.description,
+      })
+      const saved = toTimelineEvent(res.data)
+      setProfile(prev => prev ? { ...prev, timeline: [saved, ...prev.timeline] } : prev)
+      setShowAddInteraction(false)
+      toast.success('Interaction saved to the communication log')
+    } catch (err) {
+      toast.error(apiError(err, 'Failed to save interaction'))
+    }
   }
 
   const sortedTimeline = [...profile.timeline].sort(

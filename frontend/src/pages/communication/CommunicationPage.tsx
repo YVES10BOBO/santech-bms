@@ -1,7 +1,11 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Phone, Mail, MessageCircle, MessageSquare, Users, FileText, Plus, Search, X, Eye } from 'lucide-react'
 import DateRangePicker from '@/components/shared/DateRangePicker'
 import { cn, formatDate, formatDateTime } from '@/lib/utils'
+import { communicationService } from '@/lib/services/operationsService'
+import { useLookups, apiError } from '@/lib/services/lookupService'
+import PageLoader from '@/components/shared/PageLoader'
+import toast from 'react-hot-toast'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -51,78 +55,23 @@ function CommIcon({ type, className }: { type: CommType; className?: string }) {
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
 
-const mockLogs: CommLog[] = [
-  {
-    id: 'c1', type: 'CALL', direction: 'OUTBOUND', company: 'SABBAN ABATTOIR', contactName: 'HR THEONESTE',
-    client: 'SABBAN ABATTOIR', dateTime: '2026-10-11T10:00:00', duration: 15,
-    subject: 'Follow-up on EVS quotation',
-    summary: 'Called HR THEONESTE to follow up on the 12M RWF EVS quotation. He mentioned the board meeting result is expected soon.',
-    loggedBy: 'Alice Uwimana', followUpNeeded: true, followUpDate: '2026-10-15',
-  },
-  {
-    id: 'c2', type: 'EMAIL', direction: 'OUTBOUND', company: 'ECOBANK', contactName: 'KAMIKAZI',
-    client: 'ECOBANK', dateTime: '2026-10-09T14:00:00',
-    subject: 'EVS + SANHR IMS proposal',
-    summary: 'Sent detailed project proposals for EVS and SANHR IMS with screenshots and pricing to KAMIKAZI and DMANA.',
-    loggedBy: 'Alice Uwimana', linkedTo: 'QT-2026-002', followUpNeeded: true, followUpDate: '2026-10-20',
-  },
-  {
-    id: 'c3', type: 'WHATSAPP', direction: 'OUTBOUND', company: 'Victoria Trading LTD', contactName: 'EID IBRAHIM',
-    client: 'Victoria Trading LTD', dateTime: '2026-10-08T11:00:00',
-    subject: 'SANTRACK price negotiation update',
-    summary: 'Sent updated SANTRACK pricing via WhatsApp. EID confirmed they are reviewing with the team.',
-    loggedBy: 'Alice Uwimana', followUpNeeded: true, followUpDate: '2026-10-14',
-  },
-  {
-    id: 'c4', type: 'CALL', direction: 'INBOUND', company: 'East African Seed Ltd', contactName: 'John Mugisha',
-    client: 'East African Seed Ltd', dateTime: '2026-10-10T09:00:00', duration: 8,
-    subject: 'Question about SANTRACK installation timeline',
-    summary: 'John called to ask about the expected installation date for SANTRACK. Bob confirmed November 15.',
-    loggedBy: 'Bob Nkurunziza', followUpNeeded: false,
-  },
-  {
-    id: 'c5', type: 'MEETING', direction: null, company: 'GAMICO LTD', contactName: 'ABEL',
-    client: 'GAMICO LTD', dateTime: '2026-10-12T10:00:00',
-    subject: 'EVS system demo presentation',
-    summary: 'Full EVS demo conducted at GAMICO LTD office. ABEL and HR team were present. Very positive response.',
-    loggedBy: 'Alice Uwimana', linkedTo: 'Deal EVS GAMICO', followUpNeeded: true, followUpDate: '2026-10-19',
-  },
-  {
-    id: 'c6', type: 'NOTE', direction: null, company: 'Internal', contactName: '',
-    client: 'SABBAN ABATTOIR', dateTime: '2026-10-11T15:00:00',
-    subject: 'SABBAN board meeting expected this week',
-    summary: 'SABBAN ABATTOIR board meeting result expected this week. HR THEONESTE to confirm decision on EVS system.',
-    loggedBy: 'Alice Uwimana', followUpNeeded: false,
-  },
-  {
-    id: 'c7', type: 'EMAIL', direction: 'INBOUND', company: 'NYARUGENGE HOSPITAL', contactName: 'Director',
-    client: 'NYARUGENGE HOSPITAL', dateTime: '2026-10-09T10:00:00',
-    subject: 'Request for EVS proposal update',
-    summary: 'Received email from NYARUGENGE HOSPITAL director requesting updated EVS proposal with latest pricing.',
-    loggedBy: 'Alice Uwimana', followUpNeeded: true, followUpDate: '2026-10-16',
-  },
-  {
-    id: 'c8', type: 'CALL', direction: 'OUTBOUND', company: 'Serena Hotel', contactName: 'Security Manager',
-    client: 'Serena Hotel', dateTime: '2026-10-07T14:00:00', duration: 5,
-    subject: 'EVS demo scheduling',
-    summary: 'Called Serena Hotel security manager to schedule EVS demo. He requested a demo for late October.',
-    loggedBy: 'Alice Uwimana', followUpNeeded: true, followUpDate: '2026-10-25',
-  },
-  {
-    id: 'c9', type: 'WHATSAPP', direction: 'OUTBOUND', company: 'N&T PLASTIC', contactName: 'MUGISHA',
-    client: 'N&T PLASTIC', dateTime: '2026-10-06T11:00:00',
-    subject: 'Final price confirmation for SANTRACK',
-    summary: 'Sent final SANTRACK price confirmation to MUGISHA. Waiting for response.',
-    loggedBy: 'Alice Uwimana', followUpNeeded: true, followUpDate: '2026-10-13',
-  },
-  {
-    id: 'c10', type: 'NOTE', direction: null, company: 'Internal', contactName: '',
-    client: 'ECOBANK', dateTime: '2026-10-09T16:00:00',
-    subject: 'ECOBANK procurement timeline note',
-    summary: 'ECOBANK procurement process may take 2-3 months per KAMIKAZI. Need to maintain regular contact.',
-    loggedBy: 'Alice Uwimana', followUpNeeded: false,
-  },
-]
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toLog = (c: any): CommLog => ({
+  id: c.id,
+  type: (c.type === 'STATUS_CHANGE' ? 'NOTE' : c.type) as CommType,
+  direction: c.direction ?? null,
+  client: c.client?.companyName ?? c.company ?? 'Internal',
+  company: c.client?.companyName ?? c.company ?? 'Internal',
+  contactName: c.contactName ?? '',
+  dateTime: String(c.dateTime).slice(0, 19),
+  duration: c.duration ?? undefined,
+  subject: c.subject,
+  summary: c.summary ?? '',
+  loggedBy: c.loggedBy ? `${c.loggedBy.firstName} ${c.loggedBy.lastName}` : '',
+  linkedTo: c.linkedTo ?? undefined,
+  followUpNeeded: !!c.followUpNeeded,
+  followUpDate: c.followUpDate ? String(c.followUpDate).slice(0, 10) : undefined,
+})
 
 // ─── Empty form ───────────────────────────────────────────────────────────────
 
@@ -131,7 +80,8 @@ const DIRECTION_TYPES: CommType[] = ['CALL', 'EMAIL', 'WHATSAPP', 'SMS']
 const emptyForm = {
   type: 'CALL' as CommType,
   direction: 'OUTBOUND' as Direction,
-  client: '',
+  clientId: '',
+  company: '',
   contactName: '',
   dateTime: '',
   duration: '',
@@ -145,7 +95,18 @@ const emptyForm = {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function CommunicationPage() {
-  const [logs, setLogs] = useState<CommLog[]>(mockLogs)
+  const [logs, setLogs] = useState<CommLog[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const lookups = useLookups()
+
+  useEffect(() => {
+    communicationService.getAll()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then((res: any) => setLogs((res.data ?? []).map(toLog)))
+      .catch(err => toast.error(apiError(err, 'Failed to load communication log')))
+      .finally(() => setLoading(false))
+  }, [])
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState<CommType | 'ALL'>('ALL')
   const [clientFilter, setClientFilter] = useState('ALL')
@@ -158,7 +119,7 @@ export default function CommunicationPage() {
   const [page, setPage] = useState(1)
 
   // Unique clients for filter dropdown
-  const uniqueClients = Array.from(new Set(mockLogs.map(l => l.client))).sort()
+  const uniqueClients = Array.from(new Set(logs.map(l => l.client))).sort()
 
   // ── Stats ──
   const stats = [
@@ -193,29 +154,45 @@ export default function CommunicationPage() {
     setForm(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }))
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!form.type || !form.client || !form.dateTime || !form.subject) return
-    const newLog: CommLog = {
-      id: String(Date.now()),
-      type: form.type,
-      direction: DIRECTION_TYPES.includes(form.type) ? form.direction : null,
-      client: form.client,
-      company: form.client,
-      contactName: form.contactName,
-      dateTime: form.dateTime,
-      duration: form.type === 'CALL' && form.duration ? Number(form.duration) : undefined,
-      subject: form.subject,
-      summary: form.summary,
-      loggedBy: 'Alice Uwimana',
-      linkedTo: form.linkedTo || undefined,
-      followUpNeeded: form.followUpNeeded,
-      followUpDate: form.followUpNeeded && form.followUpDate ? form.followUpDate : undefined,
+    if (!form.type || (!form.clientId && !form.company) || !form.dateTime || !form.subject) {
+      toast.error('Type, client (or company), date and subject are required'); return
     }
-    setLogs(prev => [newLog, ...prev])
-    setShowModal(false)
-    setForm(emptyForm)
+    setSaving(true)
+    try {
+      const res = await communicationService.create({
+        type: form.type, direction: DIRECTION_TYPES.includes(form.type) ? form.direction : null,
+        clientId: form.clientId || undefined, company: form.clientId ? undefined : form.company,
+        contactName: form.contactName, dateTime: form.dateTime,
+        duration: form.type === 'CALL' && form.duration ? Number(form.duration) : undefined,
+        subject: form.subject, summary: form.summary, linkedTo: form.linkedTo || undefined,
+        followUpNeeded: form.followUpNeeded, followUpDate: form.followUpNeeded ? form.followUpDate : undefined,
+      })
+      setLogs(prev => [toLog(res.data), ...prev])
+      toast.success(res.message)
+      setShowModal(false)
+      setForm(emptyForm)
+    } catch (err) {
+      toast.error(apiError(err, 'Failed to save'))
+    } finally {
+      setSaving(false)
+    }
   }
+
+  const markFollowUpDone = async (id: string) => {
+    try {
+      const res = await communicationService.update(id, { followUpNeeded: false })
+      const saved = toLog(res.data)
+      setLogs(prev => prev.map(l => (l.id === id ? saved : l)))
+      setViewLog(prev => (prev?.id === id ? saved : prev))
+      toast.success(res.message)
+    } catch (err) {
+      toast.error(apiError(err, 'Failed to update'))
+    }
+  }
+
+  if (loading) return <PageLoader />
 
   return (
     <div className="space-y-5">
@@ -401,10 +378,17 @@ export default function CommunicationPage() {
 
               {/* Client Name */}
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Client Name *</label>
-                <input name="client" value={form.client} onChange={handleChange}
-                  placeholder="e.g. SABBAN ABATTOIR"
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500" />
+                <label className="block text-xs font-medium text-gray-700 mb-1">Client *</label>
+                <select name="clientId" value={form.clientId} onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500">
+                  <option value="">Not a registered client…</option>
+                  {lookups.clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+                {!form.clientId && (
+                  <input name="company" value={form.company} onChange={handleChange}
+                    placeholder="Company or 'Internal'"
+                    className="mt-2 w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500" />
+                )}
               </div>
 
               {/* Contact Name */}
@@ -477,9 +461,9 @@ export default function CommunicationPage() {
                   className="flex-1 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 font-medium">
                   Cancel
                 </button>
-                <button type="submit"
-                  className="flex-1 py-2.5 bg-santech-600 text-white rounded-lg text-sm hover:bg-santech-700 font-medium">
-                  Save
+                <button type="submit" disabled={saving}
+                  className="flex-1 py-2.5 bg-santech-600 text-white rounded-lg text-sm hover:bg-santech-700 font-medium disabled:opacity-50">
+                  {saving ? 'Saving…' : 'Save'}
                 </button>
               </div>
             </form>
@@ -560,6 +544,10 @@ export default function CommunicationPage() {
                     {viewLog.followUpDate && (
                       <p className="text-gray-500 text-xs mt-1">Due: {formatDate(viewLog.followUpDate)}</p>
                     )}
+                    <button onClick={() => markFollowUpDone(viewLog.id)}
+                      className="mt-2 text-xs px-3 py-1.5 rounded-lg bg-green-50 text-green-700 hover:bg-green-100 font-medium">
+                      Mark follow-up done
+                    </button>
                   </div>
                 ) : (
                   <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 font-medium mt-0.5 inline-block">No follow-up needed</span>

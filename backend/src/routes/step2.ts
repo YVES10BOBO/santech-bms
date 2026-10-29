@@ -10,6 +10,7 @@ import {
   getVisitors, createVisitor, visitorAction,
 } from '../controllers/operationsController'
 import { getUsers, createUser, updateUser, getNotifications, getUnreadCount, markNotificationsRead } from '../controllers/usersController'
+import { getCommunications, createCommunication, updateCommunication, getMeetings, createMeeting, updateMeeting } from '../controllers/activityController'
 
 // Leads, quotations, support, products, departments, reception, users, notifications
 const router = Router()
@@ -55,6 +56,14 @@ router.post('/visitors/:id/:action', visitorAction)
 router.get('/users', authorize(...ADMINS), getUsers)
 router.post('/users', authorize(...ADMINS), createUser)
 router.put('/users/:id', authorize(...ADMINS), updateUser)
+
+// Communication log and meetings (all staff)
+router.get('/communications', getCommunications)
+router.post('/communications', createCommunication)
+router.put('/communications/:id', updateCommunication)
+router.get('/meetings', getMeetings)
+router.post('/meetings', createMeeting)
+router.put('/meetings/:id', updateMeeting)
 
 // Notifications for the logged-in user
 router.get('/notifications', getNotifications)
