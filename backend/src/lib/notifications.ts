@@ -129,6 +129,16 @@ export async function generateReminders(userId: string, role: UserRole): Promise
     }
   }
 
+  // Tender owner: submission deadline within 7 days
+  const tenders = await prisma.tender.findMany({ where: { assignedToId: userId, status: 'OPEN', deadline: { gte: today, lte: new Date(today.getTime() + 7 * DAY) } } })
+  for (const t of tenders) {
+    const days = Math.round((t.deadline.getTime() - today.getTime()) / DAY)
+    jobs.push(notify(userId, {
+      type: 'FOLLOW_UP', title: 'Tender Deadline', link: '/sales/tenders', key: `tender-${t.id}-${days <= 2 ? 2 : 7}`,
+      description: `${t.title} (${t.issuer}) must be submitted ${days === 0 ? 'today' : `in ${days} day${days === 1 ? '' : 's'}`}`,
+    }))
+  }
+
   // Everyone: own tasks due within 2 days or overdue
   const tasks = await prisma.task.findMany({
     where: { assignedToId: userId, status: { in: ['CREATED', 'ASSIGNED', 'ACCEPTED', 'IN_PROGRESS', 'REJECTED'] }, deadline: { lte: new Date(today.getTime() + 2 * DAY) } },

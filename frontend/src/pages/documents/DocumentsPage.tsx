@@ -1,6 +1,10 @@
-import React, { useState } from 'react'
-import { FolderOpen, Plus, Search, Eye, X, FileText, Download } from 'lucide-react'
+import React, { useEffect, useState } from 'react'
+import { FolderOpen, Plus, Search, Eye, X, FileText, Archive } from 'lucide-react'
 import { cn, formatDate } from '@/lib/utils'
+import { documentService } from '@/lib/services/operationsService'
+import { apiError } from '@/lib/services/lookupService'
+import PageLoader from '@/components/shared/PageLoader'
+import toast from 'react-hot-toast'
 
 type DocCategory = 'CONTRACT' | 'INVOICE' | 'PROPOSAL' | 'REPORT' | 'POLICY' | 'OTHER'
 
@@ -24,68 +28,12 @@ const CATEGORY_COLORS: Record<DocCategory, string> = {
   OTHER: 'bg-gray-100 text-gray-600',
 }
 
-const mockDocuments: Document[] = [
-  {
-    id: 'd1',
-    name: 'Santech Company Profile 2026.pdf',
-    category: 'POLICY',
-    description: 'Official company profile document for client presentations.',
-    uploadedBy: 'System Admin',
-    date: '2026-01-10',
-    size: '2.4 MB',
-    status: 'ACTIVE',
-  },
-  {
-    id: 'd2',
-    name: 'EVS System Proposal - SABBAN.pdf',
-    category: 'PROPOSAL',
-    description: 'Technical and commercial proposal for the EVS project at SABBAN ABATTOIR.',
-    uploadedBy: 'Alice Uwimana',
-    date: '2026-03-15',
-    size: '1.8 MB',
-    status: 'ACTIVE',
-  },
-  {
-    id: 'd3',
-    name: 'Contract CT-2026-002 - SABBAN.pdf',
-    category: 'CONTRACT',
-    description: 'Signed contract for the EVS System implementation.',
-    uploadedBy: 'System Admin',
-    date: '2026-04-01',
-    size: '512 KB',
-    status: 'ACTIVE',
-  },
-  {
-    id: 'd4',
-    name: 'Q1 2026 Financial Report.xlsx',
-    category: 'REPORT',
-    description: 'Quarterly financial summary covering Jan–Mar 2026.',
-    uploadedBy: 'David Habimana',
-    date: '2026-04-05',
-    size: '340 KB',
-    status: 'ACTIVE',
-  },
-  {
-    id: 'd5',
-    name: 'Employee Leave Policy v2.pdf',
-    category: 'POLICY',
-    description: 'Updated HR leave policy effective January 2026.',
-    uploadedBy: 'HR Manager',
-    date: '2026-01-02',
-    size: '220 KB',
-    status: 'ACTIVE',
-  },
-  {
-    id: 'd6',
-    name: 'Invoice INV-2026-015.pdf',
-    category: 'INVOICE',
-    description: 'Invoice for SANTRACK installation milestone 1.',
-    uploadedBy: 'David Habimana',
-    date: '2026-05-10',
-    size: '180 KB',
-    status: 'ACTIVE',
-  },
-]
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toDoc = (d: any): Document => ({
+  id: d.id, name: d.name, category: d.category, description: d.description ?? '',
+  uploadedBy: d.uploadedBy ? `${d.uploadedBy.firstName} ${d.uploadedBy.lastName}` : '',
+  date: String(d.date).slice(0, 10), size: d.size ?? '—', status: d.status,
+})
 
 const emptyForm = {
   name: '',
@@ -94,7 +42,29 @@ const emptyForm = {
 }
 
 export default function DocumentsPage() {
-  const [documents, setDocuments] = useState<Document[]>(mockDocuments)
+  const [documents, setDocuments] = useState<Document[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    documentService.getAll()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then((res: any) => setDocuments((res.data ?? []).map(toDoc)))
+      .catch(err => toast.error(apiError(err, 'Failed to load documents')))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const toggleArchive = async (doc: Document) => {
+    try {
+      const res = await documentService.update(doc.id, { status: doc.status === 'ACTIVE' ? 'ARCHIVED' : 'ACTIVE' })
+      const saved = toDoc(res.data)
+      setDocuments(prev => prev.map(d => (d.id === doc.id ? saved : d)))
+      setViewDoc(prev => (prev?.id === doc.id ? saved : prev))
+      toast.success(saved.status === 'ARCHIVED' ? 'Document archived' : 'Document restored')
+    } catch (err) {
+      toast.error(apiError(err, 'Failed to update document'))
+    }
+  }
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<DocCategory | 'ALL'>('ALL')
   const [showAddModal, setShowAddModal] = useState(false)
@@ -112,23 +82,24 @@ export default function DocumentsPage() {
     setForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!form.name.trim()) return
-    const newDoc: Document = {
-      id: `d${Date.now()}`,
-      name: form.name.trim(),
-      category: form.category,
-      description: form.description.trim(),
-      uploadedBy: 'System Admin',
-      date: new Date().toISOString().slice(0, 10),
-      size: '—',
-      status: 'ACTIVE',
+    setSaving(true)
+    try {
+      const res = await documentService.create({ name: form.name.trim(), category: form.category, description: form.description.trim() })
+      setDocuments(prev => [toDoc(res.data), ...prev])
+      toast.success(res.message)
+      setShowAddModal(false)
+      setForm(emptyForm)
+    } catch (err) {
+      toast.error(apiError(err, 'Failed to add document'))
+    } finally {
+      setSaving(false)
     }
-    setDocuments(prev => [newDoc, ...prev])
-    setShowAddModal(false)
-    setForm(emptyForm)
   }
+
+  if (loading) return <PageLoader />
 
   const inputCls = 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500'
   const labelCls = 'block text-xs font-medium text-gray-700 mb-1'
@@ -236,8 +207,8 @@ export default function DocumentsPage() {
                       >
                         <Eye className="w-3 h-3" /> View
                       </button>
-                      <button className="flex items-center gap-1 text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded-lg hover:bg-blue-100 font-medium transition-colors">
-                        <Download className="w-3 h-3" /> Download
+                      <button onClick={() => toggleArchive(doc)} className="flex items-center gap-1 text-xs bg-amber-50 text-amber-700 px-2 py-1 rounded-lg hover:bg-amber-100 font-medium transition-colors">
+                        <Archive className="w-3 h-3" /> {doc.status === 'ACTIVE' ? 'Archive' : 'Restore'}
                       </button>
                     </div>
                   </td>
@@ -283,9 +254,9 @@ export default function DocumentsPage() {
                   className="flex-1 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 font-medium">
                   Cancel
                 </button>
-                <button type="submit"
-                  className="flex-1 py-2.5 bg-santech-600 text-white rounded-lg text-sm hover:bg-santech-700 font-medium">
-                  Save
+                <button type="submit" disabled={saving}
+                  className="flex-1 py-2.5 bg-santech-600 text-white rounded-lg text-sm hover:bg-santech-700 font-medium disabled:opacity-50">
+                  {saving ? 'Saving…' : 'Save'}
                 </button>
               </div>
             </form>

@@ -93,3 +93,50 @@ export const timesheetService = {
   create: (b: Body) => post('/timesheets', b),
   review: (id: string, decision: 'approve' | 'reject') => post(`/timesheets/${id}/${decision}`),
 }
+
+export const documentService = {
+  getAll: () => get('/documents'),
+  create: (b: Body) => post('/documents', b),
+  update: (id: string, b: Body) => put(`/documents/${id}`, b),
+}
+
+export const attendanceService = {
+  getAll: () => get('/attendance'),
+  /** Record a day (admins can record for others); include checkIn / checkOut */
+  save: (b: Body) => post('/attendance', b),
+  requestLeave: (b: Body) => post('/leave', b),
+  reviewLeave: (id: string, decision: 'approve' | 'reject') => post(`/leave/${id}/${decision}`),
+}
+
+export const tenderService = {
+  getAll: () => get('/tenders'),
+  create: (b: Body) => post('/tenders', b),
+  update: (id: string, b: Body) => put(`/tenders/${id}`, b),
+}
+
+export const purchaseService = {
+  getAll: () => get('/purchases'),
+  create: (b: Body) => post('/purchases', b),
+  /** PENDING → APPROVED → ORDERED → DELIVERED (adds the expense) or CANCELLED */
+  setStatus: (id: string, status: string) => put(`/purchases/${id}/status`, { status }),
+}
+
+export const trainingService = {
+  getAll: () => get('/trainings'),
+  create: (b: Body) => post('/trainings', b),
+  update: (id: string, b: Body) => put(`/trainings/${id}`, b),
+  addAttendee: (id: string, b: Body) => post(`/trainings/${id}/attendees`, b),
+  updateAttendee: (id: string, attendeeId: string, b: Body) => put(`/trainings/${id}/attendees/${attendeeId}`, b),
+}
+
+export const articleService = {
+  getAll: () => get('/articles'),
+  create: (b: Body) => post('/articles', b),
+  update: (id: string, b: Body) => put(`/articles/${id}`, b),
+  view: (id: string) => post(`/articles/${id}/view`),
+}
+
+export const companyService = {
+  get: () => get('/settings/company'),
+  save: (b: Body) => put('/settings/company', b),
+}

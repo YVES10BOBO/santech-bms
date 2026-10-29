@@ -1,6 +1,10 @@
-import { useState } from 'react'
-import { Plus, Search, X, Users, BookOpen, Award, DollarSign, CheckCircle2, Clock, LayoutGrid, List, Download } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Plus, Search, X, Users, BookOpen, Award, DollarSign, CheckCircle2, Clock, LayoutGrid, List } from 'lucide-react'
 import { cn, formatDate, formatCurrency, getInitials } from '@/lib/utils'
+import { trainingService } from '@/lib/services/operationsService'
+import { useLookups, apiError } from '@/lib/services/lookupService'
+import PageLoader from '@/components/shared/PageLoader'
+import toast from 'react-hot-toast'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type TrainingStatus = 'UPCOMING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED'
@@ -40,118 +44,18 @@ interface TrainingSession {
 }
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
-const mockSessions: TrainingSession[] = [
-  {
-    id: '1',
-    title: 'SANHUB — Web Development Bootcamp',
-    type: 'SOFTWARE_DEV',
-    description: 'Intensive web development training covering HTML, CSS, JavaScript, React and Node.js for beginners and intermediate learners.',
-    trainer: 'Bob Nkurunziza',
-    venue: 'Santech Training Room, Kigali',
-    startDate: '2026-10-20',
-    endDate: '2026-10-24',
-    startTime: '08:00',
-    endTime: '17:00',
-    maxAttendees: 20,
-    feePerPerson: 150000,
-    status: 'UPCOMING',
-    certificateTemplate: 'Web Development Certificate',
-    notes: 'Bring your own laptop. Materials will be provided.',
-    createdAt: '2026-10-01',
-    attendees: [
-      { id: 'a1', name: 'Eric Habimana', company: 'Self', phone: '0788100010', email: 'eric@gmail.com', status: 'REGISTERED', certificateIssued: false, feePaid: true, feeAmount: 150000 },
-      { id: 'a2', name: 'Agnes Mutoni', company: 'Ministry of ICT', phone: '0788100011', email: 'agnes@minict.gov.rw', status: 'REGISTERED', certificateIssued: false, feePaid: true, feeAmount: 150000 },
-      { id: 'a3', name: 'Frank Student', company: 'UR', phone: '0788100012', email: 'frank@ur.ac.rw', status: 'REGISTERED', certificateIssued: false, feePaid: false, feeAmount: 0 },
-    ],
-  },
-  {
-    id: '2',
-    title: 'SANHUB — AI & Machine Learning Fundamentals',
-    type: 'AI_IOT',
-    description: 'Introduction to Artificial Intelligence and Machine Learning concepts, tools and practical applications for business professionals.',
-    trainer: 'Bob Nkurunziza',
-    venue: 'Santech Training Room, Kigali',
-    startDate: '2026-11-03',
-    endDate: '2026-11-07',
-    startTime: '09:00',
-    endTime: '16:00',
-    maxAttendees: 15,
-    feePerPerson: 200000,
-    status: 'UPCOMING',
-    certificateTemplate: 'AI & ML Certificate',
-    notes: 'Basic computer knowledge required.',
-    createdAt: '2026-10-05',
-    attendees: [
-      { id: 'a4', name: 'Patrick Nkusi', company: 'Ministry of ICT', phone: '0788400001', email: 'p.nkusi@minict.gov.rw', status: 'REGISTERED', certificateIssued: false, feePaid: true, feeAmount: 200000 },
-      { id: 'a5', name: 'Marie Uwase', company: 'BK', phone: '0788400002', email: 'marie@bk.rw', status: 'REGISTERED', certificateIssued: false, feePaid: false, feeAmount: 0 },
-    ],
-  },
-  {
-    id: '3',
-    title: 'EVS System — Operations Training',
-    type: 'EVS',
-    description: 'Training for client staff on how to operate the E-Visitors System — gate pass management, attendance tracking, visitor registration and reporting.',
-    trainer: 'Bob Nkurunziza',
-    venue: 'East African Seed Ltd Office',
-    startDate: '2026-10-12',
-    endDate: '2026-10-12',
-    startTime: '09:00',
-    endTime: '13:00',
-    maxAttendees: 10,
-    feePerPerson: 0,
-    status: 'COMPLETED',
-    certificateTemplate: 'EVS Operations Certificate',
-    notes: 'On-site training at client premises. Included in contract.',
-    createdAt: '2026-10-01',
-    attendees: [
-      { id: 'a6', name: 'John Mugisha', company: 'East African Seed Ltd', phone: '0788200001', email: 'john@easeed.rw', status: 'CERTIFIED', certificateIssued: true, feePaid: true, feeAmount: 0 },
-      { id: 'a7', name: 'Mary Ingabire', company: 'East African Seed Ltd', phone: '0788200002', email: 'mary@easeed.rw', status: 'CERTIFIED', certificateIssued: true, feePaid: true, feeAmount: 0 },
-      { id: 'a8', name: 'James Uwimana', company: 'East African Seed Ltd', phone: '0788200003', email: 'james@easeed.rw', status: 'ABSENT', certificateIssued: false, feePaid: true, feeAmount: 0 },
-    ],
-  },
-  {
-    id: '4',
-    title: 'SANHUB — Digital Marketing for SMEs',
-    type: 'DIGITAL',
-    description: 'Practical digital marketing training covering social media, email marketing, SEO, Google Ads and content creation for small and medium businesses.',
-    trainer: 'Eve Ingabire',
-    venue: 'Santech Training Room, Kigali',
-    startDate: '2026-09-15',
-    endDate: '2026-09-17',
-    startTime: '08:30',
-    endTime: '16:30',
-    maxAttendees: 25,
-    feePerPerson: 80000,
-    status: 'COMPLETED',
-    certificateTemplate: 'Digital Marketing Certificate',
-    notes: 'Very successful session. 18 attendees. Good feedback received.',
-    createdAt: '2026-09-01',
-    attendees: [
-      { id: 'a9',  name: 'Denis Owner', company: 'Bloom Kigali', phone: '0786021700', email: 'denis@bloom.rw', status: 'CERTIFIED', certificateIssued: true, feePaid: true, feeAmount: 80000 },
-      { id: 'a10', name: 'Alice Shops', company: 'Various', phone: '0788300001', email: 'alice@shop.rw', status: 'CERTIFIED', certificateIssued: true, feePaid: true, feeAmount: 80000 },
-      { id: 'a11', name: 'Bob Trader', company: 'Self', phone: '0788300002', email: 'bob@gmail.com', status: 'ATTENDED', certificateIssued: false, feePaid: true, feeAmount: 80000 },
-    ],
-  },
-  {
-    id: '5',
-    title: 'SANHUB — IoT & Smart Systems Workshop',
-    type: 'AI_IOT',
-    description: 'Hands-on workshop on Internet of Things, smart sensors, automation and connected systems for the Rwandan business environment.',
-    trainer: 'Bob Nkurunziza',
-    venue: 'Santech Training Room, Kigali',
-    startDate: '2026-11-17',
-    endDate: '2026-11-19',
-    startTime: '08:00',
-    endTime: '17:00',
-    maxAttendees: 12,
-    feePerPerson: 250000,
-    status: 'UPCOMING',
-    certificateTemplate: 'IoT Certificate',
-    notes: 'Advanced level — programming knowledge preferred.',
-    createdAt: '2026-10-08',
-    attendees: [],
-  },
-]
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toSession = (t: any): TrainingSession => ({
+  id: t.id, title: t.title, type: t.type, description: t.description ?? '', trainer: t.trainer, venue: t.venue ?? '',
+  startDate: String(t.startDate).slice(0, 10), endDate: String(t.endDate).slice(0, 10), startTime: t.startTime ?? '', endTime: t.endTime ?? '',
+  maxAttendees: t.maxAttendees, feePerPerson: Number(t.feePerPerson), status: t.status, certificateTemplate: t.certificateTemplate ?? '',
+  notes: t.notes ?? '', createdAt: String(t.createdAt).slice(0, 10),
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  attendees: (t.attendees ?? []).map((a: any) => ({
+    id: a.id, name: a.name, company: a.company ?? '', phone: a.phone ?? '', email: a.email ?? '', status: a.status,
+    certificateIssued: !!a.certificateIssued, feePaid: !!a.feePaid, feeAmount: Number(a.feeAmount ?? 0),
+  })),
+})
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const STATUS_CONFIG: Record<TrainingStatus, { label: string; color: string; icon: React.ElementType }> = {
@@ -178,11 +82,10 @@ const ATTENDEE_STATUS: Record<AttendeeStatus, { label: string; color: string }> 
   CERTIFIED:  { label: 'Certified ✓', color: 'bg-emerald-100 text-emerald-700' },
 }
 
-const TRAINERS = ['Bob Nkurunziza', 'Eve Ingabire', 'Alice Uwimana', 'External Trainer']
 
 const emptyForm = {
   title: '', type: 'SANHUB' as TrainingType, description: '',
-  trainer: TRAINERS[0], venue: '', startDate: '', endDate: '',
+  trainer: '', venue: '', startDate: '', endDate: '',
   startTime: '08:00', endTime: '17:00', maxAttendees: '20',
   feePerPerson: '0', notes: '', certificateTemplate: '',
 }
@@ -193,7 +96,24 @@ const emptyAttendee = {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function TrainingPage() {
-  const [sessions, setSessions] = useState<TrainingSession[]>(mockSessions)
+  const [sessions, setSessions] = useState<TrainingSession[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const lookups = useLookups()
+  const TRAINERS = [...lookups.users.map(u => u.name), 'External Trainer']
+
+  useEffect(() => {
+    trainingService.getAll()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then((res: any) => setSessions((res.data ?? []).map(toSession)))
+      .catch(err => toast.error(apiError(err, 'Failed to load training sessions')))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const replaceSession = (saved: TrainingSession) => {
+    setSessions(prev => prev.some(s => s.id === saved.id) ? prev.map(s => (s.id === saved.id ? saved : s)) : [saved, ...prev])
+    setViewSession(prev => (prev?.id === saved.id ? saved : prev))
+  }
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<TrainingStatus | 'ALL'>('ALL')
   const [typeFilter, setTypeFilter] = useState<TrainingType | 'ALL'>('ALL')
@@ -234,65 +154,72 @@ export default function TrainingPage() {
     setForm(p => ({ ...p, [e.target.name]: e.target.value }))
   }
 
-  const openAdd = () => { setForm(emptyForm); setEditId(null); setError(''); setShowModal(true) }
+  const openAdd = () => { setForm({ ...emptyForm, trainer: TRAINERS[0] ?? '' }); setEditId(null); setError(''); setShowModal(true) }
   const openEdit = (s: TrainingSession) => {
     setForm({ title: s.title, type: s.type, description: s.description, trainer: s.trainer, venue: s.venue, startDate: s.startDate, endDate: s.endDate, startTime: s.startTime, endTime: s.endTime, maxAttendees: String(s.maxAttendees), feePerPerson: String(s.feePerPerson), notes: s.notes, certificateTemplate: s.certificateTemplate })
     setEditId(s.id); setError(''); setShowModal(true); setViewSession(null)
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!form.title || !form.startDate || !form.venue) { setError('Title, venue and start date are required.'); return }
-    const session: TrainingSession = {
-      id: editId || String(Date.now()),
-      title: form.title, type: form.type, description: form.description,
-      trainer: form.trainer, venue: form.venue,
-      startDate: form.startDate, endDate: form.endDate || form.startDate,
-      startTime: form.startTime, endTime: form.endTime,
-      maxAttendees: parseInt(form.maxAttendees) || 20,
-      feePerPerson: parseFloat(form.feePerPerson) || 0,
-      status: editId ? sessions.find(s => s.id === editId)!.status : 'UPCOMING',
-      attendees: editId ? sessions.find(s => s.id === editId)!.attendees : [],
+    const payload = {
+      title: form.title, type: form.type, description: form.description, trainer: form.trainer, venue: form.venue,
+      startDate: form.startDate, endDate: form.endDate || form.startDate, startTime: form.startTime, endTime: form.endTime,
+      maxAttendees: parseInt(form.maxAttendees) || 20, feePerPerson: parseFloat(form.feePerPerson) || 0,
       certificateTemplate: form.certificateTemplate, notes: form.notes,
-      createdAt: new Date().toISOString().split('T')[0],
     }
-    if (editId) setSessions(prev => prev.map(s => s.id === editId ? session : s))
-    else setSessions(prev => [session, ...prev])
-    setShowModal(false)
+    setSaving(true)
+    try {
+      const res = editId ? await trainingService.update(editId, payload) : await trainingService.create(payload)
+      replaceSession(toSession(res.data))
+      toast.success(res.message)
+      setShowModal(false)
+    } catch (err) {
+      setError(apiError(err, 'Failed to save session'))
+    } finally {
+      setSaving(false)
+    }
   }
 
-  const updateSessionStatus = (id: string, status: TrainingStatus) => {
-    setSessions(prev => prev.map(s => s.id === id ? { ...s, status } : s))
-    if (viewSession?.id === id) setViewSession(prev => prev ? { ...prev, status } : null)
+  const updateSessionStatus = async (id: string, status: TrainingStatus) => {
+    try {
+      const res = await trainingService.update(id, { status })
+      replaceSession(toSession(res.data))
+      toast.success(`Session ${status.replace('_', ' ').toLowerCase()}`)
+    } catch (err) {
+      toast.error(apiError(err, 'Failed to update session'))
+    }
   }
 
-  const addAttendee = () => {
+  const addAttendee = async () => {
     if (!attendeeForm.name || !attendeeSessionId) return
-    const attendee: Attendee = {
-      id: String(Date.now()),
-      name: attendeeForm.name, company: attendeeForm.company,
-      phone: attendeeForm.phone, email: attendeeForm.email,
-      status: 'REGISTERED', certificateIssued: false,
-      feePaid: parseFloat(attendeeForm.feeAmount) > 0,
-      feeAmount: parseFloat(attendeeForm.feeAmount) || 0,
+    try {
+      const res = await trainingService.addAttendee(attendeeSessionId, {
+        name: attendeeForm.name, company: attendeeForm.company, phone: attendeeForm.phone, email: attendeeForm.email,
+      })
+      replaceSession(toSession(res.data))
+      toast.success(res.message)
+      setShowAttendeeModal(false)
+      setAttendeeForm(emptyAttendee)
+    } catch (err) {
+      toast.error(apiError(err, 'Failed to register attendee'))
     }
-    setSessions(prev => prev.map(s => s.id === attendeeSessionId ? { ...s, attendees: [...s.attendees, attendee] } : s))
-    if (viewSession?.id === attendeeSessionId) {
-      setViewSession(prev => prev ? { ...prev, attendees: [...prev.attendees, attendee] } : null)
-    }
-    setShowAttendeeModal(false)
-    setAttendeeForm(emptyAttendee)
   }
 
-  const updateAttendeeStatus = (sessionId: string, attendeeId: string, status: AttendeeStatus) => {
-    const certified = status === 'CERTIFIED'
-    setSessions(prev => prev.map(s => s.id === sessionId ? {
-      ...s, attendees: s.attendees.map(a => a.id === attendeeId ? { ...a, status, certificateIssued: certified } : a)
-    } : s))
-    if (viewSession?.id === sessionId) {
-      setViewSession(prev => prev ? { ...prev, attendees: prev.attendees.map(a => a.id === attendeeId ? { ...a, status, certificateIssued: certified } : a) } : null)
+  const saveAttendee = async (sessionId: string, attendeeId: string, changes: Record<string, unknown>) => {
+    try {
+      const res = await trainingService.updateAttendee(sessionId, attendeeId, changes)
+      replaceSession(toSession(res.data))
+      toast.success(res.message)
+    } catch (err) {
+      toast.error(apiError(err, 'Failed to update attendee'))
     }
   }
+  const updateAttendeeStatus = (sessionId: string, attendeeId: string, status: AttendeeStatus) =>
+    saveAttendee(sessionId, attendeeId, { status, ...(status === 'CERTIFIED' && { certificateIssued: true }) })
+
+  if (loading) return <PageLoader />
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
@@ -590,10 +517,10 @@ export default function TrainingPage() {
                           <span className={cn('text-xs px-1.5 py-0.5 rounded-full font-medium', ATTENDEE_STATUS[attendee.status].color)}>
                             {ATTENDEE_STATUS[attendee.status].label}
                           </span>
-                          {attendee.feePaid ? (
-                            <span className="text-xs text-green-600">✓ Paid</span>
+                          {attendee.feePaid || attendee.feeAmount === 0 ? (
+                            <span className="text-xs text-green-600">{attendee.feeAmount === 0 ? 'Free' : '✓ Paid'}</span>
                           ) : (
-                            <span className="text-xs text-red-400">Unpaid</span>
+                            <button onClick={() => saveAttendee(viewSession.id, attendee.id, { feePaid: true })} className="text-xs text-red-500 hover:underline">Unpaid — mark paid</button>
                           )}
                         </div>
                         {/* Status actions */}
@@ -606,9 +533,9 @@ export default function TrainingPage() {
                           </button>
                         )}
                         {attendee.certificateIssued && (
-                          <button className="text-xs text-purple-600 hover:underline flex items-center gap-1 whitespace-nowrap">
-                            <Download className="w-3 h-3" /> Cert
-                          </button>
+                          <span className="text-xs text-purple-600 flex items-center gap-1 whitespace-nowrap">
+                            <Award className="w-3 h-3" /> Certificate issued
+                          </span>
                         )}
                       </div>
                     ))}
@@ -752,7 +679,7 @@ export default function TrainingPage() {
               </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 font-medium">Cancel</button>
-                <button type="submit" className="flex-1 py-2.5 bg-santech-600 text-white rounded-lg text-sm hover:bg-santech-700 font-medium">{editId ? 'Save Changes' : 'Create Session'}</button>
+                <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-santech-600 text-white rounded-lg text-sm hover:bg-santech-700 font-medium disabled:opacity-50">{saving ? 'Saving…' : editId ? 'Save Changes' : 'Create Session'}</button>
               </div>
             </form>
           </div>

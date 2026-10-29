@@ -265,6 +265,15 @@ model User {
   campaignsCreated      Campaign[]     @relation("CampaignCreatedBy")
   timesheets            Timesheet[]    @relation("TimesheetUser")
   timesheetsReviewed    Timesheet[]    @relation("TimesheetReviewer")
+  documentsUploaded     Document[]     @relation("DocumentUploadedBy")
+  attendance            Attendance[]   @relation("AttendanceUser")
+  leaveRequests         LeaveRequest[] @relation("LeaveUser")
+  leaveReviews          LeaveRequest[] @relation("LeaveReviewer")
+  tendersAssigned       Tender[]       @relation("TenderAssignedTo")
+  purchaseRequests      PurchaseRequest[] @relation("PurchaseRequestedBy")
+  purchaseApprovals     PurchaseRequest[] @relation("PurchaseApprovedBy")
+  trainingsCreated      TrainingSession[] @relation("TrainingCreatedBy")
+  articles              KnowledgeArticle[] @relation("ArticleAuthor")
 
   @@map("users")
 }
@@ -1008,4 +1017,189 @@ model Timesheet {
   createdAt    DateTime  @default(now())
 
   @@map("timesheets")
+}
+
+// ===========================
+// DOCUMENTS (records; file storage can be added later)
+// ===========================
+
+model Document {
+  id           String   @id @default(cuid())
+  name         String
+  category     String   // CONTRACT, INVOICE, PROPOSAL, REPORT, POLICY, OTHER
+  description  String?
+  size         String?
+  status       String   @default("ACTIVE") // ACTIVE, ARCHIVED
+  uploadedById String
+  uploadedBy   User     @relation("DocumentUploadedBy", fields: [uploadedById], references: [id])
+  date         DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  @@map("documents")
+}
+
+// ===========================
+// ATTENDANCE & LEAVE
+// ===========================
+
+model Attendance {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation("AttendanceUser", fields: [userId], references: [id])
+  date        DateTime
+  checkIn     String?
+  checkOut    String?
+  hoursWorked Float    @default(0)
+  status      String   // PRESENT, ABSENT, LATE, HALF_DAY
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, date])
+  @@map("attendance")
+}
+
+model LeaveRequest {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation("LeaveUser", fields: [userId], references: [id])
+  leaveType    String    // ANNUAL, SICK, MATERNITY, PATERNITY, EMERGENCY, UNPAID
+  startDate    DateTime
+  endDate      DateTime
+  days         Int
+  reason       String?
+  status       String    @default("PENDING") // PENDING, APPROVED, REJECTED
+  reviewedById String?
+  reviewedBy   User?     @relation("LeaveReviewer", fields: [reviewedById], references: [id])
+  reviewedAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@map("leave_requests")
+}
+
+// ===========================
+// TENDERS
+// ===========================
+
+model Tender {
+  id             String    @id @default(cuid())
+  title          String
+  issuer         String    // organisation that published the tender
+  reference      String?
+  value          Float     @default(0)
+  deadline       DateTime
+  submissionDate DateTime?
+  status         String    @default("OPEN") // OPEN, SUBMITTED, UNDER_REVIEW, WON, LOST, CANCELLED
+  description    String?   @db.Text
+  assignedToId   String?
+  assignedTo     User?     @relation("TenderAssignedTo", fields: [assignedToId], references: [id])
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@map("tenders")
+}
+
+// ===========================
+// PROCUREMENT
+// ===========================
+
+model PurchaseRequest {
+  id            String    @id @default(cuid())
+  itemName      String
+  category      String    // IT_EQUIPMENT, OFFICE_SUPPLIES, HARDWARE, SOFTWARE, SERVICES, OTHER
+  quantity      Int
+  unitPrice     Float
+  supplier      String?
+  status        String    @default("PENDING") // PENDING, APPROVED, ORDERED, DELIVERED, CANCELLED
+  notes         String?
+  requestedById String
+  requestedBy   User      @relation("PurchaseRequestedBy", fields: [requestedById], references: [id])
+  approvedById  String?
+  approvedBy    User?     @relation("PurchaseApprovedBy", fields: [approvedById], references: [id])
+  requestDate   DateTime  @default(now())
+  deliveredAt   DateTime?
+  expenseId     String?   @unique // expense booked on delivery
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@map("purchase_requests")
+}
+
+// ===========================
+// TRAINING (SANHUB and client training)
+// ===========================
+
+model TrainingSession {
+  id                  String    @id @default(cuid())
+  title               String
+  type                String    // SANHUB, EVS, SANTRACK, SOFTWARE_DEV, AI_IOT, DIGITAL, OTHER
+  description         String?   @db.Text
+  trainer             String
+  venue               String?
+  startDate           DateTime
+  endDate             DateTime
+  startTime           String?
+  endTime             String?
+  maxAttendees        Int       @default(20)
+  feePerPerson        Float     @default(0)
+  status              String    @default("UPCOMING") // UPCOMING, IN_PROGRESS, COMPLETED, CANCELLED
+  certificateTemplate String?
+  notes               String?
+  createdById         String
+  createdBy           User      @relation("TrainingCreatedBy", fields: [createdById], references: [id])
+  attendees           TrainingAttendee[]
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@map("training_sessions")
+}
+
+model TrainingAttendee {
+  id                String          @id @default(cuid())
+  sessionId         String
+  session           TrainingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  name              String
+  company           String?
+  phone             String?
+  email             String?
+  status            String          @default("REGISTERED") // REGISTERED, ATTENDED, ABSENT, CERTIFIED
+  certificateIssued Boolean         @default(false)
+  feePaid           Boolean         @default(false)
+  feeAmount         Float           @default(0)
+  incomeId          String?         @unique // income booked when the fee is paid
+  createdAt         DateTime        @default(now())
+
+  @@map("training_attendees")
+}
+
+// ===========================
+// KNOWLEDGE BASE
+// ===========================
+
+model KnowledgeArticle {
+  id        String   @id @default(cuid())
+  title     String
+  category  String
+  excerpt   String?
+  content   String   @db.Text
+  status    String   @default("DRAFT") // PUBLISHED, DRAFT
+  tags      String[] @default([])
+  views     Int      @default(0)
+  authorId  String
+  author    User     @relation("ArticleAuthor", fields: [authorId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("knowledge_articles")
+}
+
+// ===========================
+// COMPANY SETTINGS (single record per key)
+// ===========================
+
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+
+  @@map("settings")
 }

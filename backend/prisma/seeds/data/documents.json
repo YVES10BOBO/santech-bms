@@ -1,0 +1,62 @@
+[
+  {
+    "id": "d1",
+    "name": "Santech Company Profile 2026.pdf",
+    "category": "POLICY",
+    "description": "Official company profile document for client presentations.",
+    "uploadedBy": "System Admin",
+    "date": "2026-01-10",
+    "size": "2.4 MB",
+    "status": "ACTIVE"
+  },
+  {
+    "id": "d2",
+    "name": "EVS System Proposal - SABBAN.pdf",
+    "category": "PROPOSAL",
+    "description": "Technical and commercial proposal for the EVS project at SABBAN ABATTOIR.",
+    "uploadedBy": "Alice Uwimana",
+    "date": "2026-03-15",
+    "size": "1.8 MB",
+    "status": "ACTIVE"
+  },
+  {
+    "id": "d3",
+    "name": "Contract CT-2026-002 - SABBAN.pdf",
+    "category": "CONTRACT",
+    "description": "Signed contract for the EVS System implementation.",
+    "uploadedBy": "System Admin",
+    "date": "2026-04-01",
+    "size": "512 KB",
+    "status": "ACTIVE"
+  },
+  {
+    "id": "d4",
+    "name": "Q1 2026 Financial Report.xlsx",
+    "category": "REPORT",
+    "description": "Quarterly financial summary covering Jan–Mar 2026.",
+    "uploadedBy": "David Habimana",
+    "date": "2026-04-05",
+    "size": "340 KB",
+    "status": "ACTIVE"
+  },
+  {
+    "id": "d5",
+    "name": "Employee Leave Policy v2.pdf",
+    "category": "POLICY",
+    "description": "Updated HR leave policy effective January 2026.",
+    "uploadedBy": "HR Manager",
+    "date": "2026-01-02",
+    "size": "220 KB",
+    "status": "ACTIVE"
+  },
+  {
+    "id": "d6",
+    "name": "Invoice INV-2026-015.pdf",
+    "category": "INVOICE",
+    "description": "Invoice for SANTRACK installation milestone 1.",
+    "uploadedBy": "David Habimana",
+    "date": "2026-05-10",
+    "size": "180 KB",
+    "status": "ACTIVE"
+  }
+]

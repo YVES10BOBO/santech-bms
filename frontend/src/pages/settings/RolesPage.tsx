@@ -1,7 +1,9 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { ShieldCheck, ChevronDown, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { UserRole } from '@/types'
+import { roleAccess, useAuthStore } from '@/store/authStore'
+import { userService } from '@/lib/services/operationsService'
 
 interface RoleDefinition {
   role: UserRole
@@ -85,6 +87,21 @@ const ROLES: RoleDefinition[] = [
 
 export default function RolesPage() {
   const [expanded, setExpanded] = useState<UserRole | null>(null)
+  const [counts, setCounts] = useState<Partial<Record<UserRole, number>>>({})
+  const { user } = useAuthStore()
+
+  // Live number of active users per role (admins only — the users list is restricted)
+  useEffect(() => {
+    if (user?.role !== 'SUPER_ADMIN' && user?.role !== 'ADMIN') return
+    userService.getAll()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then((res: any) => {
+        const c: Partial<Record<UserRole, number>> = {}
+        for (const u of res.data ?? []) if (u.isActive) c[u.role as UserRole] = (c[u.role as UserRole] ?? 0) + 1
+        setCounts(c)
+      })
+      .catch(() => { /* counts are optional */ })
+  }, [user?.role])
 
   const toggle = (role: UserRole) => setExpanded(prev => prev === role ? null : role)
 
@@ -108,7 +125,9 @@ export default function RolesPage() {
       <div className="space-y-2">
         {ROLES.map(r => {
           const isOpen = expanded === r.role
-          const moduleList = r.modules[0] === '*' ? ALL_MODULES : r.modules
+          // The rules actually used by the app (authStore), not a separate copy
+          const modules = roleAccess[r.role] ?? r.modules
+          const moduleList = modules[0] === '*' ? ALL_MODULES : modules
 
           return (
             <div key={r.role} className="bms-card overflow-hidden">
@@ -121,7 +140,8 @@ export default function RolesPage() {
                 </span>
                 <p className="flex-1 text-sm text-gray-600">{r.description}</p>
                 <span className="text-xs text-gray-400 shrink-0 mr-2">
-                  {r.modules[0] === '*' ? 'All modules' : `${r.modules.length} module${r.modules.length !== 1 ? 's' : ''}`}
+                  {counts[r.role] !== undefined && <span className="mr-2 text-gray-500">{counts[r.role]} user{counts[r.role] === 1 ? '' : 's'} ·</span>}
+                  {modules[0] === '*' ? 'All modules' : `${modules.length} module${modules.length !== 1 ? 's' : ''}`}
                 </span>
                 {isOpen
                   ? <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />

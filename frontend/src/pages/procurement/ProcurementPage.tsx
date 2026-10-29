@@ -1,6 +1,11 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { ShoppingCart, Plus, Search, X } from 'lucide-react'
 import { cn, formatDate, formatCurrency } from '@/lib/utils'
+import { purchaseService } from '@/lib/services/operationsService'
+import { apiError } from '@/lib/services/lookupService'
+import { useAuthStore } from '@/store/authStore'
+import PageLoader from '@/components/shared/PageLoader'
+import toast from 'react-hot-toast'
 
 type ProcurementStatus = 'PENDING' | 'APPROVED' | 'ORDERED' | 'DELIVERED' | 'CANCELLED'
 type ProcurementCategory = 'IT_EQUIPMENT' | 'OFFICE_SUPPLIES' | 'HARDWARE' | 'SOFTWARE' | 'SERVICES' | 'OTHER'
@@ -26,14 +31,12 @@ const STATUS_COLORS: Record<ProcurementStatus, string> = {
   CANCELLED: 'bg-red-100 text-red-600',
 }
 
-const mockItems: ProcurementItem[] = [
-  { id: 'pr1', itemName: 'Biometric Terminals (ZKTeco)', category: 'HARDWARE', quantity: 10, unitPrice: 350000, supplier: 'ZKTeco Rwanda', requestedBy: 'Bob Nkurunziza', requestDate: '2026-09-20', status: 'DELIVERED', notes: 'For EVS System - SABBAN.' },
-  { id: 'pr2', itemName: 'Network Switch (TP-Link 24-port)', category: 'IT_EQUIPMENT', quantity: 2, unitPrice: 120000, supplier: 'TechHub Kigali', requestedBy: 'Frank Kagabo', requestDate: '2026-10-01', status: 'ORDERED', notes: 'Server room upgrade.' },
-  { id: 'pr3', itemName: 'Office Chairs', category: 'OFFICE_SUPPLIES', quantity: 5, unitPrice: 45000, supplier: 'Kigali Furniture', requestedBy: 'HR Manager', requestDate: '2026-10-10', status: 'APPROVED', notes: 'New hires onboarding.' },
-  { id: 'pr4', itemName: 'Laptop Dell Latitude 5540', category: 'IT_EQUIPMENT', quantity: 3, unitPrice: 980000, supplier: 'Dell Rwanda', requestedBy: 'System Admin', requestDate: '2026-10-12', status: 'PENDING', notes: 'Developer workstations.' },
-  { id: 'pr5', itemName: 'CAT6 Cable (300m roll)', category: 'HARDWARE', quantity: 4, unitPrice: 55000, supplier: 'ElectroParts RW', requestedBy: 'Frank Kagabo', requestDate: '2026-10-14', status: 'PENDING', notes: 'SANTRACK site cabling.' },
-  { id: 'pr6', itemName: 'Adobe Creative Cloud License', category: 'SOFTWARE', quantity: 2, unitPrice: 180000, supplier: 'Adobe Inc', requestedBy: 'System Admin', requestDate: '2026-09-30', status: 'DELIVERED', notes: 'Annual license renewal.' },
-]
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toItem = (p: any): ProcurementItem => ({
+  id: p.id, itemName: p.itemName, category: p.category, quantity: p.quantity, unitPrice: Number(p.unitPrice),
+  supplier: p.supplier ?? '', requestedBy: p.requestedBy ? `${p.requestedBy.firstName} ${p.requestedBy.lastName}` : '',
+  requestDate: String(p.requestDate).slice(0, 10), status: p.status, notes: p.notes ?? '',
+})
 
 const emptyForm = {
   itemName: '',
@@ -46,7 +49,19 @@ const emptyForm = {
 }
 
 export default function ProcurementPage() {
-  const [items, setItems] = useState<ProcurementItem[]>(mockItems)
+  const [items, setItems] = useState<ProcurementItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const { user } = useAuthStore()
+  const canApprove = ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER'].includes(user?.role ?? '')
+
+  useEffect(() => {
+    purchaseService.getAll()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then((res: any) => setItems((res.data ?? []).map(toItem)))
+      .catch(err => toast.error(apiError(err, 'Failed to load purchase requests')))
+      .finally(() => setLoading(false))
+  }, [])
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<ProcurementStatus | 'ALL'>('ALL')
   const [showAddModal, setShowAddModal] = useState(false)
@@ -65,35 +80,43 @@ export default function ProcurementPage() {
     setForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!form.itemName.trim() || !form.supplier.trim()) return
-    const newItem: ProcurementItem = {
-      id: `pr${Date.now()}`,
-      itemName: form.itemName.trim(),
-      category: form.category,
-      quantity: Number(form.quantity),
-      unitPrice: Number(form.unitPrice),
-      supplier: form.supplier.trim(),
-      requestedBy: form.requestedBy.trim() || 'System Admin',
-      requestDate: new Date().toISOString().slice(0, 10),
-      status: 'PENDING',
-      notes: form.notes.trim(),
+    if (!form.itemName.trim()) return
+    setSaving(true)
+    try {
+      const res = await purchaseService.create({
+        itemName: form.itemName.trim(), category: form.category, quantity: Number(form.quantity),
+        unitPrice: Number(form.unitPrice), supplier: form.supplier.trim(), notes: form.notes.trim(),
+      })
+      setItems(prev => [toItem(res.data), ...prev])
+      toast.success(res.message)
+      setShowAddModal(false)
+      setForm(emptyForm)
+    } catch (err) {
+      toast.error(apiError(err, 'Failed to submit request'))
+    } finally {
+      setSaving(false)
     }
-    setItems(prev => [newItem, ...prev])
-    setShowAddModal(false)
-    setForm(emptyForm)
   }
 
-  const advanceStatus = (id: string) => {
-    const flow: ProcurementStatus[] = ['PENDING', 'APPROVED', 'ORDERED', 'DELIVERED']
-    setItems(prev => prev.map(item => {
-      if (item.id !== id) return item
-      const idx = flow.indexOf(item.status)
-      if (idx < 0 || idx === flow.length - 1) return item
-      return { ...item, status: flow[idx + 1] }
-    }))
+  const NEXT: Partial<Record<ProcurementStatus, ProcurementStatus>> = { PENDING: 'APPROVED', APPROVED: 'ORDERED', ORDERED: 'DELIVERED' }
+  const setStatus = async (id: string, status: ProcurementStatus) => {
+    try {
+      const res = await purchaseService.setStatus(id, status)
+      setItems(prev => prev.map(i => (i.id === id ? toItem(res.data) : i)))
+      toast.success(res.message)
+    } catch (err) {
+      toast.error(apiError(err, 'Failed to update request'))
+    }
   }
+  const advanceStatus = (id: string) => {
+    const item = items.find(i => i.id === id)
+    const next = item && NEXT[item.status]
+    if (next) setStatus(id, next)
+  }
+
+  if (loading) return <PageLoader />
 
   const inputCls = 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500'
   const labelCls = 'block text-xs font-medium text-gray-700 mb-1'
@@ -183,11 +206,17 @@ export default function ProcurementPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    {item.status !== 'DELIVERED' && item.status !== 'CANCELLED' && (
-                      <button onClick={() => advanceStatus(item.id)}
-                        className="text-xs bg-santech-50 text-santech-600 px-2 py-1 rounded-lg hover:bg-santech-100 font-medium transition-colors whitespace-nowrap">
-                        Advance →
-                      </button>
+                    {canApprove && item.status !== 'DELIVERED' && item.status !== 'CANCELLED' && (
+                      <div className="flex gap-1.5">
+                        <button onClick={() => advanceStatus(item.id)}
+                          className="text-xs bg-santech-50 text-santech-600 px-2 py-1 rounded-lg hover:bg-santech-100 font-medium transition-colors whitespace-nowrap">
+                          {item.status === 'PENDING' ? 'Approve' : item.status === 'APPROVED' ? 'Mark ordered' : 'Mark delivered'} →
+                        </button>
+                        <button onClick={() => setStatus(item.id, 'CANCELLED')}
+                          className="text-xs bg-red-50 text-red-500 px-2 py-1 rounded-lg hover:bg-red-100 font-medium transition-colors">
+                          Cancel
+                        </button>
+                      </div>
                     )}
                   </td>
                 </tr>
@@ -237,12 +266,8 @@ export default function ProcurementPage() {
                 </div>
                 <div>
                   <label className={labelCls}>Supplier *</label>
-                  <input name="supplier" value={form.supplier} onChange={handleFormChange} placeholder="Supplier name" required className={inputCls} />
+                  <input name="supplier" value={form.supplier} onChange={handleFormChange} placeholder="Supplier name" className={inputCls} />
                 </div>
-              </div>
-              <div>
-                <label className={labelCls}>Requested By</label>
-                <input name="requestedBy" value={form.requestedBy} onChange={handleFormChange} placeholder="Employee name" className={inputCls} />
               </div>
               <div>
                 <label className={labelCls}>Notes</label>
@@ -253,9 +278,9 @@ export default function ProcurementPage() {
                   className="flex-1 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 font-medium">
                   Cancel
                 </button>
-                <button type="submit"
-                  className="flex-1 py-2.5 bg-santech-600 text-white rounded-lg text-sm hover:bg-santech-700 font-medium">
-                  Submit Request
+                <button type="submit" disabled={saving}
+                  className="flex-1 py-2.5 bg-santech-600 text-white rounded-lg text-sm hover:bg-santech-700 font-medium disabled:opacity-50">
+                  {saving ? 'Sending…' : 'Submit Request'}
                 </button>
               </div>
             </form>

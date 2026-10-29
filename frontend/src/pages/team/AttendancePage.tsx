@@ -1,6 +1,11 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Plus, Search, X, Clock, Users, UserCheck, UserX, AlertCircle } from 'lucide-react'
 import { cn, formatDate, formatCurrency } from '@/lib/utils'
+import { attendanceService } from '@/lib/services/operationsService'
+import { useLookups, apiError } from '@/lib/services/lookupService'
+import { useAuthStore } from '@/store/authStore'
+import PageLoader from '@/components/shared/PageLoader'
+import toast from 'react-hot-toast'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -10,6 +15,7 @@ type LeaveStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
 
 interface AttendanceRecord {
   id: string
+  userId: string
   employeeName: string
   department: string
   date: string
@@ -22,6 +28,7 @@ interface AttendanceRecord {
 
 interface LeaveRequest {
   id: string
+  userId: string
   employeeName: string
   department: string
   leaveType: LeaveType
@@ -34,39 +41,23 @@ interface LeaveRequest {
 
 // ─── Mock data ────────────────────────────────────────────────────────────────
 
-const EMPLOYEES = [
-  'Alice Uwimana',
-  'Bob Nkurunziza',
-  'Claire Mukamana',
-  'David Habimana',
-  'Eve Ingabire',
-  'Frank Bizimana',
-  'Grace Niyonsaba',
-  'Henry Kayitare',
-]
 
-const DEPARTMENTS_LIST = ['All', 'Engineering', 'Sales', 'Finance', 'Support']
-const DEPARTMENTS_NO_ALL = ['Engineering', 'Sales', 'Finance', 'Support']
 
-const mockAttendance: AttendanceRecord[] = [
-  { id: '1', employeeName: 'Alice Uwimana', department: 'Sales', date: '2026-10-01', checkIn: '08:02', checkOut: '17:05', hoursWorked: 9.05, status: 'PRESENT', notes: '' },
-  { id: '2', employeeName: 'Bob Nkurunziza', department: 'Engineering', date: '2026-10-01', checkIn: '08:45', checkOut: '17:00', hoursWorked: 8.25, status: 'LATE', notes: 'Traffic delay' },
-  { id: '3', employeeName: 'Claire Mukamana', department: 'Finance', date: '2026-10-02', checkIn: '08:00', checkOut: '13:00', hoursWorked: 5, status: 'HALF_DAY', notes: 'Doctor appointment' },
-  { id: '4', employeeName: 'David Habimana', department: 'Finance', date: '2026-10-02', checkIn: '', checkOut: '', hoursWorked: 0, status: 'ABSENT', notes: 'Sick leave' },
-  { id: '5', employeeName: 'Eve Ingabire', department: 'Sales', date: '2026-10-03', checkIn: '07:58', checkOut: '17:10', hoursWorked: 9.2, status: 'PRESENT', notes: '' },
-  { id: '6', employeeName: 'Frank Bizimana', department: 'Engineering', date: '2026-10-03', checkIn: '08:01', checkOut: '17:00', hoursWorked: 8.98, status: 'PRESENT', notes: '' },
-  { id: '7', employeeName: 'Grace Niyonsaba', department: 'Support', date: '2026-10-04', checkIn: '09:10', checkOut: '17:00', hoursWorked: 7.83, status: 'LATE', notes: 'Bus delay' },
-  { id: '8', employeeName: 'Henry Kayitare', department: 'Engineering', date: '2026-10-05', checkIn: '08:00', checkOut: '17:00', hoursWorked: 9, status: 'PRESENT', notes: '' },
-]
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const staff = (r: any) => ({ userId: r.user?.id ?? r.userId, employeeName: r.user ? `${r.user.firstName} ${r.user.lastName}` : '', department: r.user?.employee?.department ?? '—' })
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toAttendance = (r: any): AttendanceRecord => ({
+  id: r.id, ...staff(r), date: String(r.date).slice(0, 10), checkIn: r.checkIn ?? '', checkOut: r.checkOut ?? '',
+  hoursWorked: Number(r.hoursWorked ?? 0), status: r.status, notes: r.notes ?? '',
+})
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toLeave = (r: any): LeaveRequest => ({
+  id: r.id, ...staff(r), leaveType: r.leaveType, startDate: String(r.startDate).slice(0, 10), endDate: String(r.endDate).slice(0, 10),
+  days: r.days, reason: r.reason ?? '', status: r.status,
+})
+const localDate = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
+const localTime = () => { const d = new Date(); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` }
 
-const mockLeaveRequests: LeaveRequest[] = [
-  { id: '1', employeeName: 'David Habimana', department: 'Finance', leaveType: 'SICK', startDate: '2026-10-02', endDate: '2026-10-04', days: 3, reason: 'Fever and fatigue', status: 'APPROVED' },
-  { id: '2', employeeName: 'Claire Mukamana', department: 'Finance', leaveType: 'ANNUAL', startDate: '2026-10-10', endDate: '2026-10-17', days: 8, reason: 'Family vacation', status: 'PENDING' },
-  { id: '3', employeeName: 'Alice Uwimana', department: 'Sales', leaveType: 'EMERGENCY', startDate: '2026-10-06', endDate: '2026-10-07', days: 2, reason: 'Family emergency', status: 'APPROVED' },
-  { id: '4', employeeName: 'Grace Niyonsaba', department: 'Support', leaveType: 'MATERNITY', startDate: '2026-10-15', endDate: '2026-11-15', days: 30, reason: 'Maternity leave', status: 'PENDING' },
-  { id: '5', employeeName: 'Henry Kayitare', department: 'Engineering', leaveType: 'UNPAID', startDate: '2026-10-20', endDate: '2026-10-22', days: 3, reason: 'Personal reasons', status: 'REJECTED' },
-  { id: '6', employeeName: 'Bob Nkurunziza', department: 'Engineering', leaveType: 'ANNUAL', startDate: '2026-10-25', endDate: '2026-10-29', days: 5, reason: 'End-of-year holiday', status: 'PENDING' },
-]
 
 // ─── Badge helpers ─────────────────────────────────────────────────────────────
 
@@ -98,7 +89,7 @@ type RowsOption = typeof ROWS_OPTIONS[number]
 // ─── Empty forms ──────────────────────────────────────────────────────────────
 
 const emptyAttendanceForm = {
-  employeeName: EMPLOYEES[0],
+  employeeName: '',
   date: '',
   checkIn: '',
   checkOut: '',
@@ -107,7 +98,7 @@ const emptyAttendanceForm = {
 }
 
 const emptyLeaveForm = {
-  employeeName: EMPLOYEES[0],
+  employeeName: '',
   leaveType: 'ANNUAL' as LeaveType,
   startDate: '',
   endDate: '',
@@ -120,7 +111,12 @@ export default function AttendancePage() {
   const [activeTab, setActiveTab] = useState<'attendance' | 'leave'>('attendance')
 
   // ── Attendance state ──
-  const [attendance, setAttendance] = useState<AttendanceRecord[]>(mockAttendance)
+  const [attendance, setAttendance] = useState<AttendanceRecord[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const lookups = useLookups()
+  const { user } = useAuthStore()
+  const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN'
   const [attSearch, setAttSearch] = useState('')
   const [attDept, setAttDept] = useState('All')
   const [attStatus, setAttStatus] = useState<AttendanceStatus | 'All'>('All')
@@ -133,7 +129,35 @@ export default function AttendancePage() {
   const [attError, setAttError] = useState('')
 
   // ── Leave state ──
-  const [leaves, setLeaves] = useState<LeaveRequest[]>(mockLeaveRequests)
+  const [leaves, setLeaves] = useState<LeaveRequest[]>([])
+
+  const load = () =>
+    attendanceService.getAll()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then((res: any) => {
+        setAttendance((res.data?.attendance ?? []).map(toAttendance))
+        setLeaves((res.data?.leaves ?? []).map(toLeave))
+      })
+      .catch(err => toast.error(apiError(err, 'Failed to load attendance')))
+
+  useEffect(() => { load().finally(() => setLoading(false)) }, [])
+
+  const DEPARTMENTS_LIST = ['All', ...Array.from(new Set([...attendance, ...leaves].map(r => r.department))).sort()]
+
+  // Today's own record drives the quick check-in / check-out button
+  const mine = attendance.find(r => r.userId === user?.id && r.date === localDate())
+  const quickClock = async () => {
+    try {
+      const res = await attendanceService.save(mine?.checkIn && !mine.checkOut
+        ? { date: localDate(), checkOut: localTime() }
+        : { date: localDate(), checkIn: localTime() })
+      const saved = toAttendance(res.data)
+      setAttendance(prev => [saved, ...prev.filter(r => r.id !== saved.id)])
+      toast.success(saved.checkOut ? `Checked out at ${saved.checkOut}` : `Checked in at ${saved.checkIn}${saved.status === 'LATE' ? ' (late)' : ''}`)
+    } catch (err) {
+      toast.error(apiError(err, 'Failed to record time'))
+    }
+  }
   const [leaveSearch, setLeaveSearch] = useState('')
   const [leaveDept, setLeaveDept] = useState('All')
   const [leaveStatusFilter, setLeaveStatusFilter] = useState<LeaveStatus | 'All'>('All')
@@ -170,12 +194,12 @@ export default function AttendancePage() {
   const leaveSlice = leaveRowsPerPage === 'All' ? filteredLeave : filteredLeave.slice((leavePage - 1) * (leaveRowsPerPage as number), leavePage * (leaveRowsPerPage as number))
 
   // ── Attendance KPIs ──
-  const today = new Date().toISOString().split('T')[0]
+  const today = localDate()
   const todayRecords = attendance.filter(r => r.date === today)
   const attStats = [
     { label: 'Present Today', value: todayRecords.filter(r => r.status === 'PRESENT').length, color: 'text-green-600', icon: UserCheck },
     { label: 'Absent Today', value: todayRecords.filter(r => r.status === 'ABSENT').length, color: 'text-red-600', icon: UserX },
-    { label: 'On Leave', value: leaves.filter(r => r.status === 'APPROVED').length, color: 'text-blue-600', icon: Users },
+    { label: 'On Leave', value: leaves.filter(r => r.status === 'APPROVED' && r.startDate <= today && r.endDate >= today).length, color: 'text-blue-600', icon: Users },
     { label: 'Late', value: todayRecords.filter(r => r.status === 'LATE').length, color: 'text-orange-600', icon: AlertCircle },
   ]
 
@@ -192,39 +216,28 @@ export default function AttendancePage() {
     setAttForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
   }
 
-  const handleAttSubmit = (e: React.FormEvent) => {
+  const handleAttSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!attForm.employeeName || !attForm.date || !attForm.status) {
-      setAttError('Employee, Date, and Status are required.'); return
+    if (!attForm.date || !attForm.status) {
+      setAttError('Date and status are required.'); return
     }
-    const hoursWorked =
-      attForm.checkIn && attForm.checkOut
-        ? (() => {
-            const [inH, inM] = attForm.checkIn.split(':').map(Number)
-            const [outH, outM] = attForm.checkOut.split(':').map(Number)
-            return Math.round(((outH * 60 + outM) - (inH * 60 + inM)) / 60 * 100) / 100
-          })()
-        : 0
-    const empDept = (() => {
-      const idx = EMPLOYEES.indexOf(attForm.employeeName)
-      const depts = ['Sales', 'Engineering', 'Finance', 'Finance', 'Sales', 'Engineering', 'Support', 'Engineering']
-      return depts[idx] ?? 'Engineering'
-    })()
-    const record: AttendanceRecord = {
-      id: String(Date.now()),
-      employeeName: attForm.employeeName,
-      department: empDept,
-      date: attForm.date,
-      checkIn: attForm.checkIn,
-      checkOut: attForm.checkOut,
-      hoursWorked,
-      status: attForm.status,
-      notes: attForm.notes,
+    setSaving(true)
+    try {
+      const res = await attendanceService.save({
+        userId: attForm.employeeName || undefined, date: attForm.date, checkIn: attForm.checkIn, checkOut: attForm.checkOut,
+        status: attForm.status, notes: attForm.notes,
+      })
+      const saved = toAttendance(res.data)
+      setAttendance(prev => [saved, ...prev.filter(r => r.id !== saved.id)])
+      toast.success(res.message)
+      setShowAttModal(false)
+      setAttForm(emptyAttendanceForm)
+      setAttError('')
+    } catch (err) {
+      setAttError(apiError(err, 'Failed to save attendance'))
+    } finally {
+      setSaving(false)
     }
-    setAttendance(prev => [record, ...prev])
-    setShowAttModal(false)
-    setAttForm(emptyAttendanceForm)
-    setAttError('')
   }
 
   // ── Handlers: Leave ──
@@ -232,39 +245,40 @@ export default function AttendancePage() {
     setLeaveForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
   }
 
-  const handleLeaveSubmit = (e: React.FormEvent) => {
+  const handleLeaveSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!leaveForm.employeeName || !leaveForm.startDate || !leaveForm.endDate || !leaveForm.reason) {
-      setLeaveError('All fields are required.'); return
+    if (!leaveForm.startDate || !leaveForm.endDate || !leaveForm.reason) {
+      setLeaveError('Dates and reason are required.'); return
     }
-    const start = new Date(leaveForm.startDate)
-    const end = new Date(leaveForm.endDate)
-    const days = Math.max(1, Math.round((end.getTime() - start.getTime()) / 86400000) + 1)
-    const empDept = (() => {
-      const idx = EMPLOYEES.indexOf(leaveForm.employeeName)
-      const depts = ['Sales', 'Engineering', 'Finance', 'Finance', 'Sales', 'Engineering', 'Support', 'Engineering']
-      return depts[idx] ?? 'Engineering'
-    })()
-    const request: LeaveRequest = {
-      id: String(Date.now()),
-      employeeName: leaveForm.employeeName,
-      department: empDept,
-      leaveType: leaveForm.leaveType,
-      startDate: leaveForm.startDate,
-      endDate: leaveForm.endDate,
-      days,
-      reason: leaveForm.reason,
-      status: 'PENDING',
+    setSaving(true)
+    try {
+      const res = await attendanceService.requestLeave({
+        userId: leaveForm.employeeName || undefined, leaveType: leaveForm.leaveType,
+        startDate: leaveForm.startDate, endDate: leaveForm.endDate, reason: leaveForm.reason,
+      })
+      setLeaves(prev => [toLeave(res.data), ...prev])
+      toast.success(res.message)
+      setShowLeaveModal(false)
+      setLeaveForm(emptyLeaveForm)
+      setLeaveError('')
+    } catch (err) {
+      setLeaveError(apiError(err, 'Failed to submit leave request'))
+    } finally {
+      setSaving(false)
     }
-    setLeaves(prev => [request, ...prev])
-    setShowLeaveModal(false)
-    setLeaveForm(emptyLeaveForm)
-    setLeaveError('')
   }
 
-  const handleLeaveAction = (id: string, action: 'APPROVED' | 'REJECTED') => {
-    setLeaves(prev => prev.map(l => l.id === id ? { ...l, status: action } : l))
+  const handleLeaveAction = async (id: string, action: 'APPROVED' | 'REJECTED') => {
+    try {
+      const res = await attendanceService.reviewLeave(id, action === 'APPROVED' ? 'approve' : 'reject')
+      setLeaves(prev => prev.map(l => (l.id === id ? toLeave(res.data) : l)))
+      toast.success(res.message)
+    } catch (err) {
+      toast.error(apiError(err, 'Failed to review leave'))
+    }
   }
+
+  if (loading) return <PageLoader />
 
   // ── Input class ──
   const inputCls = 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500'
@@ -277,12 +291,22 @@ export default function AttendancePage() {
           <h1 className="text-2xl font-bold text-gray-800">HR Attendance & Leave</h1>
           <p className="text-gray-500 text-sm mt-0.5">Track employee attendance and manage leave requests</p>
         </div>
+        <div className="flex gap-2">
         {activeTab === 'attendance' ? (
           <button
             onClick={() => { setAttForm(emptyAttendanceForm); setAttError(''); setShowAttModal(true) }}
             className="flex items-center gap-2 px-4 py-2 bg-santech-600 text-white rounded-lg text-sm font-medium hover:bg-santech-700 transition-colors"
           >
             <Plus className="w-4 h-4" /> Record Attendance
+          </button>
+        ) : null}
+        {activeTab === 'attendance' ? (
+          <button
+            onClick={quickClock}
+            disabled={!!mine?.checkOut}
+            className="flex items-center gap-2 px-4 py-2 border border-santech-200 text-santech-700 rounded-lg text-sm font-medium hover:bg-santech-50 transition-colors disabled:opacity-40"
+          >
+            <Clock className="w-4 h-4" /> {mine?.checkOut ? 'Done for today' : mine?.checkIn ? 'Check out now' : 'Check in now'}
           </button>
         ) : (
           <button
@@ -292,6 +316,7 @@ export default function AttendancePage() {
             <Plus className="w-4 h-4" /> Request Leave
           </button>
         )}
+        </div>
       </div>
 
       {/* Tabs */}
@@ -611,8 +636,9 @@ export default function AttendancePage() {
               )}
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Employee *</label>
-                <select name="employeeName" value={attForm.employeeName} onChange={handleAttChange} className={inputCls}>
-                  {EMPLOYEES.map(e => <option key={e}>{e}</option>)}
+                <select name="employeeName" value={attForm.employeeName} onChange={handleAttChange} className={inputCls} disabled={!isAdmin}>
+                  <option value="">Myself</option>
+                  {isAdmin && lookups.users.filter(u => u.id !== user?.id).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                 </select>
               </div>
               <div>
@@ -646,8 +672,8 @@ export default function AttendancePage() {
                 <button type="button" onClick={() => setShowAttModal(false)} className="flex-1 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 font-medium">
                   Cancel
                 </button>
-                <button type="submit" className="flex-1 py-2.5 bg-santech-600 text-white rounded-lg text-sm hover:bg-santech-700 font-medium">
-                  Save
+                <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-santech-600 text-white rounded-lg text-sm hover:bg-santech-700 font-medium disabled:opacity-50">
+                  {saving ? 'Saving…' : 'Save'}
                 </button>
               </div>
             </form>
@@ -671,8 +697,9 @@ export default function AttendancePage() {
               )}
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Employee *</label>
-                <select name="employeeName" value={leaveForm.employeeName} onChange={handleLeaveChange} className={inputCls}>
-                  {EMPLOYEES.map(e => <option key={e}>{e}</option>)}
+                <select name="employeeName" value={leaveForm.employeeName} onChange={handleLeaveChange} className={inputCls} disabled={!isAdmin}>
+                  <option value="">Myself</option>
+                  {isAdmin && lookups.users.filter(u => u.id !== user?.id).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                 </select>
               </div>
               <div>
@@ -704,8 +731,8 @@ export default function AttendancePage() {
                 <button type="button" onClick={() => setShowLeaveModal(false)} className="flex-1 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 font-medium">
                   Cancel
                 </button>
-                <button type="submit" className="flex-1 py-2.5 bg-santech-600 text-white rounded-lg text-sm hover:bg-santech-700 font-medium">
-                  Save
+                <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-santech-600 text-white rounded-lg text-sm hover:bg-santech-700 font-medium disabled:opacity-50">
+                  {saving ? 'Saving…' : 'Save'}
                 </button>
               </div>
             </form>

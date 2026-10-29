@@ -9,6 +9,7 @@ import { seedFinanceAndWorkflows } from './seeds/financeAndWorkflows'
 import { seedSalesAndOperations } from './seeds/salesAndOperations'
 import { seedActivity } from './seeds/activity'
 import { seedGrowth } from './seeds/growth'
+import { seedOffice } from './seeds/office'
 
 const prisma = new PrismaClient()
 
@@ -256,6 +257,8 @@ async function main() {
   await seedActivity(prisma)
   // Client services, campaigns, timesheets
   await seedGrowth(prisma)
+  // Documents, attendance, tenders, procurement, training, knowledge base, company profile
+  await seedOffice(prisma)
 
   console.log('\n🎉 All seed data loaded!')
   console.log('📋 Demo logins (all use password: Santech@2026):')

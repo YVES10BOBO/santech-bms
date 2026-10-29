@@ -1,0 +1,68 @@
+[
+  {
+    "id": "1",
+    "employeeName": "David Habimana",
+    "department": "Finance",
+    "leaveType": "SICK",
+    "startDate": "2026-10-02",
+    "endDate": "2026-10-04",
+    "days": 3,
+    "reason": "Fever and fatigue",
+    "status": "APPROVED"
+  },
+  {
+    "id": "2",
+    "employeeName": "Claire Mukamana",
+    "department": "Finance",
+    "leaveType": "ANNUAL",
+    "startDate": "2026-10-10",
+    "endDate": "2026-10-17",
+    "days": 8,
+    "reason": "Family vacation",
+    "status": "PENDING"
+  },
+  {
+    "id": "3",
+    "employeeName": "Alice Uwimana",
+    "department": "Sales",
+    "leaveType": "EMERGENCY",
+    "startDate": "2026-10-06",
+    "endDate": "2026-10-07",
+    "days": 2,
+    "reason": "Family emergency",
+    "status": "APPROVED"
+  },
+  {
+    "id": "4",
+    "employeeName": "Grace Niyonsaba",
+    "department": "Support",
+    "leaveType": "MATERNITY",
+    "startDate": "2026-10-15",
+    "endDate": "2026-11-15",
+    "days": 30,
+    "reason": "Maternity leave",
+    "status": "PENDING"
+  },
+  {
+    "id": "5",
+    "employeeName": "Henry Kayitare",
+    "department": "Engineering",
+    "leaveType": "UNPAID",
+    "startDate": "2026-10-20",
+    "endDate": "2026-10-22",
+    "days": 3,
+    "reason": "Personal reasons",
+    "status": "REJECTED"
+  },
+  {
+    "id": "6",
+    "employeeName": "Bob Nkurunziza",
+    "department": "Engineering",
+    "leaveType": "ANNUAL",
+    "startDate": "2026-10-25",
+    "endDate": "2026-10-29",
+    "days": 5,
+    "reason": "End-of-year holiday",
+    "status": "PENDING"
+  }
+]

@@ -1,0 +1,222 @@
+[
+  {
+    "id": "1",
+    "title": "SANHUB — Web Development Bootcamp",
+    "type": "SOFTWARE_DEV",
+    "description": "Intensive web development training covering HTML, CSS, JavaScript, React and Node.js for beginners and intermediate learners.",
+    "trainer": "Bob Nkurunziza",
+    "venue": "Santech Training Room, Kigali",
+    "startDate": "2026-10-20",
+    "endDate": "2026-10-24",
+    "startTime": "08:00",
+    "endTime": "17:00",
+    "maxAttendees": 20,
+    "feePerPerson": 150000,
+    "status": "UPCOMING",
+    "certificateTemplate": "Web Development Certificate",
+    "notes": "Bring your own laptop. Materials will be provided.",
+    "createdAt": "2026-10-01",
+    "attendees": [
+      {
+        "id": "a1",
+        "name": "Eric Habimana",
+        "company": "Self",
+        "phone": "0788100010",
+        "email": "eric@gmail.com",
+        "status": "REGISTERED",
+        "certificateIssued": false,
+        "feePaid": true,
+        "feeAmount": 150000
+      },
+      {
+        "id": "a2",
+        "name": "Agnes Mutoni",
+        "company": "Ministry of ICT",
+        "phone": "0788100011",
+        "email": "agnes@minict.gov.rw",
+        "status": "REGISTERED",
+        "certificateIssued": false,
+        "feePaid": true,
+        "feeAmount": 150000
+      },
+      {
+        "id": "a3",
+        "name": "Frank Student",
+        "company": "UR",
+        "phone": "0788100012",
+        "email": "frank@ur.ac.rw",
+        "status": "REGISTERED",
+        "certificateIssued": false,
+        "feePaid": false,
+        "feeAmount": 0
+      }
+    ]
+  },
+  {
+    "id": "2",
+    "title": "SANHUB — AI & Machine Learning Fundamentals",
+    "type": "AI_IOT",
+    "description": "Introduction to Artificial Intelligence and Machine Learning concepts, tools and practical applications for business professionals.",
+    "trainer": "Bob Nkurunziza",
+    "venue": "Santech Training Room, Kigali",
+    "startDate": "2026-11-03",
+    "endDate": "2026-11-07",
+    "startTime": "09:00",
+    "endTime": "16:00",
+    "maxAttendees": 15,
+    "feePerPerson": 200000,
+    "status": "UPCOMING",
+    "certificateTemplate": "AI & ML Certificate",
+    "notes": "Basic computer knowledge required.",
+    "createdAt": "2026-10-05",
+    "attendees": [
+      {
+        "id": "a4",
+        "name": "Patrick Nkusi",
+        "company": "Ministry of ICT",
+        "phone": "0788400001",
+        "email": "p.nkusi@minict.gov.rw",
+        "status": "REGISTERED",
+        "certificateIssued": false,
+        "feePaid": true,
+        "feeAmount": 200000
+      },
+      {
+        "id": "a5",
+        "name": "Marie Uwase",
+        "company": "BK",
+        "phone": "0788400002",
+        "email": "marie@bk.rw",
+        "status": "REGISTERED",
+        "certificateIssued": false,
+        "feePaid": false,
+        "feeAmount": 0
+      }
+    ]
+  },
+  {
+    "id": "3",
+    "title": "EVS System — Operations Training",
+    "type": "EVS",
+    "description": "Training for client staff on how to operate the E-Visitors System — gate pass management, attendance tracking, visitor registration and reporting.",
+    "trainer": "Bob Nkurunziza",
+    "venue": "East African Seed Ltd Office",
+    "startDate": "2026-10-12",
+    "endDate": "2026-10-12",
+    "startTime": "09:00",
+    "endTime": "13:00",
+    "maxAttendees": 10,
+    "feePerPerson": 0,
+    "status": "COMPLETED",
+    "certificateTemplate": "EVS Operations Certificate",
+    "notes": "On-site training at client premises. Included in contract.",
+    "createdAt": "2026-10-01",
+    "attendees": [
+      {
+        "id": "a6",
+        "name": "John Mugisha",
+        "company": "East African Seed Ltd",
+        "phone": "0788200001",
+        "email": "john@easeed.rw",
+        "status": "CERTIFIED",
+        "certificateIssued": true,
+        "feePaid": true,
+        "feeAmount": 0
+      },
+      {
+        "id": "a7",
+        "name": "Mary Ingabire",
+        "company": "East African Seed Ltd",
+        "phone": "0788200002",
+        "email": "mary@easeed.rw",
+        "status": "CERTIFIED",
+        "certificateIssued": true,
+        "feePaid": true,
+        "feeAmount": 0
+      },
+      {
+        "id": "a8",
+        "name": "James Uwimana",
+        "company": "East African Seed Ltd",
+        "phone": "0788200003",
+        "email": "james@easeed.rw",
+        "status": "ABSENT",
+        "certificateIssued": false,
+        "feePaid": true,
+        "feeAmount": 0
+      }
+    ]
+  },
+  {
+    "id": "4",
+    "title": "SANHUB — Digital Marketing for SMEs",
+    "type": "DIGITAL",
+    "description": "Practical digital marketing training covering social media, email marketing, SEO, Google Ads and content creation for small and medium businesses.",
+    "trainer": "Eve Ingabire",
+    "venue": "Santech Training Room, Kigali",
+    "startDate": "2026-09-15",
+    "endDate": "2026-09-17",
+    "startTime": "08:30",
+    "endTime": "16:30",
+    "maxAttendees": 25,
+    "feePerPerson": 80000,
+    "status": "COMPLETED",
+    "certificateTemplate": "Digital Marketing Certificate",
+    "notes": "Very successful session. 18 attendees. Good feedback received.",
+    "createdAt": "2026-09-01",
+    "attendees": [
+      {
+        "id": "a9",
+        "name": "Denis Owner",
+        "company": "Bloom Kigali",
+        "phone": "0786021700",
+        "email": "denis@bloom.rw",
+        "status": "CERTIFIED",
+        "certificateIssued": true,
+        "feePaid": true,
+        "feeAmount": 80000
+      },
+      {
+        "id": "a10",
+        "name": "Alice Shops",
+        "company": "Various",
+        "phone": "0788300001",
+        "email": "alice@shop.rw",
+        "status": "CERTIFIED",
+        "certificateIssued": true,
+        "feePaid": true,
+        "feeAmount": 80000
+      },
+      {
+        "id": "a11",
+        "name": "Bob Trader",
+        "company": "Self",
+        "phone": "0788300002",
+        "email": "bob@gmail.com",
+        "status": "ATTENDED",
+        "certificateIssued": false,
+        "feePaid": true,
+        "feeAmount": 80000
+      }
+    ]
+  },
+  {
+    "id": "5",
+    "title": "SANHUB — IoT & Smart Systems Workshop",
+    "type": "AI_IOT",
+    "description": "Hands-on workshop on Internet of Things, smart sensors, automation and connected systems for the Rwandan business environment.",
+    "trainer": "Bob Nkurunziza",
+    "venue": "Santech Training Room, Kigali",
+    "startDate": "2026-11-17",
+    "endDate": "2026-11-19",
+    "startTime": "08:00",
+    "endTime": "17:00",
+    "maxAttendees": 12,
+    "feePerPerson": 250000,
+    "status": "UPCOMING",
+    "certificateTemplate": "IoT Certificate",
+    "notes": "Advanced level — programming knowledge preferred.",
+    "createdAt": "2026-10-08",
+    "attendees": []
+  }
+]

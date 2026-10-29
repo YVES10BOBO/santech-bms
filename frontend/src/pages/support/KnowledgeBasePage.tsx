@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import {
   FileSearch,
   MapPin,
@@ -14,6 +14,10 @@ import {
   BookOpen,
 } from 'lucide-react'
 import { cn, formatDate, formatCurrency } from '@/lib/utils'
+import { articleService } from '@/lib/services/operationsService'
+import { apiError } from '@/lib/services/lookupService'
+import PageLoader from '@/components/shared/PageLoader'
+import toast from 'react-hot-toast'
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 type Category =
@@ -105,118 +109,12 @@ const CATEGORY_CONFIG: Record<
 const ALL_CATEGORIES = Object.keys(CATEGORY_CONFIG) as Category[]
 
 // ─── Mock data ────────────────────────────────────────────────────────────────
-const mockArticles: Article[] = [
-  {
-    id: 'kb-1',
-    title: 'EVS System: How to Register a New Vehicle Sticker',
-    category: 'EVS_SYSTEM',
-    excerpt:
-      'Step-by-step guide to registering new vehicle stickers in the Electronic Vehicle Sticker system.',
-    content:
-      'Full guide:\n1. Log into the EVS portal at evs.santech.rw\n2. Navigate to Sticker Registration\n3. Enter vehicle plate number and owner details\n4. Upload required documents (vehicle card, owner ID)\n5. Review and submit the application\n6. Print the generated sticker approval\n\nFor bulk registration, use the CSV import feature under Tools > Bulk Import.',
-    author: 'System Admin',
-    date: '2026-04-10',
-    views: 142,
-    status: 'PUBLISHED',
-    tags: ['evs', 'sticker', 'registration'],
-  },
-  {
-    id: 'kb-2',
-    title: 'SANTRACK: Adding a New Vehicle to Fleet',
-    category: 'SANTRACK',
-    excerpt:
-      'Learn how to add a vehicle to SANTRACK GPS fleet management and configure tracking parameters.',
-    content:
-      'To add a vehicle:\n1. Open SANTRACK dashboard\n2. Go to Fleet > Add Vehicle\n3. Enter vehicle registration, make, model, year\n4. Assign GPS device serial number\n5. Set geofence zones if applicable\n6. Save and activate tracking\n\nNote: Ensure the GPS device has a valid SIM card with data plan before activating.',
-    author: 'Frank Kagabo',
-    date: '2026-04-15',
-    views: 98,
-    status: 'PUBLISHED',
-    tags: ['santrack', 'fleet', 'gps'],
-  },
-  {
-    id: 'kb-3',
-    title: 'Understanding Your Invoice and Payment Schedule',
-    category: 'BILLING',
-    excerpt:
-      'A guide to reading Santech invoices, understanding payment terms, and making payments.',
-    content:
-      'Invoice sections explained:\n- Invoice Number: unique reference (e.g. INV-2026-001)\n- Issue Date: when the invoice was generated\n- Due Date: payment must be received by this date\n- Line Items: detailed breakdown of services/products\n- Subtotal, VAT (18%), and Total\n\nPayment methods accepted: Bank Transfer (BK Rwanda), Mobile Money (MTN/Airtel), Cheque.\nFor payment queries contact finance@santech.rw',
-    author: 'David Habimana',
-    date: '2026-03-20',
-    views: 210,
-    status: 'PUBLISHED',
-    tags: ['billing', 'invoice', 'payment'],
-  },
-  {
-    id: 'kb-4',
-    title: 'HR Policy: Annual Leave Entitlement and Application',
-    category: 'HR_POLICIES',
-    excerpt:
-      'How to apply for annual leave, entitlement days, and approval workflow in the BMS system.',
-    content:
-      'Leave Entitlement:\n- Permanent employees: 18 working days per year\n- Probation employees: 1.5 days per completed month\n\nApplication process:\n1. Go to Team > Attendance & Leave\n2. Click Request Leave\n3. Select leave type: Annual / Sick / Maternity / Paternity / Emergency\n4. Enter start and end dates\n5. Add reason/notes\n6. Submit for manager approval\n\nApproval flow: Employee → Line Manager → HR → Approved.',
-    author: 'HR Manager',
-    date: '2026-01-15',
-    views: 325,
-    status: 'PUBLISHED',
-    tags: ['hr', 'leave', 'policy'],
-  },
-  {
-    id: 'kb-5',
-    title: 'Website Maintenance: Content Update Guide',
-    category: 'WEBSITES',
-    excerpt:
-      'How to update content on Santech-built WordPress and custom websites for our clients.',
-    content:
-      'For WordPress clients:\n1. Access WP Admin at yourdomain.com/wp-admin\n2. Use your provided credentials\n3. Navigate to Pages or Posts to edit content\n4. Use the block editor to modify text, images, and sections\n5. Click Update to publish changes\n\nFor custom-built sites, submit a content change request to support@santech.rw with the specific page URL and new content.',
-    author: 'Frank Kagabo',
-    date: '2026-05-02',
-    views: 67,
-    status: 'PUBLISHED',
-    tags: ['website', 'maintenance', 'wordpress'],
-  },
-  {
-    id: 'kb-6',
-    title: 'REVIXSAN: Running Your First Financial Report',
-    category: 'REVIXSAN',
-    excerpt:
-      'Generate profit & loss, balance sheet, and cash flow reports using REVIXSAN accounting module.',
-    content:
-      'To generate a P&L report:\n1. Login to REVIXSAN\n2. Go to Reports > Financial Statements\n3. Select Report Type: Profit & Loss\n4. Set the date range (e.g. Jan–Dec 2026)\n5. Choose comparison period if needed\n6. Click Generate Report\n7. Export as PDF or Excel\n\nTip: Run monthly P&L to track revenue vs expenses trends early.',
-    author: 'David Habimana',
-    date: '2026-04-28',
-    views: 44,
-    status: 'DRAFT',
-    tags: ['revixsan', 'accounting', 'reports'],
-  },
-  {
-    id: 'kb-7',
-    title: 'General IT: Password Security Best Practices',
-    category: 'GENERAL',
-    excerpt: 'Tips for creating strong passwords and securing your Santech BMS account.',
-    content:
-      'Password guidelines:\n- Minimum 8 characters\n- Mix uppercase, lowercase, numbers, and symbols\n- Do not reuse passwords across systems\n- Change your password every 90 days\n- Enable two-factor authentication when available\n\nIf you forget your password, click Forgot Password on the login page or contact IT support at support@santech.rw.',
-    author: 'System Admin',
-    date: '2026-02-10',
-    views: 189,
-    status: 'PUBLISHED',
-    tags: ['security', 'password', 'it'],
-  },
-  {
-    id: 'kb-8',
-    title: 'EVS System: Troubleshooting Sticker Printing Issues',
-    category: 'EVS_SYSTEM',
-    excerpt: 'Common EVS sticker printing errors and how to resolve them quickly.',
-    content:
-      'Common issues and fixes:\n\n1. Sticker not printing:\n   - Ensure printer is set as default\n   - Check that PDF viewer is installed\n   - Try downloading the sticker PDF and printing manually\n\n2. Barcode not scanning:\n   - Ensure print quality is set to High\n   - Check for ink levels\n   - Reprint from a different browser\n\n3. Wrong vehicle data on sticker:\n   - Do not reprint — contact EVS support immediately at evs@santech.rw\n\nFor unresolved issues call +250 788 000 000.',
-    author: 'System Admin',
-    date: '2026-05-05',
-    views: 83,
-    status: 'PUBLISHED',
-    tags: ['evs', 'printing', 'troubleshooting'],
-  },
-]
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toArticle = (a: any): Article => ({
+  id: a.id, title: a.title, category: a.category, excerpt: a.excerpt ?? '', content: a.content,
+  author: a.author ? `${a.author.firstName} ${a.author.lastName}` : '', date: String(a.updatedAt ?? a.createdAt).slice(0, 10),
+  views: a.views ?? 0, status: a.status, tags: a.tags ?? [],
+})
 
 // ─── Empty form ───────────────────────────────────────────────────────────────
 const emptyForm: NewArticleForm = {
@@ -229,7 +127,29 @@ const emptyForm: NewArticleForm = {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function KnowledgeBasePage() {
-  const [articles, setArticles] = useState<Article[]>(mockArticles)
+  const [articles, setArticles] = useState<Article[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    articleService.getAll()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then((res: any) => setArticles((res.data ?? []).map(toArticle)))
+      .catch(err => toast.error(apiError(err, 'Failed to load articles')))
+      .finally(() => setLoading(false))
+  }, [])
+
+  /** Opening an article counts a view */
+  const openArticle = (article: Article) => {
+    setReadArticle(article)
+    articleService.view(article.id)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then((res: any) => {
+        const saved = toArticle(res.data)
+        setArticles(prev => prev.map(a => (a.id === saved.id ? saved : a)))
+      })
+      .catch(() => { /* view count is not important enough to show an error */ })
+  }
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<Category | 'ALL'>('ALL')
 
@@ -280,27 +200,23 @@ export default function KnowledgeBasePage() {
 
   const closeNewModal = () => setShowNewModal(false)
 
-  const handleSaveArticle = (e: React.FormEvent) => {
+  const handleSaveArticle = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!form.title.trim() || !form.content.trim()) return
-    const newArticle: Article = {
-      id: `kb-${Date.now()}`,
-      title: form.title.trim(),
-      category: form.category,
-      excerpt: form.content.trim().slice(0, 120) + (form.content.length > 120 ? '...' : ''),
-      content: form.content.trim(),
-      author: 'System Admin',
-      date: new Date().toISOString().slice(0, 10),
-      views: 0,
-      status: form.status,
-      tags: form.tags
-        .split(',')
-        .map(t => t.trim())
-        .filter(Boolean),
+    setSaving(true)
+    try {
+      const res = await articleService.create({ title: form.title.trim(), category: form.category, content: form.content.trim(), status: form.status, tags: form.tags })
+      setArticles(prev => [toArticle(res.data), ...prev])
+      toast.success(res.message)
+      closeNewModal()
+    } catch (err) {
+      toast.error(apiError(err, 'Failed to save article'))
+    } finally {
+      setSaving(false)
     }
-    setArticles(prev => [newArticle, ...prev])
-    closeNewModal()
   }
+
+  if (loading) return <PageLoader />
 
   // ── Category badge ────────────────────────────────────────────────────────
   function CategoryBadge({ category }: { category: Category }) {
@@ -452,7 +368,7 @@ export default function KnowledgeBasePage() {
 
               {/* Read More button */}
               <button
-                onClick={() => setReadArticle(article)}
+                onClick={() => openArticle(article)}
                 className="mt-auto w-full px-3 py-1.5 text-xs font-medium text-santech-700 bg-santech-50 rounded-lg hover:bg-santech-100 transition-colors"
               >
                 Read More
@@ -634,9 +550,10 @@ export default function KnowledgeBasePage() {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 px-4 py-2 bg-santech-600 text-white rounded-lg text-sm font-medium hover:bg-santech-700 transition-colors"
+                  disabled={saving}
+                  className="flex-1 px-4 py-2 bg-santech-600 text-white rounded-lg text-sm font-medium hover:bg-santech-700 transition-colors disabled:opacity-50"
                 >
-                  Save Article
+                  {saving ? 'Saving…' : 'Save Article'}
                 </button>
               </div>
             </form>

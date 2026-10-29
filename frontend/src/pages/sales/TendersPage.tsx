@@ -1,6 +1,10 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Plus, Search, X, Eye, FileText } from 'lucide-react'
 import { cn, formatDate, formatCurrency } from '@/lib/utils'
+import { tenderService } from '@/lib/services/operationsService'
+import { useLookups, apiError } from '@/lib/services/lookupService'
+import PageLoader from '@/components/shared/PageLoader'
+import toast from 'react-hot-toast'
 
 type TenderStatus = 'OPEN' | 'SUBMITTED' | 'UNDER_REVIEW' | 'WON' | 'LOST' | 'CANCELLED'
 
@@ -26,67 +30,13 @@ const STATUS_COLORS: Record<TenderStatus, string> = {
   CANCELLED: 'bg-gray-100 text-gray-500',
 }
 
-const mockTenders: Tender[] = [
-  {
-    id: 'tn1',
-    title: 'National Fleet Management System',
-    client: 'Rwanda Transport Development Agency',
-    reference: 'RTDA/ICT/2026/001',
-    value: 45000000,
-    deadline: '2026-11-30',
-    status: 'OPEN',
-    description: 'Provision and installation of a GPS-based fleet management system for government vehicles.',
-    assignedTo: 'Alice Uwimana',
-  },
-  {
-    id: 'tn2',
-    title: 'Hospital Staff Attendance System',
-    client: 'King Faisal Hospital',
-    reference: 'KFH/IT/2026/015',
-    value: 8500000,
-    deadline: '2026-11-15',
-    submissionDate: '2026-11-10',
-    status: 'SUBMITTED',
-    description: 'EVS-based attendance and access control for hospital staff.',
-    assignedTo: 'Alice Uwimana',
-  },
-  {
-    id: 'tn3',
-    title: 'School Management Software',
-    client: 'Rwanda Education Board',
-    reference: 'REB/SOFT/2026/007',
-    value: 15000000,
-    deadline: '2026-10-20',
-    submissionDate: '2026-10-18',
-    status: 'UNDER_REVIEW',
-    description: 'Custom school management information system for secondary schools.',
-    assignedTo: 'Bob Nkurunziza',
-  },
-  {
-    id: 'tn4',
-    title: 'Hotel Property Management System',
-    client: 'Serena Hotel Kigali',
-    reference: 'SHK/IT/2025/022',
-    value: 12000000,
-    deadline: '2025-09-30',
-    submissionDate: '2025-09-25',
-    status: 'WON',
-    description: 'Full PMS including reservations, F&B, and reporting.',
-    assignedTo: 'Alice Uwimana',
-  },
-  {
-    id: 'tn5',
-    title: 'E-Government Portal Development',
-    client: 'Ministry of ICT',
-    reference: 'MICT/DEV/2025/019',
-    value: 80000000,
-    deadline: '2025-08-31',
-    submissionDate: '2025-08-28',
-    status: 'LOST',
-    description: 'Development of citizen-facing e-services portal.',
-    assignedTo: 'Bob Nkurunziza',
-  },
-]
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toTender = (t: any): Tender => ({
+  id: t.id, title: t.title, client: t.issuer, reference: t.reference ?? '', value: Number(t.value),
+  deadline: String(t.deadline).slice(0, 10), submissionDate: t.submissionDate ? String(t.submissionDate).slice(0, 10) : undefined,
+  status: t.status, description: t.description ?? '',
+  assignedTo: t.assignedTo ? `${t.assignedTo.firstName} ${t.assignedTo.lastName}` : 'Unassigned',
+})
 
 const emptyForm = {
   title: '',
@@ -99,7 +49,31 @@ const emptyForm = {
 }
 
 export default function TendersPage() {
-  const [tenders, setTenders] = useState<Tender[]>(mockTenders)
+  const [tenders, setTenders] = useState<Tender[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const lookups = useLookups()
+  const salespeople = lookups.users.filter(u => ['SUPER_ADMIN', 'ADMIN', 'SALES_MANAGER', 'SALES_STAFF', 'MARKETING_MANAGER'].includes(u.role))
+
+  useEffect(() => {
+    tenderService.getAll()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then((res: any) => setTenders((res.data ?? []).map(toTender)))
+      .catch(err => toast.error(apiError(err, 'Failed to load tenders')))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const setStatus = async (t: Tender, status: TenderStatus) => {
+    try {
+      const res = await tenderService.update(t.id, { status })
+      const saved = toTender(res.data)
+      setTenders(prev => prev.map(x => (x.id === t.id ? saved : x)))
+      setViewTender(prev => (prev?.id === t.id ? saved : prev))
+      toast.success(res.message)
+    } catch (err) {
+      toast.error(apiError(err, 'Failed to update tender'))
+    }
+  }
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<TenderStatus | 'ALL'>('ALL')
   const [showAddModal, setShowAddModal] = useState(false)
@@ -124,24 +98,27 @@ export default function TendersPage() {
     setForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!form.title.trim() || !form.client.trim()) return
-    const newTender: Tender = {
-      id: `tn${Date.now()}`,
-      title: form.title.trim(),
-      client: form.client.trim(),
-      reference: form.reference.trim(),
-      value: Number(form.value),
-      deadline: form.deadline,
-      status: 'OPEN',
-      description: form.description.trim(),
-      assignedTo: form.assignedTo.trim() || 'Unassigned',
+    if (!form.title.trim() || !form.client.trim() || !form.deadline) return
+    setSaving(true)
+    try {
+      const res = await tenderService.create({
+        title: form.title.trim(), issuer: form.client.trim(), reference: form.reference.trim(), value: Number(form.value),
+        deadline: form.deadline, description: form.description.trim(), assignedToId: form.assignedTo || undefined,
+      })
+      setTenders(prev => [toTender(res.data), ...prev])
+      toast.success(res.message)
+      setShowAddModal(false)
+      setForm(emptyForm)
+    } catch (err) {
+      toast.error(apiError(err, 'Failed to add tender'))
+    } finally {
+      setSaving(false)
     }
-    setTenders(prev => [newTender, ...prev])
-    setShowAddModal(false)
-    setForm(emptyForm)
   }
+
+  if (loading) return <PageLoader />
 
   const inputCls = 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500'
   const labelCls = 'block text-xs font-medium text-gray-700 mb-1'
@@ -283,7 +260,10 @@ export default function TendersPage() {
               </div>
               <div>
                 <label className={labelCls}>Assigned To</label>
-                <input name="assignedTo" value={form.assignedTo} onChange={handleFormChange} placeholder="Sales rep name" className={inputCls} />
+                <select name="assignedTo" value={form.assignedTo} onChange={handleFormChange} className={inputCls}>
+                  <option value="">Me</option>
+                  {salespeople.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                </select>
               </div>
               <div>
                 <label className={labelCls}>Description</label>
@@ -294,9 +274,9 @@ export default function TendersPage() {
                   className="flex-1 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 font-medium">
                   Cancel
                 </button>
-                <button type="submit"
-                  className="flex-1 py-2.5 bg-santech-600 text-white rounded-lg text-sm hover:bg-santech-700 font-medium">
-                  Save
+                <button type="submit" disabled={saving}
+                  className="flex-1 py-2.5 bg-santech-600 text-white rounded-lg text-sm hover:bg-santech-700 font-medium disabled:opacity-50">
+                  {saving ? 'Saving…' : 'Save'}
                 </button>
               </div>
             </form>
@@ -326,6 +306,17 @@ export default function TendersPage() {
               )}
               <p>Assigned To: <span className="text-gray-800 font-medium">{viewTender.assignedTo}</span></p>
             </div>
+            {!['WON', 'LOST', 'CANCELLED'].includes(viewTender.status) && (
+              <div className="flex flex-wrap gap-2">
+                {viewTender.status === 'OPEN' && <button onClick={() => setStatus(viewTender, 'SUBMITTED')} className="flex-1 py-2 bg-santech-600 text-white rounded-lg text-sm font-medium hover:bg-santech-700">Mark submitted</button>}
+                {viewTender.status === 'SUBMITTED' && <button onClick={() => setStatus(viewTender, 'UNDER_REVIEW')} className="flex-1 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600">Under review</button>}
+                {['SUBMITTED', 'UNDER_REVIEW'].includes(viewTender.status) && <>
+                  <button onClick={() => setStatus(viewTender, 'WON')} className="flex-1 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700">Won</button>
+                  <button onClick={() => setStatus(viewTender, 'LOST')} className="flex-1 py-2 border border-red-200 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50">Lost</button>
+                </>}
+                <button onClick={() => setStatus(viewTender, 'CANCELLED')} className="py-2 px-3 border border-gray-200 text-gray-500 rounded-lg text-sm hover:bg-gray-50">Cancel tender</button>
+              </div>
+            )}
             <button onClick={() => setViewTender(null)}
               className="w-full py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 font-medium">
               Close

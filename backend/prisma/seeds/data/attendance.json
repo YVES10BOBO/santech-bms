@@ -1,0 +1,90 @@
+[
+  {
+    "id": "1",
+    "employeeName": "Alice Uwimana",
+    "department": "Sales",
+    "date": "2026-10-01",
+    "checkIn": "08:02",
+    "checkOut": "17:05",
+    "hoursWorked": 9.05,
+    "status": "PRESENT",
+    "notes": ""
+  },
+  {
+    "id": "2",
+    "employeeName": "Bob Nkurunziza",
+    "department": "Engineering",
+    "date": "2026-10-01",
+    "checkIn": "08:45",
+    "checkOut": "17:00",
+    "hoursWorked": 8.25,
+    "status": "LATE",
+    "notes": "Traffic delay"
+  },
+  {
+    "id": "3",
+    "employeeName": "Claire Mukamana",
+    "department": "Finance",
+    "date": "2026-10-02",
+    "checkIn": "08:00",
+    "checkOut": "13:00",
+    "hoursWorked": 5,
+    "status": "HALF_DAY",
+    "notes": "Doctor appointment"
+  },
+  {
+    "id": "4",
+    "employeeName": "David Habimana",
+    "department": "Finance",
+    "date": "2026-10-02",
+    "checkIn": "",
+    "checkOut": "",
+    "hoursWorked": 0,
+    "status": "ABSENT",
+    "notes": "Sick leave"
+  },
+  {
+    "id": "5",
+    "employeeName": "Eve Ingabire",
+    "department": "Sales",
+    "date": "2026-10-03",
+    "checkIn": "07:58",
+    "checkOut": "17:10",
+    "hoursWorked": 9.2,
+    "status": "PRESENT",
+    "notes": ""
+  },
+  {
+    "id": "6",
+    "employeeName": "Frank Bizimana",
+    "department": "Engineering",
+    "date": "2026-10-03",
+    "checkIn": "08:01",
+    "checkOut": "17:00",
+    "hoursWorked": 8.98,
+    "status": "PRESENT",
+    "notes": ""
+  },
+  {
+    "id": "7",
+    "employeeName": "Grace Niyonsaba",
+    "department": "Support",
+    "date": "2026-10-04",
+    "checkIn": "09:10",
+    "checkOut": "17:00",
+    "hoursWorked": 7.83,
+    "status": "LATE",
+    "notes": "Bus delay"
+  },
+  {
+    "id": "8",
+    "employeeName": "Henry Kayitare",
+    "department": "Engineering",
+    "date": "2026-10-05",
+    "checkIn": "08:00",
+    "checkOut": "17:00",
+    "hoursWorked": 9,
+    "status": "PRESENT",
+    "notes": ""
+  }
+]

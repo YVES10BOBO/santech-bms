@@ -1,5 +1,10 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Building2, Save, MapPin, Phone, Mail, Globe, FileText } from 'lucide-react'
+import { companyService } from '@/lib/services/operationsService'
+import { apiError } from '@/lib/services/lookupService'
+import { useAuthStore } from '@/store/authStore'
+import PageLoader from '@/components/shared/PageLoader'
+import toast from 'react-hot-toast'
 
 interface CompanyProfile {
   name: string
@@ -16,35 +21,48 @@ interface CompanyProfile {
   description: string
 }
 
-const defaultProfile: CompanyProfile = {
-  name: 'Santech Ltd',
-  legalName: 'Santech Rwanda Limited',
-  registrationNumber: '102621580',
-  tin: '102621580',
-  address: 'KG 9 Ave, Kacyiru',
-  city: 'Kigali',
-  country: 'Rwanda',
-  phone: '+250 788 000 000',
-  email: 'info@santech.rw',
-  website: 'https://www.santech.rw',
-  industry: 'Information Technology',
-  description: 'Santech Rwanda provides innovative IT solutions including EVS, SANTRACK, REVIXSAN, and custom software development.',
+const emptyProfile: CompanyProfile = {
+  name: '', legalName: '', registrationNumber: '', tin: '', address: '', city: '', country: '',
+  phone: '', email: '', website: '', industry: '', description: '',
 }
 
 export default function CompanyProfilePage() {
-  const [profile, setProfile] = useState<CompanyProfile>(defaultProfile)
+  const [profile, setProfile] = useState<CompanyProfile>(emptyProfile)
   const [saved, setSaved] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const { user } = useAuthStore()
+  const canEdit = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN'
+
+  useEffect(() => {
+    companyService.get()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then((res: any) => setProfile({ ...emptyProfile, ...(res.data ?? {}) }))
+      .catch(err => toast.error(apiError(err, 'Failed to load company profile')))
+      .finally(() => setLoading(false))
+  }, [])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setProfile(prev => ({ ...prev, [e.target.name]: e.target.value }))
     setSaved(false)
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setSaved(true)
-    setTimeout(() => setSaved(false), 3000)
+    if (!canEdit) { toast.error('Only admins can change the company profile'); return }
+    setSaving(true)
+    try {
+      await companyService.save({ ...profile })
+      setSaved(true)
+      setTimeout(() => setSaved(false), 3000)
+    } catch (err) {
+      toast.error(apiError(err, 'Failed to save company profile'))
+    } finally {
+      setSaving(false)
+    }
   }
+
+  if (loading) return <PageLoader />
 
   const inputCls = 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500'
   const labelCls = 'block text-xs font-medium text-gray-700 mb-1'
@@ -156,9 +174,11 @@ export default function CompanyProfilePage() {
         <div className="flex justify-end">
           <button
             type="submit"
-            className="flex items-center gap-2 px-6 py-2.5 bg-santech-600 text-white rounded-lg text-sm font-medium hover:bg-santech-700 transition-colors"
+            disabled={saving || !canEdit}
+            title={canEdit ? undefined : 'Only admins can change the company profile'}
+            className="flex items-center gap-2 px-6 py-2.5 bg-santech-600 text-white rounded-lg text-sm font-medium hover:bg-santech-700 transition-colors disabled:opacity-50"
           >
-            <Save className="w-4 h-4" /> Save Changes
+            <Save className="w-4 h-4" /> {saving ? 'Saving…' : 'Save Changes'}
           </button>
         </div>
       </form>

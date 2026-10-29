@@ -1,0 +1,74 @@
+[
+  {
+    "id": "pr1",
+    "itemName": "Biometric Terminals (ZKTeco)",
+    "category": "HARDWARE",
+    "quantity": 10,
+    "unitPrice": 350000,
+    "supplier": "ZKTeco Rwanda",
+    "requestedBy": "Bob Nkurunziza",
+    "requestDate": "2026-09-20",
+    "status": "DELIVERED",
+    "notes": "For EVS System - SABBAN."
+  },
+  {
+    "id": "pr2",
+    "itemName": "Network Switch (TP-Link 24-port)",
+    "category": "IT_EQUIPMENT",
+    "quantity": 2,
+    "unitPrice": 120000,
+    "supplier": "TechHub Kigali",
+    "requestedBy": "Frank Kagabo",
+    "requestDate": "2026-10-01",
+    "status": "ORDERED",
+    "notes": "Server room upgrade."
+  },
+  {
+    "id": "pr3",
+    "itemName": "Office Chairs",
+    "category": "OFFICE_SUPPLIES",
+    "quantity": 5,
+    "unitPrice": 45000,
+    "supplier": "Kigali Furniture",
+    "requestedBy": "HR Manager",
+    "requestDate": "2026-10-10",
+    "status": "APPROVED",
+    "notes": "New hires onboarding."
+  },
+  {
+    "id": "pr4",
+    "itemName": "Laptop Dell Latitude 5540",
+    "category": "IT_EQUIPMENT",
+    "quantity": 3,
+    "unitPrice": 980000,
+    "supplier": "Dell Rwanda",
+    "requestedBy": "System Admin",
+    "requestDate": "2026-10-12",
+    "status": "PENDING",
+    "notes": "Developer workstations."
+  },
+  {
+    "id": "pr5",
+    "itemName": "CAT6 Cable (300m roll)",
+    "category": "HARDWARE",
+    "quantity": 4,
+    "unitPrice": 55000,
+    "supplier": "ElectroParts RW",
+    "requestedBy": "Frank Kagabo",
+    "requestDate": "2026-10-14",
+    "status": "PENDING",
+    "notes": "SANTRACK site cabling."
+  },
+  {
+    "id": "pr6",
+    "itemName": "Adobe Creative Cloud License",
+    "category": "SOFTWARE",
+    "quantity": 2,
+    "unitPrice": 180000,
+    "supplier": "Adobe Inc",
+    "requestedBy": "System Admin",
+    "requestDate": "2026-09-30",
+    "status": "DELIVERED",
+    "notes": "Annual license renewal."
+  }
+]

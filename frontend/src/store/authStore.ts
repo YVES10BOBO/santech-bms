@@ -16,7 +16,8 @@ interface AuthStore {
 }
 
 // Role-based module access map
-const roleAccess: Record<UserRole, string[]> = {
+/** Which sidebar modules each role can open (also shown on Settings → Roles) */
+export const roleAccess: Record<UserRole, string[]> = {
   SUPER_ADMIN: ['*'],
   ADMIN: ['dashboard', 'crm', 'sales', 'marketing', 'contracts', 'finance', 'projects', 'team', 'support', 'reports', 'settings', 'notifications', 'reception', 'communication', 'training', 'documents', 'procurement'],
   FINANCE_MANAGER: ['dashboard', 'finance', 'contracts', 'reports', 'notifications'],

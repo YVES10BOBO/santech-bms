@@ -1,0 +1,61 @@
+[
+  {
+    "id": "tn1",
+    "title": "National Fleet Management System",
+    "client": "Rwanda Transport Development Agency",
+    "reference": "RTDA/ICT/2026/001",
+    "value": 45000000,
+    "deadline": "2026-11-30",
+    "status": "OPEN",
+    "description": "Provision and installation of a GPS-based fleet management system for government vehicles.",
+    "assignedTo": "Alice Uwimana"
+  },
+  {
+    "id": "tn2",
+    "title": "Hospital Staff Attendance System",
+    "client": "King Faisal Hospital",
+    "reference": "KFH/IT/2026/015",
+    "value": 8500000,
+    "deadline": "2026-11-15",
+    "submissionDate": "2026-11-10",
+    "status": "SUBMITTED",
+    "description": "EVS-based attendance and access control for hospital staff.",
+    "assignedTo": "Alice Uwimana"
+  },
+  {
+    "id": "tn3",
+    "title": "School Management Software",
+    "client": "Rwanda Education Board",
+    "reference": "REB/SOFT/2026/007",
+    "value": 15000000,
+    "deadline": "2026-10-20",
+    "submissionDate": "2026-10-18",
+    "status": "UNDER_REVIEW",
+    "description": "Custom school management information system for secondary schools.",
+    "assignedTo": "Bob Nkurunziza"
+  },
+  {
+    "id": "tn4",
+    "title": "Hotel Property Management System",
+    "client": "Serena Hotel Kigali",
+    "reference": "SHK/IT/2025/022",
+    "value": 12000000,
+    "deadline": "2025-09-30",
+    "submissionDate": "2025-09-25",
+    "status": "WON",
+    "description": "Full PMS including reservations, F&B, and reporting.",
+    "assignedTo": "Alice Uwimana"
+  },
+  {
+    "id": "tn5",
+    "title": "E-Government Portal Development",
+    "client": "Ministry of ICT",
+    "reference": "MICT/DEV/2025/019",
+    "value": 80000000,
+    "deadline": "2025-08-31",
+    "submissionDate": "2025-08-28",
+    "status": "LOST",
+    "description": "Development of citizen-facing e-services portal.",
+    "assignedTo": "Bob Nkurunziza"
+  }
+]
