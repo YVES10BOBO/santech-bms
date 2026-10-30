@@ -75,7 +75,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#e8edf8] px-4 py-4 sm:px-6 lg:px-10 lg:py-6">
+    <div className="page-layer flex min-h-screen items-center justify-center px-4 py-4 sm:px-6 lg:px-10 lg:py-6">
       <div className="grid w-full max-w-5xl overflow-hidden rounded-lg border border-[#c9d5e6] bg-white shadow-[0_22px_70px_rgba(11,31,68,0.16)] lg:min-h-[520px] lg:grid-cols-[0.94fr_1.06fr]">
       <aside className="auth-rise relative flex min-h-0 flex-col overflow-hidden border-b border-[#c9d5e6] bg-[#0b1f44] px-6 py-7 text-white sm:px-9 sm:py-9 lg:min-h-[520px] lg:justify-between lg:border-b-0 lg:border-r lg:border-r-[#c9d5e6] lg:px-10 lg:py-6 xl:px-12 xl:py-8">
         <div

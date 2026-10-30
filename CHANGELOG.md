@@ -25,6 +25,17 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 
 ## 1.5.0 — 30 October 2026
 
+### Same background layer on every page (30 Oct)
+- **What:** the light grey-blue of the portals (`#f4f6fa`) is now the layer between the Imigongo pattern
+  and the cards on every screen: staff pages, the customer and supplier portals, and the login page.
+- **How it looks:**
+  - The layer is 60% see-through, so the pattern still shows softly behind it.
+  - Before, staff pages used a bluer layer, and the portals and login covered the pattern completely.
+- **Technical:** one CSS variable `--page-layer` and class `.page-layer` in `frontend/src/index.css`,
+  used by `main`, `PortalShell` and `LoginPage`.
+- **Checked** in a real browser on the login page, customer portal, supplier portal and a staff page.
+
+
 ### Customer portal and supplier portal (30 Oct)
 Last part of the features still missing from the specification (email and SMS wait for the Brevo and
 Twilio accounts).

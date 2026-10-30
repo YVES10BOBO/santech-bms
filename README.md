@@ -158,6 +158,9 @@ again. On phones, the menu button in the top bar opens the sidebar, and its X bu
 ### Login & Access Control
 **Where:** `/login`
 - Professional split-panel login page (Imigongo pattern) with quick demo login buttons
+- **Page background on every screen** (staff pages, customer and supplier portals, login): the Imigongo
+  pattern at the back, a light see-through layer (`#f4f6fa` at 60%) over it, and the white cards on top.
+  The layer is one setting, `--page-layer` in `frontend/src/index.css`.
 - JWT login; 8 staff roles, each with its own sidebar (see [Role-Based Access](#role-based-access))
 - The API checks the role on every route, so hiding a menu item is never the only protection
 - Clear messages when login fails: wrong email or password, too many failed attempts, or the server

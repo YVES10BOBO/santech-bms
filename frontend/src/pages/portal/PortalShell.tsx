@@ -18,7 +18,7 @@ export default function PortalShell({ kind, orgName, tabs, active, onTab, childr
 }) {
   const { user, logout } = useAuthStore()
   return (
-    <div className="min-h-screen bg-[#f4f6fa]">
+    <div className="min-h-screen page-layer">
       <header className="bg-santech-900 text-white">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg bg-white/10 flex items-center justify-center font-bold">S</div>
