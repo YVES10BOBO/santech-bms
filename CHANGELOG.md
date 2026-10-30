@@ -22,6 +22,34 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 
 ## 1.2.0 — 29 October 2026
 
+### Buttons that did nothing now work (30 Oct)
+- **Top-bar search:**
+  - Type at least 2 letters to search clients, leads, quotations, contracts, invoices, projects, tasks,
+    documents and staff. It only searches the areas your role can open.
+  - Use ↑ ↓ and Enter, or click a result. Clients open their Client 360°; the other results open their
+    list already filtered to that item.
+- **My Profile** (from the profile menu, top right):
+  - Change your name and phone.
+  - **Change password** needs your current password and at least 8 characters.
+  - Both are written to the Audit Trail. Email and role stay with the admin.
+- **Export buttons** download what is on screen, filters applied, as a CSV file that opens in Excel:
+  Field Visits, Finance Income, Finance Expenses, Audit Trail.
+- **Meetings → ✏️ Edit:** opens the meeting with all its details filled in (type, client, time, place or
+  online link, participants, agenda, notes, follow-up) and saves the changes.
+- **Field Visits → View:** shows the visit's details (contact, outcome, what Santech can sell, needs,
+  follow-up, amount, who recorded it).
+- **Client 360° → Edit:** opens that client's edit form on the Customers page.
+- **Customer form → Attach Document:** the file is now really uploaded and filed in Documents under that
+  client (before, only its name was kept). It also shows on the client's 360° page.
+- **Salary:** the department filter lists the real departments (it was a fixed list).
+- **Technical:**
+  - `GET /api/search` (`routes/search.ts`, role-aware);
+  - `PUT /api/auth/me`; checks and audit on `PUT /api/auth/change-password`;
+  - full meeting edit in `updateMeeting`;
+  - `lib/exportCsv.ts`, `lib/useSearchFromUrl.ts`, `pages/profile/ProfilePage.tsx`.
+- **Tested:** 28 checks in a real (headless) Edge browser against a local copy of the database, plus a
+  role check of the search (Admin, Finance, Sales Staff and Employee each only see their own areas).
+
 ### Salary: grid and list layouts (30 Oct)
 - **What:** The Salary page has the same list/grid switch as Documents (styled like Google Drive's).
   - **List:** the payroll table, as before.
@@ -191,9 +219,10 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
   - Everything runs in one transaction with checks before it commits, so it either fully succeeds or
     changes nothing.
   - Full backups of the live database were taken first, into `backups/` (git-ignored).
-- **Status:** rehearsed on a full copy of the live database: all checks passed, 23 page/API checks
-  passed, and re-running the seed added nothing. **Not yet applied to the live database.** To apply it,
-  run the command below from `backend`.
+- **Status:** **applied to the live database on 30 Oct 2026**, after a fresh backup
+  (`backups/neon-2026-10-30-before-cleanup.dump`). It was first rehearsed on a full copy of the live
+  database, where all checks passed and re-running the seed added nothing. After the run, the live
+  database has no duplicates in any table, and 23 page/API checks passed against the live API.
 - **Technical:** `backend/prisma/maintenance/remove-duplicates-2026-10.js`: without options it only
   prints the plan; `--apply` runs it. The seed now reuses an existing client, project, deal, task or
   field visit with the same name instead of creating a copy, and lists Rwanda Mountain Ride's contract

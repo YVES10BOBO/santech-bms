@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useSearchFromUrl } from '@/lib/useSearchFromUrl'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Search, X, FileText, CheckCircle2, Clock, ArrowRight, Trash2, Download } from 'lucide-react'
 import { cn, formatDate, formatCurrency } from '@/lib/utils'
@@ -147,6 +148,7 @@ export default function QuotationsPage() {
     setViewQuotation(prev => prev?.id === saved.id ? saved : prev)
   }
   const [search, setSearch] = useState('')
+  useSearchFromUrl(setSearch)
   const [statusFilter, setStatusFilter] = useState<QuotationStatus | 'ALL'>('ALL')
   const [showModal, setShowModal] = useState(false)
   const [viewQuotation, setViewQuotation] = useState<Quotation | null>(null)

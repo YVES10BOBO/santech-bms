@@ -621,7 +621,7 @@ export default function ClientProfilePage() {
             </div>
           </div>
           <div className="flex gap-2">
-            <button className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
+            <button onClick={() => navigate(`/crm/customers?edit=${id}`)} className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
               <Edit2 className="w-4 h-4" /> Edit
             </button>
             <button onClick={() => setShowAddInteraction(true)}

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { useSearchFromUrl } from '@/lib/useSearchFromUrl'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Plus, Search, X, Eye, Edit2, CheckCircle2, Clock } from 'lucide-react'
 import { cn, formatDate, formatCurrency } from '@/lib/utils'
@@ -158,6 +159,7 @@ export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  useSearchFromUrl(setSearch)
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | 'ALL'>('ALL')
   const [priorityFilter, setPriorityFilter] = useState<Priority | 'ALL'>('ALL')
   const [rowsPerPage, setRowsPerPage] = useState<number | 'All'>(10)

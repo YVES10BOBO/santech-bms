@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useSearchFromUrl } from '@/lib/useSearchFromUrl'
 import { Plus, Search, X, CheckCircle2, XCircle, Clock, Loader2 } from 'lucide-react'
 import { cn, formatDate, getStatusColor } from '@/lib/utils'
 import { taskService } from '@/lib/services/taskService'
@@ -82,6 +83,7 @@ export default function TasksPage() {
   const [loading, setLoading] = useState(true)
   const [activeView, setActiveView] = useState<'all' | 'my'>('all')
   const [search, setSearch] = useState('')
+  useSearchFromUrl(setSearch)
   const [statusFilter, setStatusFilter] = useState<TaskStatus | 'ALL'>('ALL')
   const [priorityFilter, setPriorityFilter] = useState<Priority | 'ALL'>('ALL')
   const [employeeFilter, setEmployeeFilter] = useState('ALL')

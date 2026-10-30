@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { downloadCsv, today as fileDate } from '@/lib/exportCsv'
 import { financeService, type PLReport } from '@/lib/services/financeService'
 import { useLookups, apiError } from '@/lib/services/lookupService'
 import toast from 'react-hot-toast'
@@ -610,7 +611,14 @@ function IncomeTab() {
             <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
           </div>
           <div className="ml-auto flex gap-2">
-            <button className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors">
+            <button
+              onClick={() => downloadCsv(`income-${fileDate()}.csv`, [
+                { label: 'Date', value: r => r.date }, { label: 'Description', value: r => r.desc }, { label: 'Category', value: r => r.cat },
+                { label: 'Client', value: r => r.client }, { label: 'Invoice', value: r => r.invoice }, { label: 'Amount (RWF)', value: r => r.amount },
+                { label: 'Recorded by', value: r => r.by },
+              ], filtered)}
+              title="Download the income shown (with the filters applied) as a CSV file for Excel"
+              className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors">
               <Download className="w-4 h-4" /> Export
             </button>
             <button
@@ -888,7 +896,13 @@ function ExpensesTab() {
             <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
           </div>
           <div className="ml-auto flex gap-2">
-            <button className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors">
+            <button
+              onClick={() => downloadCsv(`expenses-${fileDate()}.csv`, [
+                { label: 'Date', value: r => r.date }, { label: 'Description', value: r => r.desc }, { label: 'Category', value: r => r.cat },
+                { label: 'Amount (RWF)', value: r => r.amount }, { label: 'Notes', value: r => r.notes }, { label: 'Recorded by', value: r => r.by },
+              ], filtered)}
+              title="Download the expenses shown (with the filters applied) as a CSV file for Excel"
+              className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors">
               <Download className="w-4 h-4" /> Export
             </button>
             <button

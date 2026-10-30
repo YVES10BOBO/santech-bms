@@ -70,6 +70,7 @@ import lookupsRouter from './routes/lookups'
 import step2Router from './routes/step2'
 import reportsRouter from './routes/reports'
 import filesRouter from './routes/files'
+import searchRouter from './routes/search'
 import prisma from './lib/prisma'
 import { authenticate as authMiddleware, authorize } from './middleware/auth'
 
@@ -89,6 +90,7 @@ app.use('/api/lookups', lookupsRouter)
 // Leads, quotations, tickets, products, departments, visitors, users, notifications
 app.use('/api/reports', reportsRouter)
 app.use('/api/files', filesRouter)
+app.use('/api/search', searchRouter) // top-bar quick search (role-aware)
 app.use('/api', step2Router)
 
 // Audit logs — read-only, management only

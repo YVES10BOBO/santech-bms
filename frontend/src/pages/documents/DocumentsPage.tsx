@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
+import { useSearchFromUrl } from '@/lib/useSearchFromUrl'
 import { useSearchParams } from 'react-router-dom'
 import {
   Folder, FolderOpen, FolderPlus, FolderInput, Plus, Search, X, FileText, FileSpreadsheet, FileImage, FileArchive, File as FileIcon,
@@ -185,6 +186,7 @@ export default function DocumentsPage() {
 
   // Search and filters
   const [search, setSearch] = useState('')
+  useSearchFromUrl(setSearch)
   const [searchQuery, setSearchQuery] = useState('')
   const [typeFilter, setTypeFilter] = useState<DocCategory | ''>('')
   const [dateFrom, setDateFrom] = useState('')

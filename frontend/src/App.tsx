@@ -48,6 +48,7 @@ import CompanyProfilePage from '@/pages/settings/CompanyProfilePage'
 import RolesPage from '@/pages/settings/RolesPage'
 import TendersPage from '@/pages/sales/TendersPage'
 import KnowledgeBasePage from '@/pages/support/KnowledgeBasePage'
+import ProfilePage from '@/pages/profile/ProfilePage'
 
 // Guard: requires authentication
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -151,6 +152,7 @@ export default function App() {
           {/* New pages */}
           <Route path="reports" element={<ReportsPage />} />
           <Route path="notifications" element={<NotificationsPage />} />
+          <Route path="profile" element={<ProfilePage />} />
           <Route path="support" element={<SupportPage />} />
           <Route path="training" element={<TrainingPage />} />
           <Route path="settings/products" element={<ProductCatalogPage />} />

@@ -149,6 +149,12 @@ export const articleService = {
   view: (id: string) => post(`/articles/${id}/view`),
 }
 
+/** Top-bar quick search: only areas the user's role can open */
+export interface SearchHit { type: string; title: string; subtitle: string; link: string }
+export const searchService = {
+  query: async (q: string): Promise<SearchHit[]> => (await get(`/search?q=${encodeURIComponent(q)}`)).data ?? [],
+}
+
 export const companyService = {
   get: () => get('/settings/company'),
   save: (b: Body) => put('/settings/company', b),

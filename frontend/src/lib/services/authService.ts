@@ -17,6 +17,12 @@ export const authService = {
     return data.data
   },
 
+  /** Update your own name and phone */
+  updateMe: async (changes: { firstName?: string; lastName?: string; phone?: string }): Promise<User> => {
+    const { data } = await api.put('/auth/me', changes)
+    return data.data
+  },
+
   changePassword: async (currentPassword: string, newPassword: string): Promise<void> => {
     await api.put('/auth/change-password', { currentPassword, newPassword })
   },

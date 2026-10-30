@@ -200,7 +200,7 @@ export default function SalaryPage() {
           <input type="text" placeholder="Search employee..." value={search} onChange={e => setSearch(e.target.value)} className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500" />
         </div>
         <select value={deptFilter} onChange={e => setDeptFilter(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500">
-          {['All', 'Sales & Marketing', 'IT', 'HR', 'Finance'].map(d => <option key={d}>{d}</option>)}
+          {['All', ...Array.from(new Set(records.map(r => r.department).filter(Boolean))).sort()].map(d => <option key={d}>{d}</option>)}
         </select>
         <select value={paidFilter} onChange={e => setPaidFilter(e.target.value as 'ALL' | 'PAID' | 'UNPAID')} className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500">
           <option value="ALL">All</option>

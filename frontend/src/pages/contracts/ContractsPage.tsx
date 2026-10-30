@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { useSearchFromUrl } from '@/lib/useSearchFromUrl'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Plus, Search, X, FileText, Eye, AlertCircle, CheckCircle2, Clock, ThumbsUp, ThumbsDown, FolderPlus, Upload } from 'lucide-react'
 import { cn, formatDate, formatCurrency } from '@/lib/utils'
@@ -114,6 +115,7 @@ export default function ContractsPage() {
   const [contracts, setContracts] = useState<Contract[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  useSearchFromUrl(setSearch)
   const [statusFilter, setStatusFilter] = useState<ContractStatus | 'ALL'>('ALL')
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState(emptyForm)

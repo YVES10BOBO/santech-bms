@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useSearchFromUrl } from '@/lib/useSearchFromUrl'
 import { Plus, Search, X, User, LayoutGrid, List, Loader2 } from 'lucide-react'
 import PhoneInput from '@/components/shared/PhoneInput'
 import { cn, formatDate, formatCurrency, getInitials } from '@/lib/utils'
@@ -61,6 +62,7 @@ export default function EmployeesPage() {
       .finally(() => setLoading(false))
   }, [])
   const [search, setSearch] = useState('')
+  useSearchFromUrl(setSearch)
   const [deptFilter, setDeptFilter] = useState('All')
   const [statusFilter, setStatusFilter] = useState<EmploymentStatus | 'All'>('All')
   const [showModal, setShowModal] = useState(false)

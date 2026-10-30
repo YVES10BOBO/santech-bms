@@ -20,6 +20,7 @@ interface Meeting {
   startTime: string
   endTime: string
   client: string
+  clientId: string
   location: string
   isOnline: boolean
   link?: string
@@ -106,7 +107,7 @@ function avatarColor(name: string): string {
 const toMeeting = (m: any): Meeting => ({
   id: m.id, title: m.title, type: m.type, status: m.status,
   date: String(m.date).slice(0, 10), startTime: m.startTime, endTime: m.endTime,
-  client: m.client?.companyName ?? 'Internal', location: m.location ?? '', isOnline: !!m.isOnline, link: m.link ?? undefined,
+  client: m.client?.companyName ?? 'Internal', clientId: m.clientId ?? '', location: m.location ?? '', isOnline: !!m.isOnline, link: m.link ?? undefined,
   participants: m.participants ?? [], agenda: m.agenda ?? '', notes: m.notes ?? '', decisions: m.decisions ?? '',
   actionItems: m.actionItems ?? [], followUpDate: m.followUpDate ? String(m.followUpDate).slice(0, 10) : undefined,
 })
@@ -221,6 +222,7 @@ export default function MeetingsPage() {
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState<MeetingForm>(emptyForm)
   const [formError, setFormError] = useState('')
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [selectedMeeting, setSelectedMeeting] = useState<Meeting | null>(null)
   const [rowsPerPage, setRowsPerPage] = useState(5)
   const [page, setPage] = useState(1)
@@ -264,22 +266,47 @@ export default function MeetingsPage() {
     if (!form.startTime || !form.endTime) { setFormError('Start and end times are required.'); return }
     setSaving(true)
     try {
-      const res = await meetingService.create({
+      const body = {
         title: form.title.trim(), type: form.type, date: form.date, startTime: form.startTime, endTime: form.endTime,
-        clientId: form.client || undefined, location: form.isOnline ? '' : form.location.trim(), isOnline: form.isOnline,
-        link: form.isOnline ? form.link.trim() : undefined, participants: form.participants,
-        agenda: form.agenda.trim(), notes: form.notes.trim(), followUpDate: form.followUpDate || undefined,
-      })
-      setMeetings(prev => [toMeeting(res.data), ...prev])
-      toast.success(res.message)
+        location: form.isOnline ? '' : form.location.trim(), isOnline: form.isOnline, participants: form.participants,
+        agenda: form.agenda.trim(), notes: form.notes.trim(),
+      }
+      if (editingId) {
+        const res = await meetingService.update(editingId, {
+          ...body, clientId: form.client || null, link: form.isOnline ? form.link.trim() : '', followUpDate: form.followUpDate || null,
+        })
+        const saved = toMeeting(res.data)
+        setMeetings(prev => prev.map(m => (m.id === editingId ? saved : m)))
+        toast.success(res.message)
+      } else {
+        const res = await meetingService.create({
+          ...body, clientId: form.client || undefined, link: form.isOnline ? form.link.trim() : undefined, followUpDate: form.followUpDate || undefined,
+        })
+        setMeetings(prev => [toMeeting(res.data), ...prev])
+        toast.success(res.message)
+      }
       setShowModal(false)
       setForm(emptyForm)
       setFormError('')
+      setEditingId(null)
     } catch (err) {
       setFormError(apiError(err, 'Failed to save meeting'))
     } finally {
       setSaving(false)
     }
+  }
+
+  /** Edit: open the form with this meeting filled in */
+  const openEdit = (m: Meeting) => {
+    setForm({
+      title: m.title, type: m.type, date: m.date, startTime: m.startTime, endTime: m.endTime, client: m.clientId,
+      location: m.location, isOnline: m.isOnline, link: m.link ?? '', participants: m.participants.join(', '),
+      agenda: m.agenda, notes: m.notes, followUpDate: m.followUpDate ?? '',
+    })
+    setEditingId(m.id)
+    setFormError('')
+    setSelectedMeeting(null)
+    setShowModal(true)
   }
 
   const saveMeeting = async (id: string, changes: Record<string, unknown>) => {
@@ -324,7 +351,7 @@ export default function MeetingsPage() {
           <p className="text-gray-500 text-sm mt-0.5">Schedule and track all meetings and appointments</p>
         </div>
         <button
-          onClick={() => { setShowModal(true); setFormError('') }}
+          onClick={() => { setEditingId(null); setForm(emptyForm); setShowModal(true); setFormError('') }}
           className="flex items-center gap-2 px-4 py-2 bg-santech-600 text-white rounded-lg text-sm font-medium hover:bg-santech-700 transition-colors"
         >
           <Plus className="w-4 h-4" /> New Meeting
@@ -466,6 +493,7 @@ export default function MeetingsPage() {
                         <Eye className="w-4 h-4" />
                       </button>
                       <button
+                        onClick={() => openEdit(meeting)}
                         title="Edit"
                         className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
                       >
@@ -543,6 +571,7 @@ export default function MeetingsPage() {
                           <Eye className="w-3.5 h-3.5" />
                         </button>
                         <button
+                          onClick={() => openEdit(meeting)}
                           className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
                           title="Edit"
                         >
@@ -590,8 +619,8 @@ export default function MeetingsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b sticky top-0 bg-white z-10">
-              <h2 className="text-lg font-semibold text-gray-800">New Meeting</h2>
-              <button onClick={() => { setShowModal(false); setForm(emptyForm); setFormError('') }}>
+              <h2 className="text-lg font-semibold text-gray-800">{editingId ? 'Edit Meeting' : 'New Meeting'}</h2>
+              <button onClick={() => { setShowModal(false); setForm(emptyForm); setFormError(''); setEditingId(null) }}>
                 <X className="w-5 h-5 text-gray-400" />
               </button>
             </div>
@@ -687,7 +716,7 @@ export default function MeetingsPage() {
               </div>
               {/* Buttons */}
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => { setShowModal(false); setForm(emptyForm); setFormError('') }} className="flex-1 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 font-medium">Cancel</button>
+                <button type="button" onClick={() => { setShowModal(false); setForm(emptyForm); setFormError(''); setEditingId(null) }} className="flex-1 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 font-medium">Cancel</button>
                 <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-santech-600 text-white rounded-lg text-sm hover:bg-santech-700 font-medium disabled:opacity-50">{saving ? 'Saving…' : 'Save Meeting'}</button>
               </div>
             </form>

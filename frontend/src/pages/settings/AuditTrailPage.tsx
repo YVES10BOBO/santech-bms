@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { downloadCsv, today as fileDate } from '@/lib/exportCsv'
 import { Search, Filter, Download, Shield, Eye, X } from 'lucide-react'
 import DateRangePicker from '@/components/shared/DateRangePicker'
 import { cn, formatDateTime } from '@/lib/utils'
@@ -182,7 +183,14 @@ export default function AuditTrailPage() {
             Complete log of every action performed in the system — who did what and when
           </p>
         </div>
-        <button className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors font-medium">
+        <button
+          onClick={() => downloadCsv(`audit-trail-${fileDate()}.csv`, [
+            { label: 'Date & time', value: l => l.createdAt }, { label: 'User', value: l => l.user }, { label: 'Role', value: l => l.userRole },
+            { label: 'Action', value: l => l.action }, { label: 'Module', value: l => l.entity }, { label: 'Record', value: l => l.entityName },
+            { label: 'Description', value: l => l.description }, { label: 'IP address', value: l => l.ipAddress }, { label: 'Device', value: l => l.device },
+          ], filtered)}
+          title="Download the log shown (with the filters applied) as a CSV file for Excel"
+          className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors font-medium">
           <Download className="w-4 h-4" /> Export Log
         </button>
       </div>

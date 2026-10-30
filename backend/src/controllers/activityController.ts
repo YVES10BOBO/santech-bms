@@ -138,6 +138,8 @@ export async function updateMeeting(req: AuthRequest, res: Response): Promise<vo
     if (!before) { res.status(404).json({ success: false, message: 'Meeting not found' }); return }
     const b = req.body
     if (b.status !== undefined && !MEETING_STATUSES.includes(b.status)) { res.status(400).json({ success: false, message: 'Invalid status' }); return }
+    if (b.type !== undefined && !MEETING_TYPES.includes(b.type)) { res.status(400).json({ success: false, message: 'Invalid meeting type' }); return }
+    if ((b.startTime ?? before.startTime) >= (b.endTime ?? before.endTime)) { res.status(400).json({ success: false, message: 'End time must be after start time' }); return }
     const m = await prisma.meeting.update({
       where: { id: before.id },
       data: {
@@ -150,6 +152,14 @@ export async function updateMeeting(req: AuthRequest, res: Response): Promise<vo
         ...(b.decisions !== undefined && { decisions: b.decisions }),
         ...(b.actionItems !== undefined && { actionItems: list(b.actionItems) }),
         ...(b.followUpDate !== undefined && { followUpDate: b.followUpDate ? new Date(b.followUpDate) : null }),
+        // Full edit from the meeting form
+        ...(b.type !== undefined && { type: b.type }),
+        ...(b.clientId !== undefined && { clientId: b.clientId || null }),
+        ...(b.location !== undefined && { location: b.location || null }),
+        ...(b.isOnline !== undefined && { isOnline: !!b.isOnline }),
+        ...(b.link !== undefined && { link: b.link || null }),
+        ...(b.participants !== undefined && { participants: list(b.participants) }),
+        ...(b.agenda !== undefined && { agenda: b.agenda || null }),
       },
       include: meetingInclude,
     })

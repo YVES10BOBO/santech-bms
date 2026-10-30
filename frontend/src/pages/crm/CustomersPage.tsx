@@ -1,9 +1,14 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useSearchFromUrl } from '@/lib/useSearchFromUrl'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Search, X, Building2, User, Users, Globe, ChevronLeft, ChevronRight, Trash2, CheckCircle2 } from 'lucide-react'
 import { cn, formatDate } from '@/lib/utils'
 import { clientService } from '@/lib/services/clientService'
 import PageLoader from '@/components/shared/PageLoader'
+import toast from 'react-hot-toast'
+import { fileService, formatSize } from '@/lib/services/fileService'
+import { documentService } from '@/lib/services/operationsService'
+import { apiError } from '@/lib/services/lookupService'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type ClientKind = 'INDIVIDUAL' | 'BUSINESS' | 'TEAM' | 'DELEGATION'
@@ -203,6 +208,7 @@ export default function CustomersPage() {
   const [loading, setLoading]         = useState(true)
   const [error, setError]             = useState<string | null>(null)
   const [search, setSearch]           = useState('')
+  useSearchFromUrl(setSearch)
   const [kindFilter, setKindFilter]   = useState<ClientKind | 'ALL'>('ALL')
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL')
   const [rowsPerPage, setRowsPerPage] = useState<number>(10)
@@ -214,6 +220,8 @@ export default function CustomersPage() {
   const [viewId, setViewId]           = useState<string | null>(null)
   const [isEditing, setIsEditing]     = useState(false)
   const [editClientId, setEditClientId] = useState<string | null>(null)
+  const [attachFile, setAttachFile] = useState<File | null>(null)
+  const [params, setParams] = useSearchParams()
 
   // ── Load clients from backend ──────────────────────────────────────────────
   const loadClients = async () => {
@@ -390,10 +398,12 @@ export default function CustomersPage() {
     setModalStep(1)
     setIsEditing(false)
     setEditClientId(null)
+    setAttachFile(null)
     setShowModal(true)
   }
 
   const openEdit = (c: Client) => {
+    setAttachFile(null)
     const f = emptyForm()
     f.kind   = c.kind
     f.status = c.status
@@ -521,14 +531,26 @@ export default function CustomersPage() {
     }
 
     try {
-      if (isEditing && editClientId) {
-        await clientService.update(editClientId, payload)
-      } else {
-        await clientService.create(payload)
+      const saved = isEditing && editClientId
+        ? await clientService.update(editClientId, payload)
+        : await clientService.create(payload)
+      const clientId = isEditing && editClientId ? editClientId : saved?.id
+      // A file attached on the form is stored in Documents, linked to this client
+      if (attachFile && clientId) {
+        try {
+          const up = await fileService.upload(attachFile)
+          await documentService.create({
+            name: attachFile.name, category: 'OTHER', description: 'Attached on the customer form',
+            clientId, fileId: up.id, size: formatSize(up.size),
+          })
+          toast.success('File saved in Documents › Clients')
+        } catch (err) {
+          toast.error(apiError(err, err instanceof Error ? err.message : 'The client was saved, but the file could not be uploaded'))
+        }
       }
       await loadClients()
-    } catch {
-      // keep modal open on error
+    } catch (err) {
+      toast.error(apiError(err, 'Failed to save the client')) // the form stays open
       return
     }
     setShowModal(false)
@@ -536,6 +558,15 @@ export default function CustomersPage() {
     setEditClientId(null)
     setIsEditing(false)
   }
+
+  // Client 360 → Edit opens this page with ?edit=<client id>
+  useEffect(() => {
+    const id = params.get('edit')
+    if (!id || !clients.length) return
+    const c = clients.find(x => x.id === id)
+    if (c) openEdit(c)
+    setParams({}, { replace: true })
+  }, [clients]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleClientStatus = async (id: string) => {
     const current = clients.find((c) => c.id === id)
@@ -1318,12 +1349,13 @@ export default function CustomersPage() {
 
                   {/* File upload */}
                   <div>
-                    <label className={labelCls}>Attach Document (optional)</label>
+                    <label className={labelCls}>Attach Document (optional — saved in Documents under this client)</label>
                     <input
                       type="file"
                       onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                        const name = e.target.files?.[0]?.name ?? ''
-                        setForm(p => ({ ...p, fileAttachment: name }))
+                        const file = e.target.files?.[0] ?? null
+                        setAttachFile(file)
+                        setForm(p => ({ ...p, fileAttachment: file?.name ?? '' }))
                       }}
                       className="w-full text-sm text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-santech-50 file:text-santech-700 hover:file:bg-santech-100"
                     />

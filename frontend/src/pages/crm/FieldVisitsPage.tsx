@@ -6,6 +6,7 @@ import { cn, getStatusColor, getCategoryLabel, formatDate } from '@/lib/utils'
 import type { ClientCategory, VisitOutcome } from '@/types'
 import { fieldVisitService } from '@/lib/services/fieldVisitService'
 import PageLoader from '@/components/shared/PageLoader'
+import { downloadCsv, today as fileDate } from '@/lib/exportCsv'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface VisitRecord {
@@ -132,6 +133,7 @@ export default function FieldVisitsPage() {
   }, [])
 
   // ── Filtering logic ────────────────────────────────────────────────────────
+  const [viewVisit, setViewVisit] = useState<VisitRecord | null>(null)
   const filtered = visits.filter((v) => {
     const s = search.toLowerCase()
     const matchSearch =
@@ -230,6 +232,43 @@ export default function FieldVisitsPage() {
   return (
     <div className="space-y-5">
 
+      {/* ── Visit details ── */}
+      {viewVisit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setViewVisit(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-4 px-6 py-4 border-b">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-800">{viewVisit.companyName}</h2>
+                <p className="text-xs text-gray-400">{getCategoryLabel(viewVisit.category)} · visited {formatDate(viewVisit.visitDate)}</p>
+              </div>
+              <button onClick={() => setViewVisit(null)} aria-label="Close"><X className="w-5 h-5 text-gray-400" /></button>
+            </div>
+            <div className="px-6 py-5 space-y-4 text-sm">
+              <div className="flex flex-wrap gap-2">
+                <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', getStatusColor(viewVisit.outcome))}>{viewVisit.outcome.replace(/_/g, ' ')}</span>
+                {viewVisit.contractWon && <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-green-100 text-green-700">Contract won</span>}
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div><p className="text-gray-400">Contact</p><p className="text-gray-800 font-medium">{viewVisit.contactName || '—'}</p></div>
+                <div><p className="text-gray-400">Phone</p><p className="text-gray-800 font-medium">{viewVisit.contactPhone || '—'}</p></div>
+                <div><p className="text-gray-400">Location</p><p className="text-gray-800 font-medium">{viewVisit.location || '—'}</p></div>
+                <div><p className="text-gray-400">Follow-up</p><p className="text-gray-800 font-medium">{viewVisit.followUpDate ? formatDate(viewVisit.followUpDate) : '—'}</p></div>
+                <div><p className="text-gray-400">Amount promising</p><p className="text-gray-800 font-medium">{viewVisit.amountPromising ? `RWF ${viewVisit.amountPromising.toLocaleString()}` : '—'}</p></div>
+                <div><p className="text-gray-400">Recorded by</p><p className="text-gray-800 font-medium">{viewVisit.recordedBy ? `${viewVisit.recordedBy.firstName} ${viewVisit.recordedBy.lastName}` : '—'}</p></div>
+              </div>
+              {[['What Santech can sell', viewVisit.whatSantechCanSell], ['Needs & observation', viewVisit.needsAndObservation], ['Comments', viewVisit.comments]]
+                .filter(([, text]) => text)
+                .map(([label, text]) => (
+                  <div key={label}>
+                    <p className="text-xs text-gray-400 mb-0.5">{label}</p>
+                    <p className="text-gray-700 whitespace-pre-line">{text}</p>
+                  </div>
+                ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Header ── */}
       <div className="flex items-center justify-between">
         <div>
@@ -237,7 +276,26 @@ export default function FieldVisitsPage() {
           <p className="text-gray-500 text-sm mt-0.5">All client visits recorded by the sales team</p>
         </div>
         <div className="flex gap-2">
-          <button className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors">
+          <button
+            onClick={() => downloadCsv(`field-visits-${fileDate()}.csv`, [
+              { label: 'Visit date', value: v => v.visitDate },
+              { label: 'Company', value: v => v.companyName },
+              { label: 'Category', value: v => getCategoryLabel(v.category) },
+              { label: 'Location', value: v => v.location },
+              { label: 'Contact', value: v => v.contactName },
+              { label: 'Phone', value: v => v.contactPhone },
+              { label: 'Outcome', value: v => v.outcome },
+              { label: 'What Santech can sell', value: v => v.whatSantechCanSell },
+              { label: 'Needs & observation', value: v => v.needsAndObservation },
+              { label: 'Follow-up date', value: v => v.followUpDate },
+              { label: 'Contract won', value: v => (v.contractWon ? 'Yes' : 'No') },
+              { label: 'Amount promising (RWF)', value: v => v.amountPromising ?? '' },
+              { label: 'Comments', value: v => v.comments },
+              { label: 'Recorded by', value: v => (v.recordedBy ? `${v.recordedBy.firstName} ${v.recordedBy.lastName}` : '') },
+            ], filtered)}
+            title="Download the visits shown (with the filters applied) as a CSV file for Excel"
+            className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"
+          >
             <Download className="w-4 h-4" /> Export
           </button>
           <button
@@ -398,7 +456,7 @@ export default function FieldVisitsPage() {
                       : <span className="text-gray-300">—</span>}
                   </td>
                   <td className="px-3 py-3">
-                    <button className="text-xs text-santech-600 hover:underline font-medium">View</button>
+                    <button onClick={() => setViewVisit(visit)} className="text-xs text-santech-600 hover:underline font-medium">View</button>
                   </td>
                 </tr>
               ))}

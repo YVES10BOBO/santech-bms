@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useSearchFromUrl } from '@/lib/useSearchFromUrl'
 import { Plus, Search, X, AlertCircle, CheckCircle2, Clock, DollarSign, Download } from 'lucide-react'
 import { cn, formatDate, formatCurrency } from '@/lib/utils'
 import { financeService } from '@/lib/services/financeService'
@@ -59,6 +60,7 @@ export default function InvoicesPage() {
   const [saving, setSaving] = useState(false)
   const lookups = useLookups()
   const [search, setSearch] = useState('')
+  useSearchFromUrl(setSearch)
   const [statusFilter, setStatusFilter] = useState<InvoiceStatus | 'ALL'>('ALL')
   const [showModal, setShowModal] = useState(false)
   const [showPayModal, setShowPayModal] = useState(false)

@@ -160,6 +160,9 @@ again. On phones, the menu button in the top bar opens the sidebar, and its X bu
 - The API checks the role on every route, so hiding a menu item is never the only protection
 - Clear messages when login fails: wrong email or password, too many failed attempts, or the server
   still waking up (Render free plan)
+- **Top-bar search** across clients, leads, quotations, contracts, invoices, projects, tasks, documents
+  and staff, only in the areas your role can open
+- **My Profile** (profile menu, top right): change your name, phone and password
 
 ### Dashboard
 **Where:** Dashboard
@@ -188,8 +191,7 @@ again. On phones, the menu button in the top bar opens the sidebar, and its X bu
 - Services selection with descriptions (13 services + Other)
 - View side panel with all details; PRIMARY CONTACT badge for the delegation representative
 - **View Profile** opens the Client 360° profile
-- The form's *Attach Document* field keeps only the file name. To store a client's files, upload them
-  in **Documents** and link them to the client.
+- **Attach Document** uploads the file and files it in Documents under the client (also shown on Client 360°)
 
 #### Client 360° Profile
 **Where:** CRM → Customers → **View Profile**
@@ -733,7 +735,6 @@ PostgreSQL on Neon, managed with Prisma (see `backend/prisma/schema.prisma`; 10 
 - [ ] Customer portal (client self-service login)
 - [ ] Supplier portal
 - [ ] Multi-currency
-- [ ] Save the file from the customer form's *Attach Document* field (today only its name is kept)
 
 ---
 

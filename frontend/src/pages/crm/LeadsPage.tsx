@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useSearchFromUrl } from '@/lib/useSearchFromUrl'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Search, X, TrendingUp, ArrowRight, User, Phone, Calendar } from 'lucide-react'
 import { cn, formatDate, getCategoryLabel } from '@/lib/utils'
@@ -101,6 +102,7 @@ export default function LeadsPage() {
     setViewLead(prev => prev?.id === saved.id ? saved : prev)
   }
   const [search, setSearch] = useState('')
+  useSearchFromUrl(setSearch)
   const [statusFilter, setStatusFilter] = useState<LeadStatus | 'ALL'>('ALL')
   const [categoryFilter, setCategoryFilter] = useState<ClientCategory | 'ALL'>('ALL')
   const [productFilter, setProductFilter] = useState('ALL')
