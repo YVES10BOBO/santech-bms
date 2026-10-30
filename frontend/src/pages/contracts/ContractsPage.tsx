@@ -9,6 +9,8 @@ import { useAuthStore } from '@/store/authStore'
 import PageLoader from '@/components/shared/PageLoader'
 import toast from 'react-hot-toast'
 import { fileService } from '@/lib/services/fileService'
+import { CURRENCIES, toRwf, rwfHint, useRates } from '@/lib/currency'
+import VersionHistory from '@/components/shared/VersionHistory'
 
 type ContractStatus = 'DRAFT' | 'REVIEW' | 'APPROVAL' | 'SIGNING' | 'ACTIVE' | 'RENEWAL' | 'COMPLETED' | 'CANCELLED'
 type SignatureStatus = 'PENDING' | 'SIGNED'
@@ -29,6 +31,8 @@ interface Contract {
   projectName: string
   value: number
   currency: string
+  exchangeRate: number
+  version: number
   startDate: string
   endDate: string
   paymentTerms: string
@@ -92,6 +96,8 @@ function toContract(c: any): Contract {
     projectName: c.projectName ?? '',
     value: Number(c.value),
     currency: c.currency ?? 'RWF',
+    exchangeRate: Number(c.exchangeRate ?? 1),
+    version: Number(c.version ?? 1),
     startDate: c.startDate ? String(c.startDate).slice(0, 10) : '',
     endDate: c.endDate ? String(c.endDate).slice(0, 10) : '',
     paymentTerms: c.paymentTerms ?? '',
@@ -129,6 +135,7 @@ export default function ContractsPage() {
   const [page, setPage] = useState(1)
   const [saving, setSaving] = useState(false)
   const lookups = useLookups()
+  const rates = useRates()
   const { user } = useAuthStore()
   const canApprove = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN'
 
@@ -237,9 +244,11 @@ export default function ContractsPage() {
     try {
       if (editId) {
         const { contractNumber: _n, sourceQuotationNumber: _q, ...changes } = payload
-        const updated = toContract(await contractService.update(editId, changes))
+        const { contract, message } = await contractService.save(editId, changes)
+        const updated = toContract(contract)
         setContracts(prev => prev.map(x => x.id === editId ? updated : x))
-        toast.success('Contract updated')
+        setViewContract(prev => prev && prev.id === editId ? updated : prev)
+        toast.success(/version/i.test(message) ? message : 'Contract updated', { duration: 5000 })
       } else {
         const created = toContract(await contractService.create(payload))
         setContracts(prev => [created, ...prev])
@@ -298,7 +307,7 @@ export default function ContractsPage() {
     }
   }
 
-  const totalValue = contracts.filter(c => c.status === 'ACTIVE').reduce((s, c) => s + c.value, 0)
+  const totalValue = contracts.filter(c => c.status === 'ACTIVE').reduce((s, c) => s + toRwf(c.value, c.exchangeRate), 0)
   const stats = [
     { label: 'Total Contracts', value: contracts.length, color: 'text-santech-600' },
     { label: 'Active', value: contracts.filter(c => c.status === 'ACTIVE').length, color: 'text-green-600' },
@@ -394,7 +403,7 @@ export default function ContractsPage() {
                     <td className="px-4 py-3 text-xs text-gray-600 max-w-[180px]">
                       <p className="line-clamp-1">{c.projectName}</p>
                     </td>
-                    <td className="px-4 py-3 text-xs font-bold text-gray-700 whitespace-nowrap">{formatCurrency(c.value)}</td>
+                    <td className="px-4 py-3 text-xs font-bold text-gray-700 whitespace-nowrap">{formatCurrency(c.value, c.currency)}</td>
                     <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{c.startDate ? formatDate(c.startDate) : '—'}</td>
                     <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{c.endDate ? formatDate(c.endDate) : '—'}</td>
                     <td className="px-4 py-3">
@@ -459,7 +468,7 @@ export default function ContractsPage() {
               <div className="grid grid-cols-2 gap-3 text-sm">
                 {[
                   { label: 'Project', value: viewContract.projectName },
-                  { label: 'Value', value: formatCurrency(viewContract.value) },
+                  { label: 'Value', value: formatCurrency(viewContract.value, viewContract.currency) },
                   { label: 'Start Date', value: viewContract.startDate ? formatDate(viewContract.startDate) : '—' },
                   { label: 'End Date', value: viewContract.endDate ? formatDate(viewContract.endDate) : '—' },
                   { label: 'Manager', value: viewContract.responsibleManager || '—' },
@@ -528,6 +537,7 @@ export default function ContractsPage() {
               {viewContract.status === 'ACTIVE' && (
                 <button onClick={() => navigate('/projects', { state: { contract: { contractId: viewContract.id, clientId: viewContract.clientId, managerId: viewContract.responsibleManagerId, contractRef: viewContract.contractNumber, name: viewContract.projectName, client: viewContract.clientName, manager: viewContract.responsibleManager, budget: viewContract.value, startDate: viewContract.startDate, endDate: viewContract.endDate, description: viewContract.deliverables } } })} className="w-full flex items-center justify-center gap-2 rounded-lg bg-santech-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-santech-700"><FolderPlus className="h-4 w-4" />Create project from contract</button>
               )}
+              <VersionHistory entity="contract" id={viewContract.id} reloadKey={viewContract.version} />
               <div className="flex gap-2 pt-2">
                 <button onClick={() => openEdit(viewContract)} className="flex-1 py-2 border border-santech-200 text-santech-600 rounded-lg text-sm font-medium hover:bg-santech-50">Edit</button>
               {viewContract.status !== 'APPROVAL' && WORKFLOW.indexOf(viewContract.status) < WORKFLOW.length - 1 && WORKFLOW.indexOf(viewContract.status) >= 0 && (
@@ -579,7 +589,13 @@ export default function ContractsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Contract Value ({form.currency}) *</label>
-                  <input name="value" type="number" value={form.value} onChange={handleChange} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500" />
+                  <div className="flex gap-2">
+                    <select name="currency" value={form.currency} onChange={handleChange} aria-label="Currency" className="w-24 px-2 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500">
+                      {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                    <input name="value" type="number" value={form.value} onChange={handleChange} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500" />
+                  </div>
+                  {form.currency !== 'RWF' && Number(form.value) > 0 && <p className="text-[11px] text-gray-400 mt-0.5">{rwfHint(Number(form.value), form.currency, rates[form.currency])}</p>}
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Responsible Manager</label>

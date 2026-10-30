@@ -1,6 +1,7 @@
 import type { UserRole } from '@prisma/client'
 import prisma from './prisma'
 import { FINANCE, ADMINS, SALES, PROJECT_LEADS, hasRole } from './roles'
+import { toRwf } from './currency'
 
 export type NotificationType = 'PAYMENT_DUE' | 'OVERDUE' | 'CONTRACT_EXPIRY' | 'FOLLOW_UP' | 'TASK_DEADLINE' | 'SYSTEM'
 
@@ -53,11 +54,11 @@ export async function generateReminders(userId: string, role: UserRole): Promise
   // Finance: overdue and soon-due invoices
   if (hasRole(role, FINANCE)) {
     const open = await prisma.invoice.findMany({
-      where: { status: { in: ['SENT', 'DUE', 'PARTIALLY_PAID', 'OVERDUE'] } },
+      where: { type: 'INVOICE', status: { in: ['SENT', 'DUE', 'PARTIALLY_PAID', 'OVERDUE'] } },
       include: { client: { select: { companyName: true } } },
     })
     for (const inv of open) {
-      const balance = inv.totalAmount - inv.paidAmount
+      const balance = toRwf(inv.totalAmount - inv.paidAmount - inv.creditedAmount, inv.exchangeRate)
       const days = Math.round((inv.dueDate.getTime() - today.getTime()) / DAY)
       if (days < 0) {
         // One reminder per overdue stage (1, 7, 14, 30 days) as in the spec

@@ -6,6 +6,8 @@ import prisma from '../lib/prisma'
 import { logAudit } from '../lib/audit'
 import { PROJECT_LEADS, hasRole } from '../lib/roles'
 import type { AuthRequest } from '../middleware/auth'
+import { isCurrency, rateFor, toRwf } from '../lib/currency'
+import { generateRecurringInvoices } from '../lib/recurring'
 
 const fail = (res: Response, error: unknown, where: string) => {
   console.error(`${where} error:`, error)
@@ -16,13 +18,22 @@ const date = (v: unknown) => new Date(String(v))
 
 // ── CLIENT SERVICES & RENEWALS ────────────────────────────────────────────────
 
-const subInclude = { client: { select: { id: true, companyName: true } } }
+const subInclude = {
+  client: { select: { id: true, companyName: true } },
+  // the latest invoices raised for this service (recurring invoices)
+  invoices: {
+    where: { type: 'INVOICE', status: { not: 'CANCELLED' as const } },
+    select: { id: true, invoiceNumber: true, status: true, periodStart: true, totalAmount: true, paidAmount: true },
+    orderBy: { createdAt: 'desc' as const }, take: 3,
+  },
+}
 const CYCLE_MONTHS: Record<string, number> = { MONTHLY: 1, QUARTERLY: 3, ANNUAL: 12 }
 
 export async function getSubscriptions(_req: AuthRequest, res: Response): Promise<void> {
   try {
     // Unpaid services past their renewal date are overdue
     await prisma.clientSubscription.updateMany({ where: { paymentStatus: 'UNPAID', renewalDate: { lt: new Date() } }, data: { paymentStatus: 'OVERDUE' } })
+    await generateRecurringInvoices().catch(e => console.error('recurring invoices:', e))
     const rows = await prisma.clientSubscription.findMany({ include: subInclude, orderBy: { renewalDate: 'asc' } })
     res.json({ success: true, data: rows })
   } catch (e) { fail(res, e, 'getSubscriptions') }
@@ -41,6 +52,8 @@ function subData(b: Record<string, unknown>) {
     ...(b.startDate !== undefined && { startDate: date(b.startDate) }),
     ...(b.renewalDate !== undefined && { renewalDate: date(b.renewalDate) }),
     ...(b.amount !== undefined && { amount: parseFloat(String(b.amount)) || 0 }),
+    ...(b.currency !== undefined && { currency: String(b.currency) }),
+    ...(b.autoInvoice !== undefined && { autoInvoice: !!b.autoInvoice }),
     ...(b.cost !== undefined && { cost: parseFloat(String(b.cost)) || 0 }),
     ...(b.taxIncluded !== undefined && { taxIncluded: !!b.taxIncluded }),
     ...(b.taxRate !== undefined && { taxRate: parseFloat(String(b.taxRate)) || 0 }),
@@ -55,6 +68,7 @@ export async function saveSubscription(req: AuthRequest, res: Response): Promise
     if (!id && (!b.clientId || !b.systemName || !b.startDate || !b.renewalDate || b.amount === undefined)) {
       res.status(400).json({ success: false, message: 'Client, system, dates and amount are required' }); return
     }
+    if (b.currency !== undefined && !isCurrency(b.currency)) { res.status(400).json({ success: false, message: 'Pick a currency from the list' }); return }
     const s = id
       ? await prisma.clientSubscription.update({ where: { id }, data: subData(b), include: subInclude })
       : await prisma.clientSubscription.create({ data: { serviceType: 'HOSTING_ONLY', ...subData(b) } as never, include: subInclude })
@@ -73,14 +87,23 @@ export async function paySubscription(req: AuthRequest, res: Response): Promise<
     const before = await prisma.clientSubscription.findUnique({ where: { id: req.params.id }, include: subInclude })
     if (!before) { res.status(404).json({ success: false, message: 'Service not found' }); return }
     if (before.paymentStatus === 'PAID') { res.status(400).json({ success: false, message: 'Already paid for this period' }); return }
+    const invoiced = await prisma.invoice.findFirst({
+      where: { subscriptionId: before.id, periodStart: before.renewalDate, type: 'INVOICE', status: { not: 'CANCELLED' } },
+      select: { invoiceNumber: true },
+    })
+    if (invoiced) {
+      res.status(400).json({ success: false, message: `This period is billed on invoice ${invoiced.invoiceNumber} — record the payment on that invoice (Finance → Invoices)` }); return
+    }
     // 'Tax included' on this page means VAT applies on top of the amount
     const total = before.amount + (before.taxIncluded ? Math.round(before.amount * before.taxRate / 100) : 0)
+    const rate = await rateFor(before.currency) // income is kept in RWF
     const now = new Date()
     const s = await prisma.$transaction(async tx => {
       const updated = await tx.clientSubscription.update({ where: { id: before.id }, data: { paymentStatus: 'PAID', paymentDate: now }, include: subInclude })
       await tx.incomeEntry.create({
         data: {
-          date: now, amount: total, category: 'Maintenance',
+          date: now, amount: toRwf(total, rate), category: 'Maintenance',
+          ...(before.currency !== 'RWF' && { originalAmount: total, originalCurrency: before.currency, exchangeRate: rate }),
           description: `${before.serviceType.replace(/_/g, ' ').toLowerCase()} — ${before.systemName}`,
           clientId: before.clientId, clientName: before.client.companyName, recordedById: req.user!.id,
         },
@@ -89,7 +112,7 @@ export async function paySubscription(req: AuthRequest, res: Response): Promise<
     })
     await logAudit(req, {
       action: 'PAYMENT', entity: 'ClientService', entityId: s.id, entityName: `${s.systemName} — ${s.client.companyName ?? ''}`,
-      description: `Recorded service payment of RWF ${total.toLocaleString('en-US')} from ${s.client.companyName}`,
+      description: `Recorded service payment of ${before.currency} ${total.toLocaleString('en-US')} from ${s.client.companyName}`,
       oldValue: { paymentStatus: before.paymentStatus }, newValue: { paymentStatus: 'PAID', amount: total },
     })
     res.json({ success: true, data: s, message: 'Marked paid — added to Finance income' })

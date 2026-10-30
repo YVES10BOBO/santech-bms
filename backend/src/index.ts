@@ -72,6 +72,7 @@ import reportsRouter from './routes/reports'
 import filesRouter from './routes/files'
 import searchRouter from './routes/search'
 import prisma from './lib/prisma'
+import { generateRecurringInvoices } from './lib/recurring'
 import { authenticate as authMiddleware, authorize } from './middleware/auth'
 
 app.use('/api/auth/login', authLimiter)
@@ -134,6 +135,11 @@ app.listen(PORT, async () => {
     console.warn('⚠️  DB warm-up failed (will retry on first request):', e)
   }
 })
+
+// Recurring invoices for client services: shortly after start, then every 6 hours
+const raiseRecurring = () => generateRecurringInvoices(true).catch(e => console.error('Recurring invoices failed:', e))
+setTimeout(raiseRecurring, 30 * 1000)
+setInterval(raiseRecurring, 6 * 3600 * 1000)
 
 // Keep Neon alive — ping every 4 minutes to prevent cold starts (Neon sleeps after 5 min)
 setInterval(async () => {

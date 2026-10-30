@@ -4,6 +4,7 @@ import { companyService } from '@/lib/services/operationsService'
 import { apiError } from '@/lib/services/lookupService'
 import { useAuthStore } from '@/store/authStore'
 import PageLoader from '@/components/shared/PageLoader'
+import ExchangeRatesCard from '@/components/shared/ExchangeRatesCard'
 import toast from 'react-hot-toast'
 
 interface CompanyProfile {
@@ -182,6 +183,8 @@ export default function CompanyProfilePage() {
           </button>
         </div>
       </form>
+
+      <ExchangeRatesCard canEdit={canEdit} />
     </div>
   )
 }

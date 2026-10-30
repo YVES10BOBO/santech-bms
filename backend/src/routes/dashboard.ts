@@ -2,6 +2,7 @@ import { Router } from 'express'
 import prisma from '../lib/prisma'
 import { authenticate } from '../middleware/auth'
 import { monthlySeries } from '../controllers/financeController'
+import { openBalance, receivableWhere, toRwf } from '../lib/currency'
 
 const router = Router()
 router.use(authenticate)
@@ -26,12 +27,12 @@ router.get('/kpis', async (_req, res) => {
       prisma.project.count({ where: { status: { in: ['IN_PROGRESS', 'PLANNING', 'NOT_STARTED', 'ON_HOLD', 'AT_RISK'] } } }),
       prisma.project.count({ where: { status: 'COMPLETED' } }),
       prisma.project.count({ where: { status: 'DELAYED' } }),
-      prisma.invoice.count({ where: { status: { in: ['SENT', 'DUE', 'PARTIALLY_PAID'] } } }),
-      prisma.invoice.count({ where: { status: 'OVERDUE' } }),
+      prisma.invoice.count({ where: { type: 'INVOICE', status: { in: ['SENT', 'DUE', 'PARTIALLY_PAID'] } } }),
+      prisma.invoice.count({ where: { type: 'INVOICE', status: 'OVERDUE' } }),
       // Same source as Finance → P&L, so the numbers always match
       prisma.incomeEntry.aggregate({ where: { date: { gte: startOfYear } }, _sum: { amount: true } }),
       prisma.expenseEntry.aggregate({ where: { date: { gte: startOfYear } }, _sum: { amount: true } }),
-      prisma.invoice.findMany({ where: { status: { notIn: ['PAID', 'CANCELLED', 'DRAFT'] } }, select: { totalAmount: true, paidAmount: true } }),
+      prisma.invoice.findMany({ where: receivableWhere(), select: { totalAmount: true, paidAmount: true, creditedAmount: true, exchangeRate: true } }),
       prisma.task.count({ where: { status: { in: ['IN_PROGRESS', 'CREATED', 'ASSIGNED', 'ACCEPTED', 'REVIEW', 'PENDING_APPROVAL'] } } }),
       prisma.fieldVisit.count({ where: { visitDate: { gte: startOfMonth } } }),
     ])
@@ -39,7 +40,7 @@ router.get('/kpis', async (_req, res) => {
     const totalRevenue = revenueAgg._sum.amount ?? 0
     const totalExpenses = expensesAgg._sum.amount ?? 0
     const conversionRate = totalCustomers > 0 ? Math.round((activeCustomers / totalCustomers) * 1000) / 10 : 0
-    const outstandingReceivables = outstandingInvoices.reduce((sum, inv) => sum + (inv.totalAmount - inv.paidAmount), 0)
+    const outstandingReceivables = outstandingInvoices.reduce((sum, inv) => sum + toRwf(openBalance(inv), inv.exchangeRate), 0)
 
     res.json({
       success: true,

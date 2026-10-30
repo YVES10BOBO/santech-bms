@@ -4,6 +4,7 @@
  */
 import { Response } from 'express'
 import prisma from '../lib/prisma'
+import { openBalance, receivableWhere, toRwf } from '../lib/currency'
 import type { AuthRequest } from '../middleware/auth'
 
 const fail = (res: Response, error: unknown, where: string) => {
@@ -62,7 +63,7 @@ export async function financeReport(req: AuthRequest, res: Response): Promise<vo
       prisma.expenseEntry.aggregate({ where: { date }, _sum: { amount: true } }),
       prisma.incomeEntry.groupBy({ by: ['category'], where: { date }, _sum: { amount: true }, orderBy: { _sum: { amount: 'desc' } } }),
       prisma.incomeEntry.groupBy({ by: ['clientName'], where: { date, clientName: { not: null } }, _sum: { amount: true }, orderBy: { _sum: { amount: 'desc' } }, take: 5 }),
-      prisma.invoice.findMany({ where: { status: { notIn: ['PAID', 'CANCELLED', 'DRAFT'] } }, select: { totalAmount: true, paidAmount: true } }),
+      prisma.invoice.findMany({ where: receivableWhere(), select: { totalAmount: true, paidAmount: true, creditedAmount: true, exchangeRate: true } }),
     ])
     const revenue = income._sum.amount ?? 0
     const cost = expenses._sum.amount ?? 0
@@ -70,7 +71,7 @@ export async function financeReport(req: AuthRequest, res: Response): Promise<vo
       success: true,
       data: {
         period: p.label,
-        kpis: { revenue, expenses: cost, netProfit: revenue - cost, outstanding: open.reduce((s, i) => s + i.totalAmount - i.paidAmount, 0) },
+        kpis: { revenue, expenses: cost, netProfit: revenue - cost, outstanding: open.reduce((s, i) => s + toRwf(openBalance(i), i.exchangeRate), 0) },
         revenueByService: byCategory.map(c => ({ service: c.category, revenue: c._sum.amount ?? 0 })),
         topClients: byClient.map(c => ({ name: c.clientName ?? 'Other', revenue: c._sum.amount ?? 0 })),
       },

@@ -11,6 +11,7 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 
 | Version | Date (2026) | Highlights |
 |---|---|---|
+| **1.4.0** | 30 Oct | Proforma invoices, credit notes, recurring service invoices, multiple currencies with exchange rates, contract and quotation version history |
 | **1.3.0** | 30 Oct | Expense claims with approvals, quotation discounts, support response times and ratings, document expiry and versions, project warranties, contract → project automation |
 | **1.2.0** | 29 Oct | Document library (clients, projects, search, edit, delete), real file storage, PDF quotations and invoices, financial statements, login fix |
 | **1.1.0** | 28–29 Oct | Every page reads and saves through the API; all demo data seeded in Neon |
@@ -20,6 +21,75 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 | **0.1.0** | 11–13 Oct | Foundation: first pages, backend skeleton, hosting on Vercel, Render and Neon |
 
 ---
+
+## 1.4.0 — 30 October 2026
+
+### Proforma invoices, credit notes, recurring invoices, currencies, version history (30 Oct)
+Second batch of the features still missing from the specification (billing and finance).
+
+- **Proforma invoices** (Finance → Invoices → **+ Proforma**, numbered `PF-2026-001`):
+  - For an advance or a price confirmation before an order. Never paid itself and not counted as owed.
+  - **Convert to invoice** creates the real invoice with the same amounts and currency (marked Sent)
+    and links the two both ways. Converting twice, paying a proforma or cancelling a converted one is
+    refused.
+- **Credit notes** (`CN-2026-001`) from a sent invoice → **Issue credit note** with amount and reason:
+  - Lower what the client still owes; VAT is credited in the same proportion; never more than the
+    balance.
+  - Paid + credited in full → Paid; fully credited with nothing paid → Cancelled.
+  - Listed on the invoice and on their own tab; printed as *CREDIT NOTE*.
+- **Recurring invoices** for client services (hosting, domains, maintenance):
+  - A draft invoice for the next period is raised 14 days before renewal (or at once when overdue),
+    once per service and period; Finance is notified to check and send it.
+  - Runs when the server starts, every 6 hours, when Finance opens Invoices or Client Services, and
+    from **Raise service invoices**. Each service has *Raise the invoice automatically* (on by default).
+  - Paying that invoice in full marks the service period paid. *Mark Paid* on an invoiced period is
+    refused with the invoice number, so nothing is booked twice.
+- **Multiple currencies:** RWF, USD, EUR, GBP, KES, UGX, TZS.
+  - Exchange rates (RWF for 1 unit) in **Finance → Currencies** and Settings → Company Profile;
+    Finance and admins edit them, with an Audit Trail entry.
+  - Quotations, contracts, invoices, proformas, client services, income and expenses can be in any of
+    them. Each document keeps the rate of its day; a payment is booked in RWF at the payment day's rate
+    and keeps the original amount (*USD 500 at 1,450*).
+  - Dashboard, P&L, reports, statements, Client 360° and page totals are in RWF, and count only real
+    invoices (not proformas or credit notes), net of credits.
+  - Milestone invoices use the contract's currency; converting a quotation keeps its currency and rate.
+- **Version history for contracts and quotations:**
+  - Changing the terms (contract: value, currency, dates, payment terms, deliverables, client, project
+    name; quotation: items, prices, discount, VAT, currency, validity, terms, notes) keeps the earlier
+    version with what changed and who changed it; the version number goes up.
+  - Shown in the contract and quotation panels (expand a version to see *old → new*). Saving without
+    changes or changing only the status does not create a version.
+- **Technical:**
+  - Migration `20261030200000_proforma_credit_notes_recurring_currencies_versions`, additive only:
+    - `invoices.type`, `creditedAmount`, `exchangeRate`, `creditForId`, `proformaId`,
+      `subscriptionId`, `periodStart`, `periodEnd`;
+    - `exchangeRate` + `version` on contracts and quotations;
+    - `currency` + `autoInvoice` on client services;
+    - `originalAmount` / `originalCurrency` / `exchangeRate` on income and expenses;
+    - new table `record_versions`.
+  - New files:
+    - `lib/currency.ts`, `lib/versions.ts`, `lib/recurring.ts`;
+    - `controllers/billingController.ts`;
+    - frontend `lib/currency.ts`, `components/shared/VersionHistory.tsx`,
+      `components/shared/ExchangeRatesCard.tsx`.
+  - API:
+    - `POST /api/finance/invoices/:id/credit-note`, `POST /api/finance/invoices/:id/convert`;
+    - `POST /api/finance/invoices/raise-recurring`;
+    - `GET/PUT /api/settings/exchange-rates`;
+    - `GET /api/versions/:contract|quotation/:id`;
+    - `GET /api/finance/invoices?type=`.
+- **Demo data** (`prisma/seeds/billingExtras.ts`, safe to run again):
+  - a USD proforma for ECOBANK and a proforma already converted into an invoice;
+  - credit note CN-2026-001 on INV-2026-004;
+  - a monthly hosting service billed in USD (its invoice is raised automatically);
+  - an AWS bill paid in USD;
+  - the exchange rates;
+  - earlier versions of CT-2026-002 and QT-2026-001.
+- **Tested** against a local copy of the database:
+  - 52 API checks: rules for each document type, balances, currency conversion, recurring runs,
+    versions, permissions;
+  - 25 checks in a real (headless) Edge browser: proforma → invoice → credit note through the screens,
+    the PDFs, rates, version history, client services, and the Invoices page at phone width.
 
 ## 1.3.0 — 30 October 2026
 

@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { CURRENCIES } from '@/lib/currency'
 import { Plus, Search, X, Globe, Server, Bell, RefreshCw, AlertCircle, CheckCircle2, Clock, Filter } from 'lucide-react'
 import { cn, formatDate, formatCurrency } from '@/lib/utils'
 import { subscriptionService } from '@/lib/services/operationsService'
@@ -34,6 +36,10 @@ interface ClientService {
   paymentDate: string
   notes: string
   createdAt: string
+  currency: string
+  autoInvoice: boolean
+  /** invoice raised for the current period (recurring invoices) */
+  invoice: { number: string; status: string } | null
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -65,6 +71,11 @@ const toService = (s: any): ClientService => {
     amountChargedToClient: amount, actualCostToSantech: Number(s.cost ?? 0), taxIncluded: !!s.taxIncluded, taxRate: Number(s.taxRate ?? 0),
     taxAmount, totalWithTax: amount + taxAmount, paymentStatus: s.paymentStatus,
     paymentDate: s.paymentDate ? String(s.paymentDate).slice(0, 10) : '', notes: s.notes ?? '', createdAt: String(s.createdAt).slice(0, 10),
+    currency: s.currency ?? 'RWF', autoInvoice: s.autoInvoice ?? true,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    invoice: ((inv: any) => (inv ? { number: inv.invoiceNumber, status: inv.status } : null))(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (s.invoices ?? []).find((i: any) => String(i.periodStart ?? '').slice(0, 10) === String(s.renewalDate).slice(0, 10))),
   }
 }
 
@@ -115,7 +126,7 @@ const emptyForm = {
   hostingAccountEmail: '', hostingAccountInfo: '',
   startDate: '', renewalDate: '',
   amountChargedToClient: '', actualCostToSantech: '',
-  taxIncluded: false, taxRate: '18',
+  taxIncluded: false, taxRate: '18', currency: 'RWF', autoInvoice: true,
   paymentStatus: 'UNPAID' as PaymentStatus,
   paymentDate: '', notes: '',
 }
@@ -124,6 +135,7 @@ const ROWS_OPTIONS = [5, 10, 20, 'All'] as const
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function ClientServicesPage() {
+  const navigate = useNavigate()
   const [services, setServices] = useState<ClientService[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -196,7 +208,7 @@ export default function ClientServicesPage() {
       startDate: s.startDate, renewalDate: s.renewalDate,
       amountChargedToClient: String(s.amountChargedToClient),
       actualCostToSantech: String(s.actualCostToSantech),
-      taxIncluded: s.taxIncluded, taxRate: String(s.taxRate),
+      taxIncluded: s.taxIncluded, taxRate: String(s.taxRate), currency: s.currency, autoInvoice: s.autoInvoice,
       paymentStatus: s.paymentStatus, paymentDate: s.paymentDate, notes: s.notes,
     })
     setEditId(s.id); setError(''); setShowModal(true); setViewService(null)
@@ -214,6 +226,7 @@ export default function ClientServicesPage() {
       startDate: form.startDate, renewalDate: form.renewalDate,
       amount: parseFloat(form.amountChargedToClient) || 0, cost: parseFloat(form.actualCostToSantech) || 0,
       taxIncluded: form.taxIncluded, taxRate: form.taxIncluded ? parseFloat(form.taxRate) || 0 : 0, notes: form.notes,
+      currency: form.currency, autoInvoice: form.autoInvoice,
     }
     setSaving(true)
     try {
@@ -388,7 +401,7 @@ export default function ClientServicesPage() {
                     </td>
                     {/* Amount */}
                     <td className="px-3 py-3 text-xs font-bold text-gray-700 whitespace-nowrap">
-                      {formatCurrency(svc.amountChargedToClient)}
+                      {formatCurrency(svc.amountChargedToClient, svc.currency)}
                     </td>
                     {/* Tax */}
                     <td className="px-3 py-3 text-xs whitespace-nowrap">
@@ -413,8 +426,12 @@ export default function ClientServicesPage() {
                     {/* Actions */}
                     <td className="px-3 py-3" onClick={e => e.stopPropagation()}>
                       <div className="flex gap-1.5">
-                        {svc.paymentStatus !== 'PAID' && (
+                        {svc.paymentStatus !== 'PAID' && !svc.invoice && (
                           <button onClick={() => markPaid(svc.id)} className="text-xs bg-green-50 text-green-600 px-2 py-1 rounded-lg hover:bg-green-100 font-medium whitespace-nowrap">Mark Paid</button>
+                        )}
+                        {svc.invoice && (
+                          <button onClick={() => navigate(`/finance/invoices?search=${svc.invoice!.number}`)} title={`Invoice for this period (${svc.invoice.status.toLowerCase()})`}
+                            className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded-lg hover:bg-blue-100 font-mono whitespace-nowrap">{svc.invoice.number}</button>
                         )}
                         <button onClick={() => openEdit(svc)} className="text-xs text-santech-600 hover:underline font-medium">Edit</button>
                       </div>
@@ -491,12 +508,13 @@ export default function ClientServicesPage() {
                   { label: 'Start Date', value: viewService.startDate ? formatDate(viewService.startDate) : '—' },
                   { label: 'Renewal Date', value: formatDate(viewService.renewalDate) },
                   { label: 'Days Left', value: getDaysLeft(viewService.renewalDate) < 0 ? `Expired ${Math.abs(getDaysLeft(viewService.renewalDate))} days ago` : `${getDaysLeft(viewService.renewalDate)} days` },
-                  { label: 'Amount Charged', value: formatCurrency(viewService.amountChargedToClient) },
-                  { label: 'Actual Cost', value: formatCurrency(viewService.actualCostToSantech) },
-                  { label: 'Tax', value: viewService.taxIncluded ? `${viewService.taxRate}% = ${formatCurrency(viewService.taxAmount)}` : 'No tax' },
-                  { label: 'Total with Tax', value: formatCurrency(viewService.totalWithTax) },
+                  { label: 'Amount Charged', value: formatCurrency(viewService.amountChargedToClient, viewService.currency) },
+                  { label: 'Actual Cost', value: formatCurrency(viewService.actualCostToSantech, viewService.currency) },
+                  { label: 'Tax', value: viewService.taxIncluded ? `${viewService.taxRate}% = ${formatCurrency(viewService.taxAmount, viewService.currency)}` : 'No tax' },
+                  { label: 'Total with Tax', value: formatCurrency(viewService.totalWithTax, viewService.currency) },
                   { label: 'Payment Date', value: viewService.paymentDate ? formatDate(viewService.paymentDate) : 'Not paid' },
-                  { label: 'Profit', value: formatCurrency(viewService.amountChargedToClient - viewService.actualCostToSantech) },
+                  { label: 'Billing', value: viewService.invoice ? `Invoice ${viewService.invoice.number} (${viewService.invoice.status.toLowerCase()})` : viewService.autoInvoice ? 'Invoice raised automatically 14 days before renewal' : 'Manual (Mark Paid)' },
+                  { label: 'Profit', value: formatCurrency(viewService.amountChargedToClient - viewService.actualCostToSantech, viewService.currency) },
                 ].map(item => (
                   <div key={item.label} className="bg-gray-50 rounded-lg p-3">
                     <p className="text-xs text-gray-400">{item.label}</p>
@@ -553,7 +571,9 @@ export default function ClientServicesPage() {
               <div className="flex gap-2 pt-1">
                 <button onClick={() => openEdit(viewService)} className="flex-1 py-2 border border-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50">Edit</button>
                 {viewService.paymentStatus !== 'PAID' && (
-                  <button onClick={() => { markPaid(viewService.id); setViewService(null) }} className="flex-1 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700">Mark Paid</button>
+                  viewService.invoice
+                    ? <button onClick={() => navigate(`/finance/invoices?search=${viewService.invoice!.number}`)} className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">Open invoice {viewService.invoice.number}</button>
+                    : <button onClick={() => { markPaid(viewService.id); setViewService(null) }} className="flex-1 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700">Mark Paid</button>
                 )}
                 {getRenewalStatus(viewService.renewalDate) === 'EXPIRED' && (
                   <button onClick={() => { renewService(viewService.id); setViewService(null) }} className="flex-1 py-2 bg-santech-600 text-white rounded-lg text-sm font-medium hover:bg-santech-700 flex items-center justify-center gap-1">
@@ -636,14 +656,27 @@ export default function ClientServicesPage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Amount Charged to Client (RWF) *</label>
-                  <input name="amountChargedToClient" type="number" value={form.amountChargedToClient} onChange={handleChange} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500" />
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Amount Charged to Client ({form.currency}) *</label>
+                  <div className="flex gap-2">
+                    <select name="currency" value={form.currency} onChange={handleChange} aria-label="Currency" className="w-24 px-2 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500">
+                      {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                    <input name="amountChargedToClient" type="number" step="0.01" value={form.amountChargedToClient} onChange={handleChange} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500" />
+                  </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Actual Cost to Santech (RWF)</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Actual Cost to Santech ({form.currency})</label>
                   <input name="actualCostToSantech" type="number" value={form.actualCostToSantech} onChange={handleChange} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500" />
                 </div>
               </div>
+
+              <label className="flex items-start gap-2 cursor-pointer bms-card p-3">
+                <input type="checkbox" name="autoInvoice" checked={form.autoInvoice} onChange={handleChange} className="w-4 h-4 mt-0.5 accent-santech-600" />
+                <span>
+                  <span className="block text-sm font-medium text-gray-700">Raise the invoice automatically</span>
+                  <span className="block text-xs text-gray-500">A draft invoice for the next period is created 14 days before each renewal, and Finance is notified to send it.</span>
+                </span>
+              </label>
 
               {/* Tax */}
               <div className="bms-card p-3 space-y-2">
@@ -660,7 +693,7 @@ export default function ClientServicesPage() {
                     <div className="flex-1">
                       <label className="block text-xs font-medium text-gray-700 mb-1">Tax Amount (auto)</label>
                       <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600">
-                        {formatCurrency(calcTax(parseFloat(form.amountChargedToClient) || 0, parseFloat(form.taxRate) || 0))}
+                        {formatCurrency(calcTax(parseFloat(form.amountChargedToClient) || 0, parseFloat(form.taxRate) || 0), form.currency)}
                       </div>
                     </div>
                   </div>

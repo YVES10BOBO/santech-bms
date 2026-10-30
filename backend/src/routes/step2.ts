@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { getExpenseClaims, createExpenseClaim, approveExpenseClaim, rejectExpenseClaim } from '../controllers/expenseClaimsController'
 import { authenticate, authorize } from '../middleware/auth'
+import { getExchangeRates, saveExchangeRates, getVersions } from '../controllers/billingController'
 import { ADMINS, SALES } from '../lib/roles'
 import { getLeads, createLead, updateLead, advanceLead, convertLead, deleteLead } from '../controllers/leadsController'
 import { getQuotations, createQuotation, updateQuotation, advanceQuotation, rejectQuotation, convertQuotation } from '../controllers/quotationsController'
@@ -27,7 +28,7 @@ const router = Router()
 router.use([
   '/leads', '/quotations', '/tickets', '/products', '/departments', '/visitors', '/users', '/notifications',
   '/communications', '/meetings', '/client-services', '/campaigns', '/timesheets',
-  '/documents', '/expense-claims', '/attendance', '/leave', '/tenders', '/purchases', '/trainings', '/articles', '/settings',
+  '/documents', '/expense-claims', '/attendance', '/leave', '/tenders', '/purchases', '/trainings', '/articles', '/settings', '/versions',
 ], authenticate)
 
 // Leads (sales team)
@@ -139,6 +140,11 @@ router.post('/articles/:id/view', viewArticle)
 // Company profile (everyone reads; admins edit)
 router.get('/settings/company', getCompany)
 router.put('/settings/company', authorize(...ADMINS), saveCompany)
+
+// Exchange rates to RWF (everyone reads; finance edits) and contract / quotation version history
+router.get('/settings/exchange-rates', getExchangeRates)
+router.put('/settings/exchange-rates', authorize(...FINANCE), saveExchangeRates)
+router.get('/versions/:entity/:id', getVersions)
 
 // Notifications for the logged-in user
 router.get('/notifications', getNotifications)

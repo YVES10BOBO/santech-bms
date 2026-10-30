@@ -1,5 +1,5 @@
 /**
- * Printable quotations and invoices.
+ * Printable quotations, invoices, proforma invoices and credit notes.
  * Opens a clean A4 page in a new tab and starts printing — choose
  * "Save as PDF" in the print dialog to get a PDF file. No extra library needed.
  */
@@ -7,7 +7,7 @@ import { companyService } from './services/operationsService'
 
 export interface PrintLine { description: string; quantity: number; unitPrice: number; total: number }
 export interface PrintDoc {
-  kind: 'QUOTATION' | 'INVOICE'
+  kind: 'QUOTATION' | 'INVOICE' | 'PROFORMA' | 'CREDIT_NOTE'
   number: string
   date: string
   dueOrValid?: string           // invoice due date / quotation valid-until
@@ -23,6 +23,8 @@ export interface PrintDoc {
   vatAmount: number
   total: number
   paid?: number
+  credited?: number             // credit notes issued against an invoice
+  creditFor?: string            // credit note: the invoice it reduces
   currency?: string
   paymentTerms?: string
   notes?: string
@@ -30,7 +32,9 @@ export interface PrintDoc {
 }
 
 const esc = (v: unknown) => String(v ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!))
-const money = (n: number, cur = 'RWF') => `${cur} ${Math.round(n).toLocaleString('en-US')}`
+const money = (n: number, cur = 'RWF') =>
+  `${cur} ${cur === 'RWF' ? Math.round(n).toLocaleString('en-US') : n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+const TITLES: Record<PrintDoc['kind'], string> = { QUOTATION: 'QUOTATION', INVOICE: 'INVOICE', PROFORMA: 'PROFORMA INVOICE', CREDIT_NOTE: 'CREDIT NOTE' }
 const day = (d?: string) => (d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—')
 
 export async function printDocument(doc: PrintDoc): Promise<void> {
@@ -43,8 +47,9 @@ export async function printDocument(doc: PrintDoc): Promise<void> {
   let c: any = {}
   try { c = (await companyService.get()).data ?? {} } catch { /* print without company details */ }
   const cur = doc.currency || 'RWF'
-  const title = doc.kind === 'INVOICE' ? 'INVOICE' : 'QUOTATION'
-  const balance = doc.total - (doc.paid ?? 0)
+  const title = TITLES[doc.kind]
+  const billed = doc.kind !== 'QUOTATION'
+  const balance = doc.total - (doc.paid ?? 0) - (doc.credited ?? 0)
 
   win.document.open()
   win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(doc.number)}</title>
@@ -77,11 +82,12 @@ export async function printDocument(doc: PrintDoc): Promise<void> {
   <div class="doc"><h2>${title}</h2>
     <p><b>${esc(doc.number)}</b></p>
     <p>Date: ${day(doc.date)}</p>
-    ${doc.dueOrValid ? `<p>${doc.kind === 'INVOICE' ? 'Due' : 'Valid until'}: ${day(doc.dueOrValid)}</p>` : ''}
+    ${doc.dueOrValid && doc.kind !== 'CREDIT_NOTE' ? `<p>${doc.kind === 'QUOTATION' ? 'Valid until' : 'Due'}: ${day(doc.dueOrValid)}</p>` : ''}
+    ${doc.creditFor ? `<p>Credit for invoice: <b>${esc(doc.creditFor)}</b></p>` : ''}
     ${doc.reference ? `<p>Ref: ${esc(doc.reference)}</p>` : ''}</div>
 </div>
 <div class="parties">
-  <div class="box"><h3>${doc.kind === 'INVOICE' ? 'Bill to' : 'Prepared for'}</h3>
+  <div class="box"><h3>${doc.kind === 'CREDIT_NOTE' ? 'Credited to' : billed ? 'Bill to' : 'Prepared for'}</h3>
     <p><b>${esc(doc.clientName)}</b></p>
     ${doc.contactName ? `<p>Attn: ${esc(doc.contactName)}</p>` : ''}
     ${doc.contactPhone ? `<p>${esc(doc.contactPhone)}</p>` : ''}
@@ -95,11 +101,16 @@ ${doc.lines.map((l, i) => `<tr><td>${i + 1}</td><td>${esc(l.description)}</td><t
   <tr><td>Subtotal</td><td class="r">${money(doc.subtotal, cur)}</td></tr>
   ${doc.discountAmount ? `<tr><td>Discount${doc.discountRate ? ` (${doc.discountRate}%)` : ''}</td><td class="r">-${money(doc.discountAmount, cur)}</td></tr>` : ''}
   <tr><td>VAT${doc.vatRate ? ` (${doc.vatRate}%)` : ''}</td><td class="r">${money(doc.vatAmount, cur)}</td></tr>
-  <tr class="grand"><td>Total</td><td class="r">${money(doc.total, cur)}</td></tr>
-  ${doc.kind === 'INVOICE' && doc.paid ? `<tr><td>Paid</td><td class="r">${money(doc.paid, cur)}</td></tr><tr class="grand"><td>Balance due</td><td class="r">${money(balance, cur)}</td></tr>` : ''}
+  <tr class="grand"><td>${doc.kind === 'CREDIT_NOTE' ? 'Total credit' : 'Total'}</td><td class="r">${money(doc.total, cur)}</td></tr>
+  ${doc.kind === 'INVOICE' && (doc.paid || doc.credited) ? `
+    ${doc.paid ? `<tr><td>Paid</td><td class="r">${money(doc.paid, cur)}</td></tr>` : ''}
+    ${doc.credited ? `<tr><td>Credit notes</td><td class="r">-${money(doc.credited, cur)}</td></tr>` : ''}
+    <tr class="grand"><td>Balance due</td><td class="r">${money(balance, cur)}</td></tr>` : ''}
 </table>
+${doc.kind === 'PROFORMA' ? '<div class="notes"><b>Proforma invoice.</b> This is not a tax invoice. The final invoice is issued when the order is confirmed or the advance is paid.</div>' : ''}
+${doc.kind === 'CREDIT_NOTE' ? '<div class="notes"><b>Credit note.</b> This amount is deducted from what is owed on the invoice above.</div>' : ''}
 ${doc.notes ? `<div class="notes"><b>Notes:</b> ${esc(doc.notes)}</div>` : ''}
-<div class="foot"><div class="sign">For ${esc(c.name || 'Santech Innovate')}</div><div class="sign">${doc.kind === 'QUOTATION' ? 'Client acceptance' : 'Received by'}</div></div>
+<div class="foot"><div class="sign">For ${esc(c.name || 'Santech Innovate')}</div><div class="sign">${doc.kind === 'QUOTATION' || doc.kind === 'PROFORMA' ? 'Client acceptance' : 'Received by'}</div></div>
 <div class="bottom">Generated by SAN-BMS · ${new Date().toLocaleString('en-GB')}</div>
 <script>window.onload = () => setTimeout(() => window.print(), 300)</script>
 </body></html>`)

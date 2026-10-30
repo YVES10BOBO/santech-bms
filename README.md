@@ -231,6 +231,10 @@ again. On phones, the menu button in the top bar opens the sidebar, and its X bu
 #### Quotations
 **Where:** Sales → Quotations
 - Multi-line quotation builder; subtotal, VAT and total calculated by the server
+- **Currency:** RWF, USD, EUR, GBP, KES, UGX or TZS. The rate of the day is saved with the quotation;
+  totals on the page are in RWF.
+- **Version history:** editing the items, prices, discount, VAT, validity or terms keeps the earlier
+  version. The panel lists each version with what changed (old → new) and who changed it.
 - **Discount (%)** next to the VAT rate: taken off the subtotal before VAT
   (subtotal − discount + VAT = total). It shows in the preview, the quotation panel, the PDF and the
   client's 360° page, so approvers see it.
@@ -280,6 +284,10 @@ again. On phones, the menu button in the top bar opens the sidebar, and its X bu
 - **Project created automatically:** when a contract becomes Active and no project is linked to it,
   a project is created (status Planning) with the contract's client, value and dates and its
   responsible manager as project manager (or the person who activated it). The manager is notified.
+- **Currency** per contract (the rate of the day is saved); the active value is shown in RWF
+- **Version history:** changing the value, currency, dates, payment terms, deliverables, client or
+  project name saves a new version; the panel lists earlier versions and what changed. Status
+  changes are not versions (they are in the Audit Trail).
 - Stats: total, active, pending signature, active value
 
 #### Client Services & Renewals
@@ -292,18 +300,29 @@ again. On phones, the menu button in the top bar opens the sidebar, and its X bu
   - 🟠 Expiring in 15 days — critical
   - 🟡 Expiring in 30 days — warning
 - Reminders 30, 15 and 7 days before renewal and on expiry
-- **Mark Paid** books the payment as income in Finance; **Renew** moves the renewal date one billing
-  cycle forward; unpaid services past renewal become overdue
+- **Recurring invoices:** with *Raise the invoice automatically* on (the default), a draft invoice for
+  the next period is created 14 days before the renewal date (or straight away if it is overdue) and
+  Finance is notified to check and send it. The service then shows its invoice number instead of
+  *Mark Paid*; paying that invoice in full marks the service period paid.
+- **Mark Paid** (services without an invoice for the period) books the payment as income in Finance;
+  **Renew** moves the renewal date one billing cycle forward; unpaid services past renewal become
+  overdue
+- **Currency** per service (e.g. a hosting plan billed in USD); its invoices use the same currency
 - Tax tracking (with/without VAT) and profit (amount charged − actual cost)
 
 ### Finance
 
 #### Overview & P&L
-**Where:** Finance → Overview & P&L — 4 tabs:
+**Where:** Finance → Overview & P&L — 5 tabs:
 - **Overview:** P&L (Revenue − Expenses = Profit), KPI cards, 6-month chart
 - **Income:** income by category (EVS, SANTRACK, Website, Training, …) with Add Income
 - **Expenses:** expenses by category (Salaries, Rent, Internet, Equipment, …) with Add Expense
 - **Statements:** see the next section
+- **Currencies:** exchange rates to RWF (also in Settings → Company Profile). Finance and admins edit
+  them; everyone else can read them.
+- **Reports are in RWF.** Income and expenses are kept in RWF; one received or paid in another
+  currency keeps its original amount and rate (shown under the amount, e.g. *USD 500 at 1,450*).
+  Add Income / Add Expense have a currency choice.
 
 #### Financial Statements
 **Where:** Finance → Overview & P&L → **Statements** (Super Admin, Admin, Finance Manager)
@@ -317,8 +336,23 @@ again. On phones, the menu button in the top bar opens the sidebar, and its X bu
 - Simplified statements built from the system's own records
 
 #### Invoices & Payments
-**Where:** Finance → Invoices & Payments
-- Invoice table with status badges (Draft/Sent/Due/Partial/Paid/Overdue)
+**Where:** Finance → Invoices & Payments — tabs **Invoices**, **Proforma**, **Credit notes**
+- Invoice table with status badges (Draft/Sent/Due/Partial/Paid/Overdue); the cards at the top are in
+  RWF (each invoice converted at its own rate)
+- **Proforma invoices** (`PF-2026-001`): **+ Proforma** bills an advance or confirms prices before the
+  order. A proforma is never paid itself and does not count as owed. **Convert to invoice** creates
+  the real invoice (same amounts and currency, marked Sent) and links the two.
+- **Credit notes** (`CN-2026-001`): open a sent invoice → **Issue credit note** with the amount and
+  reason (discount agreed later, work not delivered, billing mistake). It lowers what is still owed;
+  VAT is credited in the same proportion. It cannot be more than the balance. An invoice paid and
+  credited in full becomes Paid; one fully credited with no payment becomes Cancelled.
+- **Raise service invoices** creates the recurring invoices for client services renewing within
+  14 days (the server also does this every 6 hours). They are drafts: check them and **Mark as sent**.
+- **Currencies:** an invoice can be in RWF, USD, EUR, GBP, KES, UGX or TZS. The rate of the issue day
+  is saved with it. A payment is recorded in the invoice's currency and booked as income in RWF at
+  the rate of the payment day.
+- **Cancel** (no payments or credits yet) and **Mark as sent** in the invoice panel. The status of a
+  real invoice follows its payments; it cannot be set to Paid by hand.
 - **New Invoice:** choose the client first. The Contract and Project lists (both optional) then offer
   only that client's own contracts and projects, and picking a project fills in its contract. The
   server refuses a contract or project that belongs to another client.
@@ -327,7 +361,9 @@ again. On phones, the menu button in the top bar opens the sidebar, and its X bu
   Receivable, and the due/overdue reminders in Notifications.
 - **Record Payment** (amount, date, method, reference); overpayment is refused
 - Each payment is booked as income in Finance and the status updates automatically
-- **PDF:** open an invoice → **PDF** → *Save as PDF*
+- **PDF:** open an invoice → **PDF** → *Save as PDF*. Proformas print as *PROFORMA INVOICE* (not a tax
+  invoice), credit notes as *CREDIT NOTE* with the invoice they reduce; an invoice shows its credit
+  notes and the balance due.
 - Stats: total invoiced, total collected, outstanding, overdue count
 
 ### Procurement
@@ -529,6 +565,8 @@ again. On phones, the menu button in the top bar opens the sidebar, and its X bu
 - Legal and trading name, registration number, TIN, address, city, country, phone, email, website,
   industry, description
 - Used on the PDF quotations and invoices
+- **Currencies & exchange rates:** RWF for 1 USD, EUR, GBP, KES, UGX and TZS (same card as
+  Finance → Currencies)
 
 #### Roles & Permissions
 **Where:** Settings → Roles & Permissions
@@ -553,7 +591,8 @@ again. On phones, the menu button in the top bar opens the sidebar, and its X bu
 - Reminders for overdue and due invoices, contract expiry/signature/approval, task deadlines and
   approvals, lead and deal follow-ups, service renewals, tender deadlines, meetings and communication
   follow-ups, milestones due within 7 days or late, quotations about to expire, documents expiring
-  within 30 days, project warranties ending, and expense claims waiting for approval
+  within 30 days, project warranties ending, expense claims waiting for approval, and recurring
+  service invoices ready to send
 - Filter tabs: All, Unread, Payment, Follow-up, Tasks
 - Mark one or all as read
 

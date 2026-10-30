@@ -9,6 +9,8 @@ import { useLookups, apiError } from '@/lib/services/lookupService'
 import PageLoader from '@/components/shared/PageLoader'
 import toast from 'react-hot-toast'
 import { printDocument } from '@/lib/printDocument'
+import { CURRENCIES, toRwf, rwfHint, useRates } from '@/lib/currency'
+import VersionHistory from '@/components/shared/VersionHistory'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type QuotationStatus = 'DRAFT' | 'INTERNAL_REVIEW' | 'MANAGER_APPROVAL' | 'CEO_APPROVAL' | 'APPROVED' | 'SENT' | 'VIEWED' | 'NEGOTIATION' | 'ACCEPTED' | 'REJECTED' | 'CONVERTED' | 'EXPIRED'
@@ -46,6 +48,8 @@ interface Quotation {
   vatAmount: number
   totalAmount: number
   currency: string
+  exchangeRate: number
+  version: number
   validUntil: string
   paymentTerms: string
   notes: string
@@ -77,6 +81,8 @@ function toQuotation(q: any): Quotation {
     vatAmount: Number(q.vatAmount),
     totalAmount: Number(q.totalAmount),
     currency: q.currency ?? 'RWF',
+    exchangeRate: Number(q.exchangeRate ?? 1),
+    version: Number(q.version ?? 1),
     validUntil: q.validUntil ? String(q.validUntil).slice(0, 10) : '',
     paymentTerms: q.paymentTerms ?? '',
     notes: q.notes ?? '',
@@ -125,7 +131,7 @@ const newItem = (): QuotationItem => ({ id: String(Date.now()), description: '',
 
 const emptyForm = {
   clientId: '', contactName: '', contactEmail: '', contactPhone: '',
-  vatRate: '0', discountRate: '0', validUntil: '', paymentTerms: '', notes: '',
+  vatRate: '0', discountRate: '0', currency: 'RWF', validUntil: '', paymentTerms: '', notes: '',
   assignedToId: '', linkedDeal: '',
 }
 
@@ -157,6 +163,7 @@ export default function QuotationsPage() {
   const [showModal, setShowModal] = useState(false)
   const [viewQuotation, setViewQuotation] = useState<Quotation | null>(null)
   const [form, setForm] = useState(emptyForm)
+  const rates = useRates()
   const [items, setItems] = useState<QuotationItem[]>([newItem()])
   const [editId, setEditId] = useState<string | null>(null)
   const [error, setError] = useState('')
@@ -211,7 +218,7 @@ export default function QuotationsPage() {
   }
 
   const openEdit = (q: Quotation) => {
-    setForm({ clientId: q.clientId, contactName: q.contactName, contactEmail: q.contactEmail, contactPhone: q.contactPhone, vatRate: String(q.vatRate), discountRate: String(q.discountRate), validUntil: q.validUntil, paymentTerms: q.paymentTerms, notes: q.notes, assignedToId: q.assignedToId, linkedDeal: q.linkedDeal })
+    setForm({ clientId: q.clientId, contactName: q.contactName, contactEmail: q.contactEmail, contactPhone: q.contactPhone, vatRate: String(q.vatRate), discountRate: String(q.discountRate), currency: q.currency, validUntil: q.validUntil, paymentTerms: q.paymentTerms, notes: q.notes, assignedToId: q.assignedToId, linkedDeal: q.linkedDeal })
     setItems(q.items.map(i => ({ ...i })))
     setEditId(q.id); setError(''); setShowModal(true); setViewQuotation(null)
   }
@@ -228,7 +235,7 @@ export default function QuotationsPage() {
     if (items.every(i => !i.description)) { setError('Add at least one line item.'); return }
     const payload = {
       clientId: form.clientId, contactName: form.contactName, contactEmail: form.contactEmail, contactPhone: form.contactPhone,
-      vatRate: parseFloat(form.vatRate) || 0, discountRate: parseFloat(form.discountRate) || 0, validUntil: form.validUntil || null,
+      vatRate: parseFloat(form.vatRate) || 0, discountRate: parseFloat(form.discountRate) || 0, currency: form.currency, validUntil: form.validUntil || null,
       paymentTerms: form.paymentTerms, notes: form.notes,
       assignedToId: form.assignedToId || undefined, linkedDeal: form.linkedDeal,
       items: items.filter(i => i.description).map(i => ({ id: i.id, description: i.description, quantity: Number(i.quantity), unitPrice: Number(i.unitPrice) })),
@@ -277,7 +284,7 @@ export default function QuotationsPage() {
   }
 
   const convertToContract = async (quotation: Quotation) => {
-    if (!window.confirm(`Create a draft contract from ${quotation.quotationNumber} (${formatCurrency(quotation.totalAmount)})?`)) return
+    if (!window.confirm(`Create a draft contract from ${quotation.quotationNumber} (${formatCurrency(quotation.totalAmount, quotation.currency)})?`)) return
     try {
       const res = await quotationService.convert(quotation.id)
       setQuotations(prev => prev.map(q => q.id === quotation.id ? { ...q, status: 'CONVERTED' } : q))
@@ -290,8 +297,8 @@ export default function QuotationsPage() {
   }
 
   // ── Stats ──────────────────────────────────────────────────────────────────
-  const totalValue = quotations.filter(q => !['REJECTED', 'EXPIRED'].includes(q.status)).reduce((s, q) => s + q.totalAmount, 0)
-  const acceptedValue = quotations.filter(q => q.status === 'ACCEPTED').reduce((s, q) => s + q.totalAmount, 0)
+  const totalValue = quotations.filter(q => !['REJECTED', 'EXPIRED'].includes(q.status)).reduce((s, q) => s + toRwf(q.totalAmount, q.exchangeRate), 0)
+  const acceptedValue = quotations.filter(q => q.status === 'ACCEPTED').reduce((s, q) => s + toRwf(q.totalAmount, q.exchangeRate), 0)
   const stats = [
     { label: 'Total Quotations', value: quotations.length, color: 'text-santech-600' },
     { label: 'Awaiting Approval', value: quotations.filter(q => ['INTERNAL_REVIEW', 'MANAGER_APPROVAL', 'CEO_APPROVAL'].includes(q.status)).length, color: 'text-amber-600' },
@@ -398,9 +405,9 @@ export default function QuotationsPage() {
                       {q.contactName && <p className="text-xs text-gray-400">{q.contactName}</p>}
                     </td>
                     <td className="px-4 py-3 text-xs text-gray-500">{q.items.length} item{q.items.length !== 1 ? 's' : ''}</td>
-                    <td className="px-4 py-3 text-xs text-gray-600">{formatCurrency(q.subtotal)}</td>
-                    <td className="px-4 py-3 text-xs text-gray-500">{q.vatAmount > 0 ? formatCurrency(q.vatAmount) : '—'}</td>
-                    <td className="px-4 py-3 text-xs font-bold text-gray-800">{formatCurrency(q.totalAmount)}</td>
+                    <td className="px-4 py-3 text-xs text-gray-600">{formatCurrency(q.subtotal, q.currency)}</td>
+                    <td className="px-4 py-3 text-xs text-gray-500">{q.vatAmount > 0 ? formatCurrency(q.vatAmount, q.currency) : '—'}</td>
+                    <td className="px-4 py-3 text-xs font-bold text-gray-800">{formatCurrency(q.totalAmount, q.currency)}</td>
                     <td className="px-4 py-3 text-xs whitespace-nowrap">
                       <span className={cn(isExpired ? 'text-red-500 font-medium' : 'text-gray-500')}>
                         {q.validUntil ? formatDate(q.validUntil) : '—'}
@@ -535,8 +542,8 @@ export default function QuotationsPage() {
                         <tr key={item.id}>
                           <td className="px-3 py-2 text-gray-700">{item.description}</td>
                           <td className="px-3 py-2 text-right text-gray-600">{item.quantity}</td>
-                          <td className="px-3 py-2 text-right text-gray-600">{formatCurrency(item.unitPrice)}</td>
-                          <td className="px-3 py-2 text-right font-medium text-gray-800">{formatCurrency(item.total)}</td>
+                          <td className="px-3 py-2 text-right text-gray-600">{formatCurrency(item.unitPrice, viewQuotation.currency)}</td>
+                          <td className="px-3 py-2 text-right font-medium text-gray-800">{formatCurrency(item.total, viewQuotation.currency)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -544,20 +551,20 @@ export default function QuotationsPage() {
                   {/* Totals */}
                   <div className="border-t border-gray-200 bg-gray-50 px-3 py-2 space-y-1">
                     <div className="flex justify-between text-xs text-gray-500">
-                      <span>Subtotal</span><span>{formatCurrency(viewQuotation.subtotal)}</span>
+                      <span>Subtotal</span><span>{formatCurrency(viewQuotation.subtotal, viewQuotation.currency)}</span>
                     </div>
                     {viewQuotation.discountAmount > 0 && (
                       <div className="flex justify-between text-xs text-green-700">
-                        <span>Discount ({viewQuotation.discountRate}%)</span><span>−{formatCurrency(viewQuotation.discountAmount)}</span>
+                        <span>Discount ({viewQuotation.discountRate}%)</span><span>−{formatCurrency(viewQuotation.discountAmount, viewQuotation.currency)}</span>
                       </div>
                     )}
                     {viewQuotation.vatAmount > 0 && (
                       <div className="flex justify-between text-xs text-gray-500">
-                        <span>VAT ({viewQuotation.vatRate}%)</span><span>{formatCurrency(viewQuotation.vatAmount)}</span>
+                        <span>VAT ({viewQuotation.vatRate}%)</span><span>{formatCurrency(viewQuotation.vatAmount, viewQuotation.currency)}</span>
                       </div>
                     )}
                     <div className="flex justify-between text-sm font-bold text-gray-800 pt-1 border-t border-gray-200">
-                      <span>Total</span><span>{formatCurrency(viewQuotation.totalAmount)}</span>
+                      <span>Total</span><span>{formatCurrency(viewQuotation.totalAmount, viewQuotation.currency)}</span>
                     </div>
                   </div>
                 </div>
@@ -575,6 +582,12 @@ export default function QuotationsPage() {
                   <p className="text-sm text-gray-600 bg-gray-50 rounded-lg p-3">{viewQuotation.notes}</p>
                 </div>
               )}
+
+              {viewQuotation.currency !== 'RWF' && (
+                <p className="text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2">{viewQuotation.currency} quotation · {rwfHint(viewQuotation.totalAmount, viewQuotation.currency, viewQuotation.exchangeRate)}</p>
+              )}
+
+              <VersionHistory entity="quotation" id={viewQuotation.id} reloadKey={viewQuotation.version} />
 
               {/* Actions */}
               <div className="flex gap-2 pt-2">
@@ -673,7 +686,7 @@ export default function QuotationsPage() {
                           <td className="px-2 py-1.5">
                             <input type="number" min="0" value={item.unitPrice} onChange={e => updateItem(item.id, 'unitPrice', parseFloat(e.target.value) || 0)} className="w-full px-2 py-1 border border-gray-200 rounded text-xs text-right focus:outline-none focus:ring-1 focus:ring-santech-500" />
                           </td>
-                          <td className="px-3 py-1.5 text-right font-medium text-gray-700">{formatCurrency(item.total)}</td>
+                          <td className="px-3 py-1.5 text-right font-medium text-gray-700">{formatCurrency(item.total, form.currency)}</td>
                           <td className="px-1 py-1.5">
                             <button type="button" onClick={() => removeItem(item.id)} className="text-gray-300 hover:text-red-400 transition-colors">
                               <Trash2 className="w-3.5 h-3.5" />
@@ -686,23 +699,23 @@ export default function QuotationsPage() {
                   {/* Totals preview */}
                   <div className="border-t border-gray-200 bg-gray-50 px-3 py-2 space-y-1">
                     <div className="flex justify-between text-xs text-gray-500">
-                      <span>Subtotal</span><span>{formatCurrency(calcTotals(items).subtotal)}</span>
+                      <span>Subtotal</span><span>{formatCurrency(calcTotals(items).subtotal, form.currency)}</span>
                     </div>
                     {calcTotals(items).discount > 0 && (
                       <div className="flex justify-between text-xs text-green-700">
                         <span>Discount ({form.discountRate}%)</span>
-                        <span>−{formatCurrency(calcTotals(items).discount)}</span>
+                        <span>−{formatCurrency(calcTotals(items).discount, form.currency)}</span>
                       </div>
                     )}
                     {parseFloat(form.vatRate) > 0 && (
                       <div className="flex justify-between text-xs text-gray-500">
                         <span>VAT ({form.vatRate}%)</span>
-                        <span>{formatCurrency(calcTotals(items).vat)}</span>
+                        <span>{formatCurrency(calcTotals(items).vat, form.currency)}</span>
                       </div>
                     )}
                     <div className="flex justify-between text-sm font-bold text-gray-800 pt-1 border-t border-gray-200">
                       <span>Total</span>
-                      <span>{formatCurrency(calcTotals(items).total)}</span>
+                      <span>{formatCurrency(calcTotals(items).total, form.currency)}</span>
                     </div>
                   </div>
                 </div>
@@ -712,6 +725,13 @@ export default function QuotationsPage() {
               <div>
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Quotation Settings</p>
                 <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Currency</label>
+                    <select name="currency" value={form.currency} onChange={handleChange} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500">
+                      {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                    {form.currency !== 'RWF' && <p className="text-[11px] text-gray-400 mt-0.5">Total {rwfHint(calcTotals(items).total, form.currency, rates[form.currency])}</p>}
+                  </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1">VAT Rate (%)</label>
                     <input name="vatRate" type="number" min="0" max="100" value={form.vatRate} onChange={handleChange} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500" />

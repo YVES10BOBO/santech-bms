@@ -12,6 +12,7 @@ import { fileService } from '@/lib/services/fileService'
 import { printDocument, type PrintDoc } from '@/lib/printDocument'
 import { communicationService } from '@/lib/services/operationsService'
 import { apiError } from '@/lib/services/lookupService'
+import { toRwf } from '@/lib/currency'
 import toast from 'react-hot-toast'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -61,6 +62,7 @@ interface ClientContract {
 interface ClientInvoice {
   number: string
   amount: number
+  currency: string
   status: InvoiceStatus
   date: string
 }
@@ -358,7 +360,10 @@ export default function ClientProfilePage() {
     clientService.getOne(id)
       .then((c: Record<string, unknown>) => {
         const members = (c.members as Record<string, unknown>[] | undefined) ?? []
-        const invoices = (c.invoices as Record<string, unknown>[] | undefined) ?? []
+        const billing = (c.invoices as Record<string, unknown>[] | undefined) ?? []
+        // real invoices; proformas and credit notes are listed with the documents
+        const invoices = billing.filter(i => !i.type || i.type === 'INVOICE')
+        const otherBilling = billing.filter(i => i.type === 'PROFORMA' || i.type === 'CREDIT_NOTE')
         const contracts = (c.contracts as Record<string, unknown>[] | undefined) ?? []
         const fieldVisits = (c.fieldVisits as Record<string, unknown>[] | undefined) ?? []
         const linkedDocs = (c.documents as Record<string, unknown>[] | undefined) ?? []
@@ -368,8 +373,10 @@ export default function ClientProfilePage() {
         const quotations = (c.quotations as Record<string, unknown>[] | undefined) ?? []
         const tickets = (c.tickets as Record<string, unknown>[] | undefined) ?? []
 
-        const totalInvoiced = invoices.reduce((sum, inv) => sum + Number(inv.totalAmount ?? 0), 0)
-        const totalPaid = invoices.reduce((sum, inv) => sum + Number(inv.paidAmount ?? 0), 0)
+        // in RWF, each invoice at its own rate; cancelled and draft invoices are not billed yet
+        const billed = invoices.filter(i => i.status !== 'CANCELLED' && i.status !== 'DRAFT')
+        const totalInvoiced = billed.reduce((sum, inv) => sum + toRwf(Number(inv.totalAmount ?? 0) - Number(inv.creditedAmount ?? 0), Number(inv.exchangeRate ?? 1)), 0)
+        const totalPaid = billed.reduce((sum, inv) => sum + toRwf(Number(inv.paidAmount ?? 0), Number(inv.exchangeRate ?? 1)), 0)
 
         const mapped: ClientProfile = {
           id: String(c.id),
@@ -427,6 +434,7 @@ export default function ClientProfilePage() {
           invoices: invoices.map((inv) => ({
             number: String(inv.invoiceNumber ?? ''),
             amount: Number(inv.totalAmount ?? 0),
+            currency: String(inv.currency ?? 'RWF'),
             status: mapInvoiceStatus(String(inv.status ?? '')),
             date: inv.issueDate ? String(inv.issueDate).slice(0, 10) : '',
           })),
@@ -468,8 +476,8 @@ export default function ClientProfilePage() {
               id: String(inv.id),
               type: Number(inv.paidAmount ?? 0) > 0 ? 'PAYMENT' : 'INVOICE',
               date: inv.issueDate ? String(inv.issueDate).slice(0, 10) : '',
-              title: `Invoice ${String(inv.invoiceNumber)} — ${formatCurrency(Number(inv.totalAmount ?? 0))}`,
-              description: `Paid ${formatCurrency(Number(inv.paidAmount ?? 0))} · ${String(inv.status ?? '').replace(/_/g, ' ').toLowerCase()}`,
+              title: `Invoice ${String(inv.invoiceNumber)} — ${formatCurrency(Number(inv.totalAmount ?? 0), String(inv.currency ?? 'RWF'))}`,
+              description: `Paid ${formatCurrency(Number(inv.paidAmount ?? 0), String(inv.currency ?? 'RWF'))} · ${String(inv.status ?? '').replace(/_/g, ' ').toLowerCase()}`,
               addedBy: '',
             })),
             ...tickets.map((t): TimelineEvent => ({
@@ -532,9 +540,23 @@ export default function ClientProfilePage() {
                 dueOrValid: inv.dueDate ? String(inv.dueDate) : undefined, clientName: clientLabel,
                 lines: [{ description: String(inv.notes || 'Services rendered'), quantity: 1, unitPrice: Number(inv.amount ?? 0), total: Number(inv.amount ?? 0) }],
                 subtotal: Number(inv.amount ?? 0), vatAmount: Number(inv.taxAmount ?? 0), total: Number(inv.totalAmount ?? 0),
-                paid: Number(inv.paidAmount ?? 0), currency: String(inv.currency ?? 'RWF'),
+                paid: Number(inv.paidAmount ?? 0), credited: Number(inv.creditedAmount ?? 0), currency: String(inv.currency ?? 'RWF'),
               },
             })),
+            ...otherBilling.map((inv): ClientDocument => {
+              const proforma = inv.type === 'PROFORMA'
+              return {
+                name: `${String(inv.invoiceNumber)}.pdf`, type: 'Invoice', date: String(inv.issueDate ?? '').slice(0, 10),
+                detail: proforma ? `Proforma invoice · ${formatCurrency(Number(inv.totalAmount ?? 0), String(inv.currency ?? 'RWF'))}` : `Credit note · −${formatCurrency(Number(inv.totalAmount ?? 0), String(inv.currency ?? 'RWF'))}`,
+                print: {
+                  kind: proforma ? 'PROFORMA' : 'CREDIT_NOTE', number: String(inv.invoiceNumber), date: String(inv.issueDate ?? ''),
+                  dueOrValid: inv.dueDate ? String(inv.dueDate) : undefined, clientName: clientLabel,
+                  lines: [{ description: String(inv.notes || (proforma ? 'Advance' : 'Credit')), quantity: 1, unitPrice: Number(inv.amount ?? 0), total: Number(inv.amount ?? 0) }],
+                  subtotal: Number(inv.amount ?? 0), vatAmount: Number(inv.taxAmount ?? 0), total: Number(inv.totalAmount ?? 0),
+                  currency: String(inv.currency ?? 'RWF'),
+                },
+              }
+            }),
           ],
         }
         setProfile(mapped)
@@ -820,7 +842,7 @@ export default function ClientProfilePage() {
                         <p className="text-xs text-gray-400">{formatDate(inv.date)}</p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <p className="text-xs font-semibold text-gray-700">{formatCurrency(inv.amount)}</p>
+                        <p className="text-xs font-semibold text-gray-700">{formatCurrency(inv.amount, inv.currency)}</p>
                         <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', INVOICE_STATUS_STYLES[inv.status])}>
                           {inv.status}
                         </span>

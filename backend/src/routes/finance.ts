@@ -6,6 +6,7 @@ import {
   getOpportunities, createOpportunity, updateOpportunity,
   getContracts, createContract, updateContract,
 } from '../controllers/financeController'
+import { createCreditNote, convertProforma, raiseRecurringInvoices } from '../controllers/billingController'
 import { FINANCE, SALES, CONTRACT_VIEWERS } from '../lib/roles'
 
 const router = Router()
@@ -17,6 +18,9 @@ router.get('/invoices/:id', authorize(...FINANCE), getInvoice)
 router.post('/invoices', authorize(...FINANCE), createInvoice)
 router.put('/invoices/:id', authorize(...FINANCE), updateInvoice)
 router.post('/invoices/:id/payment', authorize(...FINANCE), recordPayment)
+router.post('/invoices/:id/credit-note', authorize(...FINANCE), createCreditNote) // reduce what is owed on an invoice
+router.post('/invoices/:id/convert', authorize(...FINANCE), convertProforma)      // proforma → invoice
+router.post('/invoices/raise-recurring', authorize(...FINANCE), raiseRecurringInvoices) // client services due within 14 days
 
 // ── Income, expenses, P&L (finance only)
 router.get('/income', authorize(...FINANCE), getIncome)

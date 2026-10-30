@@ -516,6 +516,8 @@ model Contract {
   projectName         String?
   value               Float
   currency            String         @default("RWF")
+  exchangeRate        Float          @default(1) // RWF for 1 unit of the currency, when it was set
+  version             Int            @default(1) // goes up when the terms change (see record_versions)
   startDate           DateTime
   endDate             DateTime
   paymentTerms        String?
@@ -546,6 +548,7 @@ model Contract {
 model Invoice {
   id            String        @id @default(cuid())
   invoiceNumber String        @unique
+  type          String        @default("INVOICE") // INVOICE, PROFORMA (no payments; becomes an invoice), CREDIT_NOTE
   clientId      String
   client        Client        @relation(fields: [clientId], references: [id])
   contractId    String?
@@ -560,9 +563,26 @@ model Invoice {
   issueDate     DateTime
   dueDate       DateTime
   paidAmount    Float         @default(0)
+  creditedAmount Float        @default(0) // credit notes issued against this invoice
+  exchangeRate  Float         @default(1) // RWF for 1 unit of the currency, on the issue date
   status        InvoiceStatus @default(DRAFT)
   notes         String?
   payments      Payment[]
+
+  // A credit note points to the invoice it reduces
+  creditForId   String?
+  creditFor     Invoice?      @relation("CreditNotes", fields: [creditForId], references: [id])
+  creditNotes   Invoice[]     @relation("CreditNotes")
+  // An invoice made from a proforma points to it
+  proformaId    String?       @unique
+  proforma      Invoice?      @relation("ProformaInvoice", fields: [proformaId], references: [id])
+  invoiceFromProforma Invoice? @relation("ProformaInvoice")
+  // Recurring: invoices raised for a client service's billing period
+  subscriptionId String?
+  subscription  ClientSubscription? @relation(fields: [subscriptionId], references: [id])
+  periodStart   DateTime?
+  periodEnd     DateTime?
+
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
@@ -703,8 +723,11 @@ model IncomeEntry {
   date         DateTime
   description  String
   category     String   // Software Dev, EVS, SANTRACK, Website, Training, Maintenance, Other
-  amount       Float
+  amount       Float    // always in RWF (the reporting currency)
   currency     String   @default("RWF")
+  originalAmount   Float?  // when paid in another currency: the amount in that currency
+  originalCurrency String?
+  exchangeRate     Float?  // RWF for 1 unit of originalCurrency
   clientId     String?
   client       Client?  @relation(fields: [clientId], references: [id])
   clientName   String?
@@ -722,8 +745,11 @@ model ExpenseEntry {
   date           DateTime
   description    String
   category       String        // Salaries, Rent, Internet, Equipment, Marketing, Transport, Other
-  amount         Float
+  amount         Float         // always in RWF (the reporting currency)
   currency       String        @default("RWF")
+  originalAmount   Float?      // when paid in another currency: the amount in that currency
+  originalCurrency String?
+  exchangeRate     Float?      // RWF for 1 unit of originalCurrency
   notes          String?
   salaryRecordId String?       @unique // set when the expense comes from paying a salary
   salaryRecord   SalaryRecord? @relation(fields: [salaryRecordId], references: [id], onDelete: Cascade)
@@ -782,6 +808,8 @@ model Quotation {
   vatAmount       Float           @default(0)
   totalAmount     Float
   currency        String          @default("RWF")
+  exchangeRate    Float           @default(1) // RWF for 1 unit of the currency, when it was set
+  version         Int             @default(1) // goes up when the content changes (see record_versions)
   validUntil      DateTime?
   paymentTerms    String?
   notes           String?         @db.Text
@@ -966,12 +994,15 @@ model ClientSubscription {
   startDate           DateTime
   renewalDate         DateTime
   amount              Float     // charged to the client per cycle (before tax)
+  currency            String    @default("RWF")
+  autoInvoice         Boolean   @default(true) // raise the next invoice automatically before renewal
   cost                Float     @default(0) // what it costs Santech
   taxIncluded         Boolean   @default(false)
   taxRate             Float     @default(0)
   paymentStatus       String    @default("UNPAID") // PAID, UNPAID, OVERDUE
   paymentDate         DateTime?
   notes               String?   @db.Text
+  invoices            Invoice[]
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
@@ -1306,4 +1337,24 @@ model ExpenseClaim {
 
   @@index([requestedById])
   @@map("expense_claims")
+}
+
+// ===========================
+// VERSION HISTORY (contracts and quotations)
+// ===========================
+
+/// The record as it was before a change of its terms. Version N is kept when it becomes N+1.
+model RecordVersion {
+  id            String   @id @default(cuid())
+  entity        String   // Contract | Quotation
+  entityId      String
+  version       Int
+  data          Json     // the terms as they were
+  changes       Json?    // [{ field, label, from, to }] what the next version changed
+  changedById   String?
+  changedByName String?
+  createdAt     DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@map("record_versions")
 }

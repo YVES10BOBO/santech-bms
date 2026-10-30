@@ -2,6 +2,7 @@ import { Response } from 'express'
 import prisma from '../lib/prisma'
 import { logAudit } from '../lib/audit'
 import { nextDocumentNumber } from '../lib/numbering'
+import { rateFor } from '../lib/currency'
 import type { AuthRequest } from '../middleware/auth'
 
 // ── PROJECTS ──────────────────────────────────────────────────────────────────
@@ -360,6 +361,10 @@ export async function invoiceMilestone(req: AuthRequest, res: Response): Promise
     const today = new Date()
     const due = new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000)
     const invoiceNumber = await nextDocumentNumber('INV')
+    // the invoice is in the contract's currency (or the project's)
+    const currency = (m.project.contractId && (await prisma.contract.findUnique({ where: { id: m.project.contractId }, select: { currency: true } }))?.currency)
+      || (await prisma.project.findUnique({ where: { id: m.project.id }, select: { currency: true } }))?.currency || 'RWF'
+    const exchangeRate = await rateFor(currency)
 
     const [invoice, updated] = await prisma.$transaction(async tx => {
       const inv = await tx.invoice.create({
@@ -368,7 +373,7 @@ export async function invoiceMilestone(req: AuthRequest, res: Response): Promise
           clientId: m.project.clientId,
           contractId: m.project.contractId,
           projectId: m.project.id,
-          amount, taxAmount: 0, totalAmount: amount,
+          amount, taxAmount: 0, totalAmount: amount, currency, exchangeRate,
           issueDate: today, dueDate: due, status: 'SENT',
           notes: `Milestone ${m.milestoneNumber}: ${m.name} (${m.paymentPercentage}% of contract)`,
         },

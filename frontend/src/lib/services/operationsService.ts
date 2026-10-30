@@ -169,3 +169,14 @@ export const companyService = {
   get: () => get('/settings/company'),
   save: (b: Body) => put('/settings/company', b),
 }
+
+/** Exchange rates: RWF for 1 unit of each currency (finance edits) */
+export const exchangeRateService = {
+  get: () => get('/settings/exchange-rates'),
+  save: (rates: Record<string, number>) => put('/settings/exchange-rates', { rates }),
+}
+
+/** Earlier versions of a contract or quotation */
+export const versionService = {
+  get: (entity: 'contract' | 'quotation', id: string) => get(`/versions/${entity}/${id}`),
+}

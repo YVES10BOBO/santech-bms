@@ -5,6 +5,8 @@ import { logAudit } from '../lib/audit'
 import { notifyRoles, notify } from '../lib/notifications'
 import { nextDocumentNumber } from '../lib/numbering'
 import { ADMINS, SALES, hasRole } from '../lib/roles'
+import { isCurrency, rateFor } from '../lib/currency'
+import { QUOTATION_FIELDS, keepVersion } from '../lib/versions'
 import type { AuthRequest } from '../middleware/auth'
 
 const fail = (res: Response, error: unknown, where: string) => {
@@ -75,6 +77,7 @@ export async function createQuotation(req: AuthRequest, res: Response): Promise<
   try {
     const b = req.body
     if (!b.clientId) { res.status(400).json({ success: false, message: 'Client is required' }); return }
+    if (b.currency && !isCurrency(b.currency)) { res.status(400).json({ success: false, message: 'Pick a currency from the list' }); return }
     const discount = parseFloat(b.discountRate) || 0
     if (discount < 0 || discount > 100) { res.status(400).json({ success: false, message: 'Discount must be between 0 and 100%' }); return }
     const totals = computeTotals(Array.isArray(b.items) ? b.items : [], parseFloat(b.vatRate) || 0, discount)
@@ -85,6 +88,7 @@ export async function createQuotation(req: AuthRequest, res: Response): Promise<
         clientId: b.clientId,
         contactName: b.contactName || null, contactEmail: b.contactEmail || null, contactPhone: b.contactPhone || null,
         ...totals, items: totals.items as unknown as Prisma.InputJsonValue,
+        currency: b.currency || 'RWF', exchangeRate: await rateFor(b.currency || 'RWF'),
         validUntil: b.validUntil ? new Date(b.validUntil) : null,
         paymentTerms: b.paymentTerms || null, notes: b.notes || null,
         assignedToId: b.assignedToId || req.user!.id, linkedDeal: b.linkedDeal || null,
@@ -94,7 +98,7 @@ export async function createQuotation(req: AuthRequest, res: Response): Promise<
     })
     await logAudit(req, {
       action: 'CREATE', entity: 'Quotation', entityId: q.id, entityName: `${q.quotationNumber} — ${q.client.companyName ?? ''}`,
-      description: `Created quotation ${q.quotationNumber} for ${q.client.companyName} — RWF ${q.totalAmount.toLocaleString('en-US')}`,
+      description: `Created quotation ${q.quotationNumber} for ${q.client.companyName} — ${q.currency} ${q.totalAmount.toLocaleString('en-US')}`,
       newValue: { totalAmount: q.totalAmount, status: q.status },
     })
     res.status(201).json({ success: true, data: q, message: `Quotation ${q.quotationNumber} created` })
@@ -114,10 +118,20 @@ export async function updateQuotation(req: AuthRequest, res: Response): Promise<
     const items = b.items ?? (b.vatRate !== undefined || b.discountRate !== undefined ? (before.items as unknown as Item[]) : null)
     const totals = items ? computeTotals(items, parseFloat(b.vatRate ?? before.vatRate) || 0, discount) : null
     if (totals && !totals.items.length) { res.status(400).json({ success: false, message: 'Add at least one line item' }); return }
+    if (b.currency !== undefined && !isCurrency(b.currency)) { res.status(400).json({ success: false, message: 'Pick a currency from the list' }); return }
     const history = (before.approvalHistory as unknown as HistoryEvent[] | null) ?? []
+    // Changed content keeps the earlier version (items, prices, discount, VAT, validity, terms)
+    const newVersion = await keepVersion(req, 'Quotation', before as unknown as Record<string, unknown> & { id: string; version: number }, {
+      ...(totals ?? {}), currency: b.currency,
+      ...(b.validUntil !== undefined && { validUntil: b.validUntil ? new Date(b.validUntil) : null }),
+      ...(b.paymentTerms !== undefined && { paymentTerms: b.paymentTerms || null }),
+      ...(b.notes !== undefined && { notes: b.notes || null }),
+    }, QUOTATION_FIELDS)
     const q = await prisma.quotation.update({
       where: { id: before.id },
       data: {
+        ...(newVersion && { version: newVersion }),
+        ...(b.currency !== undefined && b.currency !== before.currency && { currency: b.currency, exchangeRate: await rateFor(b.currency) }),
         ...(b.clientId !== undefined && { clientId: b.clientId }),
         ...(b.contactName !== undefined && { contactName: b.contactName || null }),
         ...(b.contactEmail !== undefined && { contactEmail: b.contactEmail || null }),
@@ -137,7 +151,7 @@ export async function updateQuotation(req: AuthRequest, res: Response): Promise<
       description: `Updated quotation ${q.quotationNumber}`,
       oldValue: { totalAmount: before.totalAmount }, newValue: { totalAmount: q.totalAmount },
     })
-    res.json({ success: true, data: q, message: 'Quotation updated' })
+    res.json({ success: true, data: q, message: newVersion ? `Quotation updated — now version ${newVersion} (earlier versions are kept)` : 'Quotation updated' })
   } catch (e) { fail(res, e, 'updateQuotation') }
 }
 
@@ -236,7 +250,7 @@ export async function convertQuotation(req: AuthRequest, res: Response): Promise
         data: {
           contractNumber, clientId: q.clientId,
           projectName: q.linkedDeal || `${q.client.companyName} project`,
-          value: q.totalAmount, currency: q.currency, startDate: start, endDate: end,
+          value: q.totalAmount, currency: q.currency, exchangeRate: q.exchangeRate, startDate: start, endDate: end,
           paymentTerms: q.paymentTerms, deliverables: items.map(i => `${i.description} x ${i.quantity}`).join('\n'),
           status: 'DRAFT', responsibleManagerId: q.assignedToId, sourceQuotationNumber: q.quotationNumber,
           notes: q.notes,

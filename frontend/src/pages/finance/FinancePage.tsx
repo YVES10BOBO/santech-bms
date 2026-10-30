@@ -4,6 +4,8 @@ import { financeService, type PLReport } from '@/lib/services/financeService'
 import { useLookups, apiError } from '@/lib/services/lookupService'
 import toast from 'react-hot-toast'
 import StatementsTab from './StatementsTab'
+import ExchangeRatesCard from '@/components/shared/ExchangeRatesCard'
+import { CURRENCIES, rwfHint, useRates } from '@/lib/currency'
 import {
   TrendingUp,
   TrendingDown,
@@ -18,7 +20,7 @@ import {
 import { cn, formatDate, formatCurrency } from '@/lib/utils'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type Tab = 'overview' | 'income' | 'expenses' | 'statements'
+type Tab = 'overview' | 'income' | 'expenses' | 'statements' | 'currencies'
 
 type IncomeCategory =
   | 'Software Dev'
@@ -38,6 +40,11 @@ type ExpenseCategory =
   | 'Transport'
   | 'Other'
 
+/** "USD 1,000 at 1,450" for an entry paid in another currency (amounts are kept in RWF) */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const origText = (r: any) => r.originalCurrency && r.originalAmount
+  ? `${r.originalCurrency} ${Number(r.originalAmount).toLocaleString('en-US')} at ${Number(r.exchangeRate).toLocaleString('en-US')}` : ''
+
 interface IncomeRecord {
   id: string
   date: string
@@ -47,6 +54,7 @@ interface IncomeRecord {
   client: string
   by: string
   invoice: string
+  orig: string // e.g. "USD 1,000 at 1,450" when paid in another currency
 }
 
 interface ExpenseRecord {
@@ -57,6 +65,7 @@ interface ExpenseRecord {
   amount: number
   by: string
   notes: string
+  orig: string
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -491,9 +500,11 @@ function IncomeTab() {
     desc: '',
     cat: 'Software Dev' as IncomeCategory,
     amount: '',
+    currency: 'RWF',
     clientId: '',
   }
   const [form, setForm]   = useState(emptyIncomeForm)
+  const rates = useRates()
   const [formError, setFormError] = useState('')
 
   const load = () =>
@@ -508,6 +519,7 @@ function IncomeTab() {
         client: r.clientName ?? '',
         by: byName(r.recordedBy),
         invoice: r.payment?.invoice?.invoiceNumber ?? '',
+        orig: origText(r),
       }))))
       .catch(err => toast.error(apiError(err, 'Failed to load income')))
 
@@ -555,7 +567,7 @@ function IncomeTab() {
     try {
       await financeService.createIncome({
         date: form.date, description: form.desc, category: form.cat,
-        amount: Number(form.amount), clientId: form.clientId || undefined,
+        amount: Number(form.amount), currency: form.currency, clientId: form.clientId || undefined,
       })
       toast.success('Income recorded')
       setShowModal(false)
@@ -657,7 +669,7 @@ function IncomeTab() {
                   <td className="px-4 py-3">
                     <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">{r.cat}</span>
                   </td>
-                  <td className="px-4 py-3 font-mono text-green-700 font-semibold whitespace-nowrap">{fmt(r.amount)}</td>
+                  <td className="px-4 py-3 font-mono text-green-700 font-semibold whitespace-nowrap">{fmt(r.amount)}{r.orig && <p className="font-sans text-[10px] font-normal text-gray-400">{r.orig}</p>}</td>
                   <td className="px-4 py-3 text-gray-600 text-xs">{r.client || '—'}</td>
                   <td className="px-4 py-3 text-gray-500 text-xs">{r.by}</td>
                   <td className="px-4 py-3 text-xs">
@@ -715,16 +727,25 @@ function IncomeTab() {
                 <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
               </div>
             </Field>
-            <Field label="Amount (RWF)" required>
-              <input
-                type="number"
-                name="amount"
-                value={form.amount}
-                onChange={handleChange}
-                placeholder="e.g. 1500000"
-                min="1"
-                className={inputCls}
-              />
+            <Field label={`Amount (${form.currency})`} required>
+              <div className="flex gap-2">
+                <select name="currency" value={form.currency} onChange={handleChange} className={cn(inputCls, 'w-24')} aria-label="Currency">
+                  {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+                <input
+                  type="number"
+                  name="amount"
+                  value={form.amount}
+                  onChange={handleChange}
+                  placeholder="e.g. 1500000"
+                  min="0.01"
+                  step="0.01"
+                  className={inputCls}
+                />
+              </div>
+              {form.currency !== 'RWF' && Number(form.amount) > 0 && (
+                <p className="text-[11px] text-gray-400 mt-0.5">Recorded in RWF: {rwfHint(Number(form.amount), form.currency, rates[form.currency])}</p>
+              )}
             </Field>
             <Field label="Client">
               <div className="relative">
@@ -775,9 +796,11 @@ function ExpensesTab() {
     desc: '',
     cat: 'Rent' as ExpenseCategory,
     amount: '',
+    currency: 'RWF',
     notes: '',
   }
   const [form, setForm]     = useState(emptyExpenseForm)
+  const rates = useRates()
   const [formError, setFormError] = useState('')
 
   const load = () =>
@@ -791,6 +814,7 @@ function ExpensesTab() {
         amount: Number(r.amount),
         by: byName(r.recordedBy),
         notes: r.notes ?? '',
+        orig: origText(r),
       }))))
       .catch(err => toast.error(apiError(err, 'Failed to load expenses')))
 
@@ -840,7 +864,7 @@ function ExpensesTab() {
     try {
       await financeService.createExpense({
         date: form.date, description: form.desc, category: form.cat,
-        amount: Number(form.amount), notes: form.notes,
+        amount: Number(form.amount), currency: form.currency, notes: form.notes,
       })
       toast.success('Expense recorded')
       setShowModal(false)
@@ -941,7 +965,7 @@ function ExpensesTab() {
                   <td className="px-4 py-3">
                     <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-medium">{r.cat}</span>
                   </td>
-                  <td className="px-4 py-3 font-mono text-red-600 font-semibold whitespace-nowrap">{fmt(r.amount)}</td>
+                  <td className="px-4 py-3 font-mono text-red-600 font-semibold whitespace-nowrap">{fmt(r.amount)}{r.orig && <p className="font-sans text-[10px] font-normal text-gray-400">{r.orig}</p>}</td>
                   <td className="px-4 py-3 text-gray-600 text-xs">{r.by}</td>
                   <td className="px-4 py-3 text-gray-400 text-xs">{r.notes || '—'}</td>
                 </tr>
@@ -994,16 +1018,25 @@ function ExpensesTab() {
                 <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
               </div>
             </Field>
-            <Field label="Amount (RWF)" required>
-              <input
-                type="number"
-                name="amount"
-                value={form.amount}
-                onChange={handleChange}
-                placeholder="e.g. 3500000"
-                min="1"
-                className={inputCls}
-              />
+            <Field label={`Amount (${form.currency})`} required>
+              <div className="flex gap-2">
+                <select name="currency" value={form.currency} onChange={handleChange} className={cn(inputCls, 'w-24')} aria-label="Currency">
+                  {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+                <input
+                  type="number"
+                  name="amount"
+                  value={form.amount}
+                  onChange={handleChange}
+                  placeholder="e.g. 3500000"
+                  min="0.01"
+                  step="0.01"
+                  className={inputCls}
+                />
+              </div>
+              {form.currency !== 'RWF' && Number(form.amount) > 0 && (
+                <p className="text-[11px] text-gray-400 mt-0.5">Recorded in RWF: {rwfHint(Number(form.amount), form.currency, rates[form.currency])}</p>
+              )}
             </Field>
             <Field label="Notes">
               <textarea
@@ -1048,6 +1081,7 @@ export default function FinancePage() {
     { key: 'income',    label: 'Income'    },
     { key: 'expenses',  label: 'Expenses'  },
     { key: 'statements', label: 'Statements' },
+    { key: 'currencies', label: 'Currencies' },
   ]
 
   return (
@@ -1084,6 +1118,7 @@ export default function FinancePage() {
       {activeTab === 'income'    && <IncomeTab    />}
       {activeTab === 'expenses'  && <ExpensesTab  />}
       {activeTab === 'statements' && <StatementsTab />}
+      {activeTab === 'currencies' && <ExchangeRatesCard canEdit />}
     </div>
   )
 }

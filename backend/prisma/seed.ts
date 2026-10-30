@@ -13,6 +13,7 @@ import { seedOffice } from './seeds/office'
 import { seedDocumentLinks } from './seeds/documentLinks'
 import { seedDocumentFolders, seedCustomFolders } from './seeds/documentFolders'
 import { seedClaimsExpiryWarranty } from './seeds/claimsExpiryWarranty'
+import { seedBillingExtras } from './seeds/billingExtras'
 import { seedTasksForEveryone } from './seeds/tasksForEveryone'
 
 const prisma = new PrismaClient()
@@ -275,6 +276,7 @@ async function main() {
   await seedDocumentFolders(prisma)
   await seedCustomFolders(prisma)
   await seedClaimsExpiryWarranty(prisma)
+  await seedBillingExtras(prisma)
   // Every demo login gets tasks on My Tasks
   await seedTasksForEveryone(prisma)
 

@@ -5,6 +5,9 @@ import { logAudit } from '../lib/audit'
 import { nextDocumentNumber, guessIncomeCategory } from '../lib/numbering'
 import { ADMINS, hasRole } from '../lib/roles'
 import { notify } from '../lib/notifications'
+import { isCurrency, openBalance, rateFor, receivableWhere, toRwf } from '../lib/currency'
+import { CONTRACT_FIELDS, keepVersion } from '../lib/versions'
+import { generateRecurringInvoices } from '../lib/recurring'
 import type { AuthRequest } from '../middleware/auth'
 
 const fail = (res: Response, error: unknown, where: string) => {
@@ -17,19 +20,28 @@ const userName = { select: { id: true, firstName: true, lastName: true } }
 // ── INVOICES ──────────────────────────────────────────────────────────────────
 
 const invoiceInclude = {
-  client: { select: { id: true, companyName: true } },
+  client: { select: { id: true, companyName: true, fullName: true, teamName: true, delegationName: true } },
   contract: { select: { id: true, contractNumber: true, projectName: true } },
   project: { select: { id: true, name: true } },
   milestone: { select: { id: true, name: true } },
   payments: { orderBy: { paymentDate: 'desc' as const } },
+  creditFor: { select: { id: true, invoiceNumber: true } },
+  creditNotes: { select: { id: true, invoiceNumber: true, totalAmount: true, issueDate: true, notes: true }, orderBy: { issueDate: 'asc' as const } },
+  proforma: { select: { id: true, invoiceNumber: true } },
+  invoiceFromProforma: { select: { id: true, invoiceNumber: true } },
+  subscription: { select: { id: true, systemName: true, billingCycle: true } },
 }
+const INVOICE_TYPES = ['INVOICE', 'PROFORMA', 'CREDIT_NOTE']
 
 export async function getInvoices(req: AuthRequest, res: Response): Promise<void> {
   try {
-    const { page = 1, limit = 100, status, clientId, search } = req.query
+    const { page = 1, limit = 100, status, clientId, search, type } = req.query
     const skip = (Number(page) - 1) * Number(limit)
+    // service invoices that are due get raised first (at most every 10 minutes)
+    await generateRecurringInvoices().catch(e => console.error('recurring invoices:', e))
 
     const where: Prisma.InvoiceWhereInput = {}
+    if (type && INVOICE_TYPES.includes(String(type))) where.type = String(type)
     if (status) where.status = status as Prisma.InvoiceWhereInput['status']
     if (clientId) where.clientId = String(clientId)
     if (search) {
@@ -63,6 +75,9 @@ export async function getInvoice(req: AuthRequest, res: Response): Promise<void>
 export async function createInvoice(req: AuthRequest, res: Response): Promise<void> {
   try {
     const { invoiceNumber, clientId, contractId, projectId, amount, taxAmount, currency, issueDate, dueDate, notes, status } = req.body
+    const type = req.body.type === 'PROFORMA' ? 'PROFORMA' : 'INVOICE' // credit notes come from an invoice (POST /invoices/:id/credit-note)
+    if (currency && !isCurrency(currency)) { res.status(400).json({ success: false, message: 'Pick a currency from the list' }); return }
+    if (type === 'PROFORMA' && status && !['DRAFT', 'SENT'].includes(status)) { res.status(400).json({ success: false, message: 'A proforma is Draft or Sent — it is never paid itself' }); return }
 
     if (!clientId || !amount || !dueDate) {
       res.status(400).json({ success: false, message: 'Client, amount and due date are required' }); return
@@ -86,7 +101,8 @@ export async function createInvoice(req: AuthRequest, res: Response): Promise<vo
 
     const invoice = await prisma.invoice.create({
       data: {
-        invoiceNumber: invoiceNumber || await nextDocumentNumber('INV'),
+        invoiceNumber: invoiceNumber || await nextDocumentNumber(type === 'PROFORMA' ? 'PF' : 'INV'),
+        type,
         clientId,
         contractId: contractId || null,
         projectId: projectId || null,
@@ -94,6 +110,7 @@ export async function createInvoice(req: AuthRequest, res: Response): Promise<vo
         taxAmount: taxNum,
         totalAmount: amountNum + taxNum,
         currency: currency || 'RWF',
+        exchangeRate: await rateFor(currency || 'RWF'),
         issueDate: new Date(issueDate || new Date()),
         dueDate: new Date(dueDate),
         notes: notes || null,
@@ -105,11 +122,11 @@ export async function createInvoice(req: AuthRequest, res: Response): Promise<vo
     await logAudit(req, {
       action: 'CREATE', entity: 'Invoice', entityId: invoice.id,
       entityName: `${invoice.invoiceNumber} — ${invoice.client.companyName ?? ''}`,
-      description: `Created invoice ${invoice.invoiceNumber} for ${invoice.client.companyName ?? 'client'}`,
+      description: `Created ${type === 'PROFORMA' ? 'proforma invoice' : 'invoice'} ${invoice.invoiceNumber} for ${invoice.client.companyName ?? 'client'}`,
       newValue: { totalAmount: invoice.totalAmount, status: invoice.status, dueDate: dueDate },
     })
 
-    res.status(201).json({ success: true, data: invoice, message: 'Invoice created successfully' })
+    res.status(201).json({ success: true, data: invoice, message: `${type === 'PROFORMA' ? 'Proforma' : 'Invoice'} ${invoice.invoiceNumber} created` })
   } catch (error: unknown) {
     if ((error as { code?: string }).code === 'P2002') {
       res.status(409).json({ success: false, message: 'Invoice number already exists' }); return
@@ -121,8 +138,23 @@ export async function createInvoice(req: AuthRequest, res: Response): Promise<vo
 export async function updateInvoice(req: AuthRequest, res: Response): Promise<void> {
   try {
     const { status, notes, dueDate } = req.body
-    const before = await prisma.invoice.findUnique({ where: { id: req.params.id } })
+    const before = await prisma.invoice.findUnique({ where: { id: req.params.id }, include: { invoiceFromProforma: { select: { id: true } } } })
     if (!before) { res.status(404).json({ success: false, message: 'Invoice not found' }); return }
+    if (status !== undefined && status !== before.status) {
+      if (before.type === 'CREDIT_NOTE') { res.status(400).json({ success: false, message: 'A credit note cannot change once issued' }); return }
+      if (before.type === 'PROFORMA' && !['DRAFT', 'SENT', 'CANCELLED'].includes(status)) {
+        res.status(400).json({ success: false, message: 'A proforma is never paid itself — convert it to an invoice' }); return
+      }
+      if (before.type === 'PROFORMA' && status === 'CANCELLED' && before.invoiceFromProforma) {
+        res.status(400).json({ success: false, message: 'This proforma was already converted to an invoice' }); return
+      }
+      if (before.type === 'INVOICE' && status === 'CANCELLED' && (before.paidAmount > 0 || before.creditedAmount > 0)) {
+        res.status(400).json({ success: false, message: 'This invoice has payments or credits — issue a credit note for the rest instead' }); return
+      }
+      if (before.type === 'INVOICE' && (status === 'PAID' || status === 'PARTIALLY_PAID')) {
+        res.status(400).json({ success: false, message: 'Use Record Payment — the status follows the payments' }); return
+      }
+    }
 
     const invoice = await prisma.invoice.update({
       where: { id: req.params.id },
@@ -161,16 +193,25 @@ export async function recordPayment(req: AuthRequest, res: Response): Promise<vo
       include: { client: { select: { companyName: true } }, contract: { select: { projectName: true } }, project: { select: { name: true } } },
     })
     if (!invoice) { res.status(404).json({ success: false, message: 'Invoice not found' }); return }
+    if (invoice.type !== 'INVOICE') {
+      res.status(400).json({ success: false, message: invoice.type === 'PROFORMA' ? 'A proforma is not paid itself — convert it to an invoice first' : 'Credit notes are not paid' }); return
+    }
+    if (invoice.status === 'CANCELLED' || invoice.status === 'DRAFT') {
+      res.status(400).json({ success: false, message: invoice.status === 'DRAFT' ? 'Mark the invoice as sent first' : 'This invoice was cancelled' }); return
+    }
 
     const amountNum = parseFloat(amount)
-    const balance = invoice.totalAmount - invoice.paidAmount
+    const balance = openBalance(invoice)
     if (!(amountNum > 0)) { res.status(400).json({ success: false, message: 'Amount must be greater than zero' }); return }
     if (amountNum > balance + 0.01) {
       res.status(400).json({ success: false, message: `Amount is more than the balance due (${balance})` }); return
     }
 
     const newPaid = invoice.paidAmount + amountNum
-    const newStatus = newPaid >= invoice.totalAmount - 0.01 ? 'PAID' : 'PARTIALLY_PAID'
+    const newStatus = newPaid + invoice.creditedAmount >= invoice.totalAmount - 0.01 ? 'PAID' : 'PARTIALLY_PAID'
+    // Income is booked in RWF at today's rate; the amount in the invoice currency is kept with it
+    const foreign = invoice.currency !== 'RWF'
+    const rateToday = foreign ? await rateFor(invoice.currency) : 1
 
     // Payment, invoice balance and the matching income entry are saved together.
     const payment = await prisma.$transaction(async tx => {
@@ -186,19 +227,24 @@ export async function recordPayment(req: AuthRequest, res: Response): Promise<vo
         data: {
           date: new Date(paymentDate),
           description: `Payment for ${invoice.invoiceNumber}${invoice.project?.name || invoice.contract?.projectName ? ` — ${invoice.project?.name ?? invoice.contract?.projectName}` : ''}`,
-          category: guessIncomeCategory(invoice.project?.name ?? invoice.contract?.projectName),
-          amount: amountNum, currency: invoice.currency,
+          category: invoice.subscriptionId ? 'Maintenance' : guessIncomeCategory(invoice.project?.name ?? invoice.contract?.projectName),
+          amount: toRwf(amountNum, rateToday), currency: 'RWF',
+          ...(foreign && { originalAmount: amountNum, originalCurrency: invoice.currency, exchangeRate: rateToday }),
           clientId: invoice.clientId, clientName: invoice.client.companyName,
           paymentId: p.id, recordedById: req.user!.id,
         },
       })
+      // A service invoice paid in full marks that service period as paid
+      if (newStatus === 'PAID' && invoice.subscriptionId) {
+        await tx.clientSubscription.update({ where: { id: invoice.subscriptionId }, data: { paymentStatus: 'PAID', paymentDate: new Date(paymentDate) } })
+      }
       return p
     })
 
     await logAudit(req, {
       action: 'PAYMENT', entity: 'Invoice', entityId: invoice.id,
       entityName: `${invoice.invoiceNumber} — ${invoice.client.companyName ?? ''}`,
-      description: `Recorded payment of RWF ${amountNum.toLocaleString('en-US')} for invoice ${invoice.invoiceNumber}`,
+      description: `Recorded payment of ${invoice.currency} ${amountNum.toLocaleString('en-US')}${foreign ? ` (RWF ${toRwf(amountNum, rateToday).toLocaleString('en-US')} at ${rateToday})` : ''} for invoice ${invoice.invoiceNumber}`,
       oldValue: { paidAmount: invoice.paidAmount, status: invoice.status },
       newValue: { amount: amountNum, method: paymentMethod, reference: reference || null, paidAmount: newPaid, status: newStatus },
     })
@@ -209,6 +255,13 @@ export async function recordPayment(req: AuthRequest, res: Response): Promise<vo
 }
 
 // ── INCOME & EXPENSES ─────────────────────────────────────────────────────────
+
+/** Income and expenses are kept in RWF; an amount in another currency is converted at today's rate */
+async function inRwf(amount: number, currency?: string) {
+  if (!currency || currency === 'RWF') return { amount, currency: 'RWF' }
+  const rate = await rateFor(currency)
+  return { amount: toRwf(amount, rate), currency: 'RWF', originalAmount: amount, originalCurrency: currency, exchangeRate: rate }
+}
 
 function periodFilter(month?: unknown, year?: unknown): Prisma.DateTimeFilter | undefined {
   const y = parseInt(String(year))
@@ -242,7 +295,8 @@ export async function getIncome(req: AuthRequest, res: Response): Promise<void> 
 
 export async function createIncome(req: AuthRequest, res: Response): Promise<void> {
   try {
-    const { date, description, category, amount, clientId, clientName } = req.body
+    const { date, description, category, amount, clientId, clientName, currency } = req.body
+    if (currency && !isCurrency(currency)) { res.status(400).json({ success: false, message: 'Pick a currency from the list' }); return }
     if (!date || !description || !(parseFloat(amount) > 0)) {
       res.status(400).json({ success: false, message: 'Date, description and a positive amount are required' }); return
     }
@@ -254,7 +308,7 @@ export async function createIncome(req: AuthRequest, res: Response): Promise<voi
     const row = await prisma.incomeEntry.create({
       data: {
         date: new Date(date), description, category: category || 'Other',
-        amount: parseFloat(amount), clientId: clientId || null, clientName: name,
+        ...(await inRwf(parseFloat(amount), currency)), clientId: clientId || null, clientName: name,
         recordedById: req.user!.id,
       },
       include: { recordedBy: userName },
@@ -288,14 +342,15 @@ export async function getExpenses(req: AuthRequest, res: Response): Promise<void
 
 export async function createExpense(req: AuthRequest, res: Response): Promise<void> {
   try {
-    const { date, description, category, amount, notes } = req.body
+    const { date, description, category, amount, notes, currency } = req.body
+    if (currency && !isCurrency(currency)) { res.status(400).json({ success: false, message: 'Pick a currency from the list' }); return }
     if (!date || !description || !(parseFloat(amount) > 0)) {
       res.status(400).json({ success: false, message: 'Date, description and a positive amount are required' }); return
     }
     const row = await prisma.expenseEntry.create({
       data: {
         date: new Date(date), description, category: category || 'Other',
-        amount: parseFloat(amount), notes: notes || null, recordedById: req.user!.id,
+        ...(await inRwf(parseFloat(amount), currency)), notes: notes || null, recordedById: req.user!.id,
       },
       include: { recordedBy: userName },
     })
@@ -342,7 +397,7 @@ export async function getPL(req: AuthRequest, res: Response): Promise<void> {
     const [incomeByCat, expenseByCat, openInvoices, series] = await Promise.all([
       prisma.incomeEntry.groupBy({ by: ['category'], where: { date }, _sum: { amount: true }, orderBy: { _sum: { amount: 'desc' } } }),
       prisma.expenseEntry.groupBy({ by: ['category'], where: { date }, _sum: { amount: true }, orderBy: { _sum: { amount: 'desc' } } }),
-      prisma.invoice.findMany({ where: { status: { notIn: ['PAID', 'CANCELLED', 'DRAFT'] } }, select: { totalAmount: true, paidAmount: true } }),
+      prisma.invoice.findMany({ where: receivableWhere(), select: { totalAmount: true, paidAmount: true, creditedAmount: true, exchangeRate: true } }),
       monthlySeries(y, m || 12, 6),
     ])
 
@@ -350,7 +405,7 @@ export async function getPL(req: AuthRequest, res: Response): Promise<void> {
     const expensesByCategory = expenseByCat.map(r => ({ category: r.category, amount: r._sum.amount ?? 0 }))
     const totalRevenue = revenueByCategory.reduce((s, r) => s + r.amount, 0)
     const totalExpenses = expensesByCategory.reduce((s, r) => s + r.amount, 0)
-    const outstanding = openInvoices.reduce((s, i) => s + (i.totalAmount - i.paidAmount), 0)
+    const outstanding = openInvoices.reduce((s, i) => s + toRwf(openBalance(i), i.exchangeRate), 0)
 
     res.json({
       success: true,
@@ -523,6 +578,7 @@ export async function createContract(req: AuthRequest, res: Response): Promise<v
     if (!clientId || !value || !startDate || !endDate) {
       res.status(400).json({ success: false, message: 'Client, value, start date and end date are required' }); return
     }
+    if (currency && !isCurrency(currency)) { res.status(400).json({ success: false, message: 'Pick a currency from the list' }); return }
 
     const contract = await prisma.contract.create({
       data: {
@@ -531,6 +587,7 @@ export async function createContract(req: AuthRequest, res: Response): Promise<v
         projectName: projectName || null,
         value: parseFloat(value),
         currency: currency || 'RWF',
+        exchangeRate: await rateFor(currency || 'RWF'),
         startDate: new Date(startDate),
         endDate: new Date(endDate),
         paymentTerms: paymentTerms || null,
@@ -564,9 +621,10 @@ const CONTRACT_FLOW: ContractStatus[] = ['DRAFT', 'REVIEW', 'APPROVAL', 'SIGNING
 export async function updateContract(req: AuthRequest, res: Response): Promise<void> {
   try {
     const {
-      clientId, projectName, value, startDate, endDate, paymentTerms, deliverables, status,
+      clientId, projectName, value, currency, startDate, endDate, paymentTerms, deliverables, status,
       responsibleManagerId, signatories, signedDocumentName, signedDocumentUrl, approvalNote, notes,
     } = req.body
+    if (currency !== undefined && !isCurrency(currency)) { res.status(400).json({ success: false, message: 'Pick a currency from the list' }); return }
 
     const before = await prisma.contract.findUnique({ where: { id: req.params.id } })
     if (!before) { res.status(404).json({ success: false, message: 'Contract not found' }); return }
@@ -595,9 +653,20 @@ export async function updateContract(req: AuthRequest, res: Response): Promise<v
       }
     }
 
+    // Changed terms keep the earlier version (value, dates, payment terms, deliverables…)
+    const newVersion = await keepVersion(req, 'Contract', before as unknown as Record<string, unknown> & { id: string; version: number }, {
+      clientId, projectName, currency,
+      ...(value !== undefined && { value: parseFloat(value) }),
+      ...(startDate !== undefined && { startDate: new Date(startDate) }),
+      ...(endDate !== undefined && { endDate: new Date(endDate) }),
+      paymentTerms, deliverables,
+    }, CONTRACT_FIELDS)
+
     const contract = await prisma.contract.update({
       where: { id: req.params.id },
       data: {
+        ...(newVersion && { version: newVersion }),
+        ...(currency !== undefined && currency !== before.currency && { currency, exchangeRate: await rateFor(currency) }),
         ...(clientId !== undefined && { clientId }),
         ...(projectName !== undefined && { projectName }),
         ...(value !== undefined && { value: parseFloat(value) }),
@@ -662,7 +731,8 @@ export async function updateContract(req: AuthRequest, res: Response): Promise<v
     }
     res.json({
       success: true, data: contract,
-      message: project ? `Contract active — project "${project.name}" created automatically` : 'Contract updated successfully',
+      message: project ? `Contract active — project "${project.name}" created automatically`
+        : newVersion ? `Contract updated — saved as version ${newVersion} (the earlier terms are kept in its history)` : 'Contract updated successfully',
     })
   } catch (error) { fail(res, error, 'updateContract') }
 }
@@ -686,7 +756,7 @@ export async function getStatements(req: AuthRequest, res: Response): Promise<vo
       prisma.expenseEntry.aggregate({ where: { date: { lt: yearStart } }, _sum: { amount: true } }),
       prisma.incomeEntry.findMany({ where: { date: { gte: yearStart, lt: yearEnd } }, select: { date: true, amount: true, category: true } }),
       prisma.expenseEntry.findMany({ where: { date: { gte: yearStart, lt: yearEnd } }, select: { date: true, amount: true, category: true } }),
-      prisma.invoice.findMany({ where: { status: { notIn: ['PAID', 'CANCELLED', 'DRAFT'] } }, include: { client: { select: { companyName: true } } } }),
+      prisma.invoice.findMany({ where: receivableWhere(), include: { client: { select: { companyName: true } } } }),
       prisma.purchaseRequest.findMany({ where: { status: { in: ['APPROVED', 'ORDERED'] } } }),
       prisma.salaryRecord.findMany({ where: { isPaid: false }, include: { employee: { include: { user: { select: { firstName: true, lastName: true } } } } } }),
       prisma.expenseEntry.aggregate({ where: { category: 'Equipment', date: { lt: asOf } }, _sum: { amount: true } }),
@@ -714,7 +784,11 @@ export async function getStatements(req: AuthRequest, res: Response): Promise<vo
     const totalPayable = payables.reduce((s, p) => s + p.amount, 0)
 
     // Accounts receivable
-    const receivables = openInvoices.map(i => ({ number: i.invoiceNumber, client: i.client.companyName ?? '', due: i.dueDate, balance: i.totalAmount - i.paidAmount, status: i.status }))
+    const receivables = openInvoices.map(i => ({
+      number: i.invoiceNumber, client: i.client.companyName ?? '', due: i.dueDate, status: i.status,
+      balance: toRwf(openBalance(i), i.exchangeRate), // in RWF
+      ...(i.currency !== 'RWF' && { currency: i.currency, originalBalance: openBalance(i) }),
+    }))
       .sort((a, b) => b.balance - a.balance)
     const totalReceivable = receivables.reduce((s, r) => s + r.balance, 0)
 
