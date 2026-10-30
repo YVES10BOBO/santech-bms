@@ -61,11 +61,11 @@
   }
 
   /* The layer between the imigongo pattern and the cards, on every page (staff pages,
-     customer and supplier portals, login): light grey-blue #f4f6fa, partly see-through, so
-     - the imigongo pattern shows through softly behind it
-     - cards sit clearly on top (they are solid white, above this layer)  */
+     customer and supplier portals, login): solid light grey-blue #f4f6fa, the colour of the
+     portals. It sits in front of the imigongo pattern and behind the cards.
+     To let the pattern show through, use e.g. rgba(244, 246, 250, 0.85) instead.  */
   :root {
-    --page-layer: rgba(244, 246, 250, 0.60);
+    --page-layer: #f4f6fa;
   }
   main,
   .page-layer {

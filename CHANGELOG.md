@@ -25,6 +25,12 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 
 ## 1.5.0 — 30 October 2026
 
+### Background layer now solid on every page (30 Oct)
+- The `#f4f6fa` layer is now **solid**: every page (dashboard and all features, portals, login) has the
+  same flat light grey-blue behind the cards, like the portals had. At 60% see-through, the Imigongo still
+  showed clearly through it, so the colour was hard to see. Checked on the dashboard, Invoices and the
+  customer portal.
+
 ### Same background layer on every page (30 Oct)
 - **What:** the light grey-blue of the portals (`#f4f6fa`) is now the layer between the Imigongo pattern
   and the cards on every screen: staff pages, the customer and supplier portals, and the login page.
