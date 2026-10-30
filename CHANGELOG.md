@@ -25,6 +25,10 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 
 ## 1.5.0 — 30 October 2026
 
+### Imigongo shows faintly again (30 Oct)
+- The `#f4f6fa` layer is now 85% instead of solid: the colour still leads on every page, and the Imigongo
+  pattern shows faintly through it around the cards. Checked on the dashboard, Invoices and the portal.
+
 ### Background layer now solid on every page (30 Oct)
 - The `#f4f6fa` layer is now **solid**: every page (dashboard and all features, portals, login) has the
   same flat light grey-blue behind the cards, like the portals had. At 60% see-through, the Imigongo still

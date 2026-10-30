@@ -61,11 +61,11 @@
   }
 
   /* The layer between the imigongo pattern and the cards, on every page (staff pages,
-     customer and supplier portals, login): solid light grey-blue #f4f6fa, the colour of the
-     portals. It sits in front of the imigongo pattern and behind the cards.
-     To let the pattern show through, use e.g. rgba(244, 246, 250, 0.85) instead.  */
+     customer and supplier portals, login): light grey-blue #f4f6fa (the portals' colour) at 85%,
+     so the colour leads and the imigongo pattern shows faintly through it, behind the cards.
+     Higher (e.g. 0.95) = fainter pattern; #f4f6fa = pattern hidden; lower (e.g. 0.6) = stronger pattern.  */
   :root {
-    --page-layer: #f4f6fa;
+    --page-layer: rgba(244, 246, 250, 0.85);
   }
   main,
   .page-layer {
