@@ -22,6 +22,22 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 
 ## 1.2.0 — 29 October 2026
 
+### Salary: grid and list layouts (30 Oct)
+- **What:** The Salary page has the same list/grid switch as Documents (styled like Google Drive's).
+  - **List:** the payroll table, as before.
+  - **Grid:** one card per employee, showing:
+    - net salary for the month (and the payment date once paid);
+    - base, bonuses and deductions;
+    - performance bar;
+    - Paid / Unpaid;
+    - the same buttons (Mark Paid, + Bonus, Promote).
+  - The page remembers the chosen layout in this browser.
+- **Where:** Team → Salary, at the right of the filter bar.
+- **Rules:** unchanged. Amounts only reach HR and finance roles; Promote is Super Admin only.
+- **Technical:** new shared `components/shared/ViewToggle.tsx` (`ViewToggle` + `useViewMode(page)`),
+  now used by both Salary and Documents. Frontend only.
+- **Tested:** type check, and screenshots of both layouts in Edge on a local copy.
+
 ### Documents: drag & drop files and folders from your computer (30 Oct)
 - **What:**
   - **The upload window's box** now accepts a dropped file (before, it only opened the file picker).

@@ -464,6 +464,8 @@ again. On phones, the menu button in the top bar opens the sidebar, and its X bu
 
 #### Salary
 **Where:** Team → Salary (amounts visible to HR and finance roles only)
+- **Grid or list layout** (switch at the right of the filters, remembered): grid shows one card per
+  employee with net salary, breakdown, performance and status
 - Monthly salary table per employee; month/year selector
 - Add Bonus / Add Deduction; **Mark Paid** (books the salary expense in Finance)
 - Promotion (new position + salary raise + reason) — Super Admin only

@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   Folder, FolderOpen, FolderPlus, FolderInput, Plus, Search, X, FileText, FileSpreadsheet, FileImage, FileArchive, File as FileIcon,
-  Archive, Download, Upload, Edit2, Trash2, MoreVertical, LayoutGrid, List, Check, ChevronRight, ChevronDown,
+  Archive, Download, Upload, Edit2, Trash2, MoreVertical, Check, ChevronRight, ChevronDown,
   Eye, ExternalLink, FolderUp, FileUp, Loader2, CheckCircle2, AlertCircle, type LucideIcon,
 } from 'lucide-react'
 import { cn, formatDate } from '@/lib/utils'
@@ -12,12 +12,12 @@ import { fileService, formatSize } from '@/lib/services/fileService'
 import { useAuthStore } from '@/store/authStore'
 import DateRangePicker from '@/components/shared/DateRangePicker'
 import PageLoader from '@/components/shared/PageLoader'
+import ViewToggle, { useViewMode } from '@/components/shared/ViewToggle'
 import toast from 'react-hot-toast'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
 type DocCategory = 'CONTRACT' | 'INVOICE' | 'PROPOSAL' | 'REPORT' | 'POLICY' | 'OTHER'
-type View = 'grid' | 'list'
 type Sort = 'newest' | 'oldest' | 'name'
 
 interface Document {
@@ -75,7 +75,6 @@ const CATEGORIES = Object.keys(TYPES) as DocCategory[]
 const FOLDER_GREY = '#444746'
 /** Colours an admin can give a folder (empty = default grey) */
 const FOLDER_COLORS = ['', '#1a73e8', '#188038', '#f9ab00', '#e8710a', '#d93025', '#9334e6', '#00897b', '#e52592']
-const VIEW_KEY = 'santech.documents.view'
 const DOC_DRAG = 'application/x-santech-document'
 
 const emptyForm = { name: '', category: 'OTHER' as DocCategory, description: '', clientId: '', projectId: '', folderId: '' }
@@ -122,7 +121,6 @@ function fileKind(name: string): { Icon: LucideIcon; color: string; label: strin
   return { Icon: FileIcon, color: 'text-gray-500', label: 'File' }
 }
 
-const readView = (): View => { try { return localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'grid' } catch { return 'grid' } }
 const items = (n: number) => `${n} item${n === 1 ? '' : 's'}`
 
 /** Guess the type from the file name, e.g. "Invoice INV-2026-004.pdf" → Invoices */
@@ -183,7 +181,7 @@ export default function DocumentsPage() {
   const [loading, setLoading] = useState(true)
   const [fetching, setFetching] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [view, setViewState] = useState<View>(readView)
+  const [view, setView] = useViewMode('documents')
 
   // Search and filters
   const [search, setSearch] = useState('')
@@ -215,7 +213,6 @@ export default function DocumentsPage() {
   const dropRef = useRef<(dt: DataTransfer) => void>(() => {})
   const blockedRef = useRef(false)
 
-  const setView = (v: View) => { setViewState(v); try { localStorage.setItem(VIEW_KEY, v) } catch { /* remembered for this visit only */ } }
   const goTo = (l: Loc) => { setSearch(''); setSearchQuery(''); setParams(locKey(l) ? { f: locKey(l) } : {}) }
 
   // Wait until the user stops typing before searching
@@ -859,21 +856,7 @@ export default function DocumentsPage() {
           )}
 
           {/* List / grid switch, like Google Drive */}
-          <div className="ml-auto inline-flex rounded-full border border-[#747775] overflow-hidden" role="group" aria-label="Layout">
-            {([['list', List, 'List layout'], ['grid', LayoutGrid, 'Grid layout']] as const).map(([v, Icon, label]) => (
-              <button
-                key={v}
-                onClick={() => setView(v)}
-                title={label}
-                aria-pressed={view === v}
-                className={cn('flex items-center gap-1 px-3.5 py-1.5 transition-colors', v === 'grid' && 'border-l border-[#747775]',
-                  view === v ? 'bg-[#c2e7ff] text-[#001d35]' : 'bg-white text-gray-700 hover:bg-gray-100')}
-              >
-                {view === v && <Check className="w-4 h-4" />}
-                <Icon className="w-4 h-4" />
-              </button>
-            ))}
-          </div>
+          <ViewToggle value={view} onChange={setView} className="ml-auto" />
         </div>
       </div>
 

@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import { Search, X, TrendingUp, CheckCircle } from 'lucide-react'
-import { cn, formatCurrency } from '@/lib/utils'
+import { cn, formatCurrency, getInitials } from '@/lib/utils'
 import { salaryService } from '@/lib/services/salaryService'
 import { apiError } from '@/lib/services/lookupService'
 import { useAuthStore } from '@/store/authStore'
 import PageLoader from '@/components/shared/PageLoader'
+import ViewToggle, { useViewMode } from '@/components/shared/ViewToggle'
 import toast from 'react-hot-toast'
 
 interface SalaryRecord {
@@ -66,6 +67,7 @@ export default function SalaryPage() {
   const [paidFilter, setPaidFilter] = useState<'ALL' | 'PAID' | 'UNPAID'>('ALL')
   const [monthFilter, setMonthFilter] = useState(NOW.getMonth() + 1)
   const [yearFilter, setYearFilter] = useState(NOW.getFullYear())
+  const [view, setView] = useViewMode('salary', 'list')
 
   // Modals
   const [showBonusModal, setShowBonusModal] = useState(false)
@@ -146,6 +148,17 @@ export default function SalaryPage() {
     }
   }
 
+  /** Mark Paid / + Bonus / Promote — same rules in the table and on the cards */
+  const actions = (r: SalaryRecord) => (
+    <>
+      {!r.isPaid && (
+        <button disabled={busy} onClick={() => markPaid(r.id)} className="text-xs bg-green-50 text-green-600 px-2 py-1 rounded-lg hover:bg-green-100 font-medium">Mark Paid</button>
+      )}
+      {isAdmin && !r.isPaid && <button onClick={() => { setSelectedId(r.id); setShowBonusModal(true) }} className="text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded-lg hover:bg-blue-100 font-medium">+ Bonus</button>}
+      {isSuperAdmin && <button onClick={() => { setSelectedId(r.id); setShowPromoModal(true) }} className="text-xs bg-purple-50 text-purple-600 px-2 py-1 rounded-lg hover:bg-purple-100 font-medium flex items-center gap-1"><TrendingUp className="w-3 h-3" /> Promote</button>}
+    </>
+  )
+
   if (loading) return <PageLoader />
 
   return (
@@ -194,10 +207,51 @@ export default function SalaryPage() {
           <option value="PAID">Paid</option>
           <option value="UNPAID">Unpaid</option>
         </select>
+        {/* List / grid switch, like Google Drive */}
+        <ViewToggle value={view} onChange={setView} className="ml-auto self-center" />
       </div>
 
+      {/* Grid: one card per employee */}
+      {view === 'grid' && (filtered.length === 0 ? (
+        <div className="bms-card py-10 text-center text-gray-400 text-sm">No salary records for this period.</div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '0.75rem' }}>
+          {filtered.map(r => (
+            <div key={r.id} className="bms-card p-4 flex flex-col gap-3">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-full bg-santech-600 text-white flex items-center justify-center text-sm font-bold shrink-0">{getInitials(r.employeeName)}</div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-gray-800 truncate">{r.employeeName}</p>
+                  <p className="text-xs text-gray-500 truncate">{r.position}{r.department ? ` · ${r.department}` : ''}</p>
+                </div>
+                {r.isPaid
+                  ? <span className="flex items-center gap-1 text-xs text-green-700 bg-green-50 px-2 py-0.5 rounded-full font-medium shrink-0"><CheckCircle className="w-3 h-3" /> Paid</span>
+                  : <span className="text-xs text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full font-medium shrink-0">Unpaid</span>}
+              </div>
+              <div>
+                <p className="text-xl font-bold text-gray-900">{formatCurrency(r.netSalary)}</p>
+                <p className="text-xs text-gray-400">Net salary · {MONTH_NAMES[r.month - 1]} {r.year}{r.isPaid && r.paidAt ? ` · paid ${r.paidAt}` : ''}</p>
+              </div>
+              <div className="text-xs space-y-1 border-t border-gray-100 pt-2">
+                <div className="flex justify-between"><span className="text-gray-500">Base salary</span><span className="font-medium text-gray-700">{formatCurrency(r.baseSalary)}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Bonuses</span><span className="font-medium text-green-600">+{formatCurrency(r.bonuses)}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Deductions</span><span className="font-medium text-red-500">-{formatCurrency(r.deductions)}</span></div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500">Performance</span>
+                <div className="flex-1 bg-gray-100 rounded-full h-1.5">
+                  <div className={cn('h-1.5 rounded-full', scoreBg(r.performanceScore))} style={{ width: `${r.performanceScore}%` }} />
+                </div>
+                <span className={cn('text-xs font-medium', scoreColor(r.performanceScore))}>{r.performanceScore}%</span>
+              </div>
+              {(isAdmin || isSuperAdmin || !r.isPaid) && <div className="flex gap-1.5 flex-wrap mt-auto">{actions(r)}</div>}
+            </div>
+          ))}
+        </div>
+      ))}
+
       {/* Table */}
-      <div className="bms-card overflow-hidden">
+      {view === 'list' && <div className="bms-card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-100">
@@ -233,20 +287,14 @@ export default function SalaryPage() {
                       : <span className="text-xs text-orange-500 font-medium">Unpaid</span>}
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex gap-1.5 flex-wrap">
-                      {!r.isPaid && (
-                        <button disabled={busy} onClick={() => markPaid(r.id)} className="text-xs bg-green-50 text-green-600 px-2 py-1 rounded-lg hover:bg-green-100 font-medium">Mark Paid</button>
-                      )}
-                      {isAdmin && !r.isPaid && <button onClick={() => { setSelectedId(r.id); setShowBonusModal(true) }} className="text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded-lg hover:bg-blue-100 font-medium">+ Bonus</button>}
-                      {isSuperAdmin && <button onClick={() => { setSelectedId(r.id); setShowPromoModal(true) }} className="text-xs bg-purple-50 text-purple-600 px-2 py-1 rounded-lg hover:bg-purple-100 font-medium flex items-center gap-1"><TrendingUp className="w-3 h-3" /> Promote</button>}
-                    </div>
+                    <div className="flex gap-1.5 flex-wrap">{actions(r)}</div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-      </div>
+      </div>}
 
       {/* Bonus/Deduction Modal */}
       {showBonusModal && (
