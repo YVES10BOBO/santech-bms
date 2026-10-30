@@ -70,7 +70,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     }
     if (hasRole(role, TEAM)) {
       jobs.push(prisma.user.findMany({
-        where: { isActive: true, role: { not: 'CUSTOMER' }, OR: [{ firstName: has }, { lastName: has }, { email: has }] }, take,
+        where: { isActive: true, role: { notIn: ['CUSTOMER', 'SUPPLIER'] }, OR: [{ firstName: has }, { lastName: has }, { email: has }] }, take,
         include: { employee: { select: { position: true } } },
       }).then(rows => rows.map(u => ({ type: 'Employee', title: `${u.firstName} ${u.lastName}`, subtitle: u.employee?.position ?? u.email, link: at('/team/employees', `${u.firstName} ${u.lastName}`) }))))
     }

@@ -7,6 +7,8 @@ import type { Prisma } from '@prisma/client'
 import prisma from '../lib/prisma'
 import { logAudit } from '../lib/audit'
 import { notify, notifyRoles } from '../lib/notifications'
+import { notifyClientPortal, notifySupplierPortal } from '../lib/portal'
+import { nextDocumentNumber } from '../lib/numbering'
 import { ADMINS, FINANCE, hasRole } from '../lib/roles'
 import type { AuthRequest } from '../middleware/auth'
 
@@ -203,6 +205,8 @@ export async function saveDocument(req: AuthRequest, res: Response): Promise<voi
       ...(projectId !== undefined && { projectId }),
       ...(folderId !== undefined && { folderId }),
       ...(b.expiryDate !== undefined && { expiryDate: b.expiryDate ? new Date(b.expiryDate) : null }),
+      ...(b.sharedWithClient !== undefined && { sharedWithClient: !!b.sharedWithClient }),
+      ...(clientId === null && { sharedWithClient: false }), // no client, nobody to share with
     }
     // A new file replaces the old one: keep the old file as an earlier version
     const replacing = !!before && !!b.fileId && !!before.fileId && b.fileId !== before.fileId
@@ -223,6 +227,9 @@ export async function saveDocument(req: AuthRequest, res: Response): Promise<voi
           include: docInclude,
         })
 
+    if (d.sharedWithClient && d.clientId && (!before || !before.sharedWithClient)) {
+      await notifyClientPortal(d.clientId, { type: 'SYSTEM', title: 'New Document Shared', link: '/portal?tab=documents', key: `doc-shared-${d.id}`, description: `Santech shared “${d.name}” with you` })
+    }
     const statusChanged = !!before && before.status !== d.status
     const moved = !!before && folderId !== undefined && before.folderId !== d.folderId && Object.keys(b).every(k => k === 'folderId')
     const link = d.client ? ` for ${d.client.companyName}${d.project ? ` (${d.project.name})` : ''}` : ''
@@ -532,7 +539,7 @@ export async function saveTender(req: AuthRequest, res: Response): Promise<void>
 
 // ── PROCUREMENT ───────────────────────────────────────────────────────────────
 
-const prInclude = { requestedBy: userName, approvedBy: userName }
+const prInclude = { requestedBy: userName, approvedBy: userName, vendor: { select: { id: true, name: true, users: { where: { role: 'SUPPLIER' as const, isActive: true }, select: { id: true } } } } }
 const PR_FLOW: Record<string, string[]> = { PENDING: ['APPROVED', 'CANCELLED'], APPROVED: ['ORDERED', 'CANCELLED'], ORDERED: ['DELIVERED', 'CANCELLED'] }
 const PR_EXPENSE: Record<string, string> = { IT_EQUIPMENT: 'Equipment', HARDWARE: 'Equipment', OFFICE_SUPPLIES: 'Other', SOFTWARE: 'Other', SERVICES: 'Other', OTHER: 'Other' }
 
@@ -548,8 +555,14 @@ export async function createPurchase(req: AuthRequest, res: Response): Promise<v
     const b = req.body
     const quantity = parseInt(b.quantity), unitPrice = parseFloat(b.unitPrice)
     if (!b.itemName || !(quantity > 0) || !(unitPrice >= 0)) { res.status(400).json({ success: false, message: 'Item, quantity and unit price are required' }); return }
+    const vendor = b.supplierId ? await prisma.supplier.findUnique({ where: { id: String(b.supplierId) }, select: { id: true, name: true, isActive: true } }) : null
+    if (b.supplierId && (!vendor || !vendor.isActive)) { res.status(400).json({ success: false, message: 'Choose an active supplier from the list' }); return }
     const p = await prisma.purchaseRequest.create({
-      data: { itemName: b.itemName, category: b.category || 'OTHER', quantity, unitPrice, supplier: b.supplier || null, notes: b.notes || null, requestedById: req.user!.id },
+      data: {
+        itemName: b.itemName, category: b.category || 'OTHER', quantity, unitPrice,
+        supplierId: vendor?.id ?? null, supplier: vendor?.name ?? (b.supplier || null),
+        notes: b.notes || null, requestedById: req.user!.id,
+      },
       include: prInclude,
     })
     await notifyRoles(FINANCE, { type: 'SYSTEM', title: 'Purchase Request', link: '/procurement', key: `pr-${p.id}`, description: `${nameOf(p.requestedBy)} requests ${quantity} × ${p.itemName} (RWF ${(quantity * unitPrice).toLocaleString('en-US')})` }, req.user!.id)
@@ -558,7 +571,30 @@ export async function createPurchase(req: AuthRequest, res: Response): Promise<v
   } catch (e) { fail(res, e, 'createPurchase') }
 }
 
-/** PENDING → APPROVED → ORDERED → DELIVERED (books an expense) or CANCELLED. */
+/** PUT /purchases/:id { supplierId?, supplier?, notes? } — choose the supplier before the order is placed */
+export async function updatePurchase(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const before = await prisma.purchaseRequest.findUnique({ where: { id: req.params.id } })
+    if (!before) { res.status(404).json({ success: false, message: 'Request not found' }); return }
+    if (!['PENDING', 'APPROVED'].includes(before.status)) { res.status(400).json({ success: false, message: 'The supplier can only change before the order is placed' }); return }
+    const b = req.body ?? {}
+    const vendor = b.supplierId ? await prisma.supplier.findUnique({ where: { id: String(b.supplierId) }, select: { id: true, name: true, isActive: true } }) : null
+    if (b.supplierId && (!vendor || !vendor.isActive)) { res.status(400).json({ success: false, message: 'Choose an active supplier from the list' }); return }
+    const p = await prisma.purchaseRequest.update({
+      where: { id: before.id },
+      data: {
+        ...(b.supplierId !== undefined && { supplierId: vendor?.id ?? null, supplier: vendor?.name ?? (b.supplier || null) }),
+        ...(b.supplierId === undefined && b.supplier !== undefined && { supplier: b.supplier || null, supplierId: null }),
+        ...(b.notes !== undefined && { notes: b.notes || null }),
+      },
+      include: prInclude,
+    })
+    await logAudit(req, { action: 'UPDATE', entity: 'Purchase', entityId: p.id, entityName: p.itemName, description: `Updated purchase ${p.itemName}${p.supplier ? ` — supplier ${p.supplier}` : ''}`, oldValue: { supplier: before.supplier }, newValue: { supplier: p.supplier } })
+    res.json({ success: true, data: p, message: 'Purchase updated' })
+  } catch (e) { fail(res, e, 'updatePurchase') }
+}
+
+/** PENDING → APPROVED → ORDERED (gets a PO number; the supplier sees it) → DELIVERED (books an expense) or CANCELLED. */
 export async function updatePurchaseStatus(req: AuthRequest, res: Response): Promise<void> {
   try {
     const next = String(req.body.status ?? '')
@@ -568,7 +604,11 @@ export async function updatePurchaseStatus(req: AuthRequest, res: Response): Pro
     if (next === 'APPROVED' && before.requestedById === req.user!.id && !hasRole(req.user?.role, ['SUPER_ADMIN'])) {
       res.status(403).json({ success: false, message: 'You cannot approve your own purchase request' }); return
     }
+    if (next === 'ORDERED' && !before.supplierId && !before.supplier) {
+      res.status(400).json({ success: false, message: 'Choose the supplier before placing the order' }); return
+    }
     const total = before.quantity * before.unitPrice
+    const poNumber = next === 'ORDERED' && !before.poNumber ? await nextDocumentNumber('PO') : null
     const p = await prisma.$transaction(async tx => {
       let expenseId: string | undefined
       if (next === 'DELIVERED') {
@@ -585,6 +625,7 @@ export async function updatePurchaseStatus(req: AuthRequest, res: Response): Pro
         data: {
           status: next,
           ...(next === 'APPROVED' && { approvedById: req.user!.id }),
+          ...(poNumber && { poNumber, orderedAt: new Date() }),
           ...(next === 'DELIVERED' && { deliveredAt: new Date(), expenseId }),
         },
         include: prInclude,
@@ -593,12 +634,25 @@ export async function updatePurchaseStatus(req: AuthRequest, res: Response): Pro
     if (next === 'APPROVED' || next === 'CANCELLED') {
       await notify(p.requestedById, { type: 'SYSTEM', title: next === 'APPROVED' ? 'Purchase Approved' : 'Purchase Cancelled', link: '/procurement', description: `${p.quantity} × ${p.itemName}` })
     }
+    // The supplier follows its orders in the supplier portal
+    if (p.supplierId && p.poNumber && ['ORDERED', 'DELIVERED', 'CANCELLED'].includes(next)) {
+      const what = next === 'ORDERED' ? 'New Purchase Order' : next === 'DELIVERED' ? 'Delivery Received' : 'Order Cancelled'
+      await notifySupplierPortal(p.supplierId, {
+        type: 'SYSTEM', title: what, link: '/supplier', key: `po-${p.id}-${next}`,
+        description: next === 'ORDERED' ? `${p.poNumber}: ${p.quantity} × ${p.itemName} at RWF ${p.unitPrice.toLocaleString('en-US')} — please confirm the delivery date`
+          : next === 'DELIVERED' ? `Santech received ${p.poNumber} (${p.quantity} × ${p.itemName})` : `Santech cancelled ${p.poNumber} (${p.quantity} × ${p.itemName})`,
+      })
+    }
     await logAudit(req, {
       action: next === 'APPROVED' ? 'APPROVE' : next === 'CANCELLED' ? 'REJECT' : 'STATUS_CHANGE', entity: 'Purchase', entityId: p.id, entityName: p.itemName,
       description: next === 'DELIVERED' ? `${p.itemName} delivered — RWF ${total.toLocaleString('en-US')} added to expenses` : `Purchase ${p.itemName} moved from ${before.status} to ${next}`,
       oldValue: { status: before.status }, newValue: { status: next },
     })
-    res.json({ success: true, data: p, message: next === 'DELIVERED' ? 'Delivered — cost added to Finance expenses' : `Marked ${next.toLowerCase()}` })
+    res.json({
+      success: true, data: p,
+      message: next === 'DELIVERED' ? 'Delivered — cost added to Finance expenses'
+        : poNumber ? `Order ${poNumber} placed${p.vendor?.users.length ? ` — ${p.vendor.name} sees it in the supplier portal` : ''}` : `Marked ${next.toLowerCase()}`,
+    })
   } catch (e) { fail(res, e, 'updatePurchaseStatus') }
 }
 

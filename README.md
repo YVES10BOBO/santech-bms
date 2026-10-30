@@ -54,6 +54,8 @@ All demo accounts use the password **`Santech@2026`**.
 | Project Manager | `bob@santech.rw` | Projects, milestones, tasks, timesheets, team |
 | Project Manager | `marie@santech.rw` | Same as Bob |
 | Employee | `frank@santech.rw` | My Tasks, own attendance, timesheets |
+| Customer (portal) | `customer@santech.rw` | Customer portal of N&T PLASTIC INDUSTRIES only |
+| Supplier (portal) | `supplier@santech.rw` | Supplier portal of TechHub Kigali only |
 | (inactive) | `eric@santech.rw` | Deactivated account — cannot log in |
 
 Every demo login has tasks on **My Tasks**. After 10 wrong passwords within 15 minutes, logins from
@@ -203,6 +205,9 @@ again. On phones, the menu button in the top bar opens the sidebar, and its X bu
   quotations and invoices (**PDF**)
 - **Add Interaction** (call, meeting, email, note, status change) saves to the Communication Log
 - Works for prospects too — history is kept even if the deal was lost
+- **Customer portal access** (Super Admin, Admin, Sales Manager): add a login for a person at the client
+  (name, email, phone). A temporary password is shown once with the sign-in address, ready to copy and
+  send. Reset the password or disable the login from the same card.
 
 #### Leads
 **Where:** CRM → Leads
@@ -367,10 +372,48 @@ again. On phones, the menu button in the top bar opens the sidebar, and its X bu
 - Stats: total invoiced, total collected, outstanding, overdue count
 
 ### Procurement
-**Where:** Procurement → Purchases & Stock
-- Purchase requests: item, category, quantity, unit price, supplier, notes
-- Pending → Approved → Ordered → Delivered (or Cancelled); nobody approves their own request
-- **Delivered** books the expense in Finance; approved and ordered purchases show in Accounts Payable
+**Where:** Procurement → Purchases & Stock — tabs **Purchase requests** and **Suppliers**
+- Purchase requests: item, category, quantity, unit price, supplier (from the list, or a name), notes
+- Pending → Approved → **Place order** → Delivered (or Cancelled); nobody approves their own request
+- **Place order** needs a supplier and gives the order a number (`PO-2026-001`). If the supplier has a
+  portal login, it sees the order at once and is notified.
+- Each request shows what the supplier did: confirmed (with the delivery date), dispatched, and its
+  invoice (opens the file; a warning shows when it differs from the order value).
+- **Delivered** books the expense in Finance; approved and ordered purchases show in Accounts Payable.
+  The supplier is told the delivery was received.
+- **Suppliers** tab (Finance and admins edit; everyone can read): name, category, contact, email, phone,
+  address, TIN, notes, active or not, number of orders, and **Portal access** to create supplier
+  portal logins (temporary password shown once).
+
+### Customer Portal
+**Where:** sign in with a customer login (e.g. `customer@santech.rw`) → lands on `/portal`. Customer logins
+only ever see their own client's records and never the staff menus or API.
+- **Overview:** what needs attention (quotations to answer, open and overdue invoices with the balance per
+  currency, active projects and their average progress, open tickets, active contracts), the account
+  manager's contact, and the latest updates.
+- **Quotations:** sent quotations with lines and totals, PDF, **Accept** (optional message) or
+  **Decline** (reason required). Opening a sent quotation marks it *Viewed*. Expired quotations cannot be
+  accepted. The salesperson and sales manager are notified, and the answer is in the quotation history.
+- **Invoices:** invoices, proforma invoices and credit notes (no drafts), what is still to pay, payments
+  received and credit notes, PDF for each.
+- **Contracts:** signing, active, completed and renewal contracts with value, dates, terms, deliverables,
+  signatures and the signed file to download.
+- **Projects:** status, progress, milestones and dates, project manager, warranty end date (no budget).
+- **Support:** open a ticket (subject, product, urgency, description), follow its status and response
+  times, rate the help (1–5) once resolved, or reopen it when the problem comes back.
+- **Documents:** signed contracts and the documents Santech shared with the client.
+- **Account:** name, phone, change password.
+- **Notifications:** the client is told when Santech sends a quotation, an invoice, a proforma or credit
+  note, shares a document, activates a contract, or updates a ticket.
+
+### Supplier Portal
+**Where:** sign in with a supplier login (e.g. `supplier@santech.rw`) → lands on `/supplier`.
+- **Overview:** new orders to confirm, confirmed / on the way, delivered, waiting for the supplier's
+  invoice, open order value, latest updates.
+- **Purchase orders** placed with that supplier (with a PO number): **Confirm order** with the expected
+  delivery date (and a note), **Mark dispatched**, **Send invoice** (amount + PDF or photo).
+  Procurement / Finance and the person who asked for the item are notified at each step.
+- Santech still confirms the delivery in Procurement, which books the expense.
 
 ### Reports
 **Where:** Reports → All Reports — 4 tabs, calculated from live data:
@@ -458,6 +501,9 @@ again. On phones, the menu button in the top bar opens the sidebar, and its X bu
 - **Delete permanently** (Super Admin and Admin, any document): after one confirmation, the document
   is archived and removed for good with its file, unless another document or a signed contract uses
   the same file. Recorded in the Audit Trail.
+- **Share with the client:** when a document is linked to a client, tick *Share with the client in the
+  customer portal*; the client's portal logins can then see and download it and are notified. Shared
+  files show a *Shared with client* label.
 - **Expiry / review date** (optional, in the upload and edit form) for licences, certificates,
   policies and offers. Files show *Expires in N days* or *Expired*, and admins get a reminder 30 days
   before.
@@ -650,12 +696,18 @@ only protection.
 | **Project Manager** | Dashboard, Projects, Team, My Tasks, Expense Claims, Reports, Notifications |
 | **Sales Staff** | Dashboard, CRM, Sales, My Tasks, Expense Claims, Notifications |
 | **Employee** | Dashboard, My Tasks, Expense Claims, Team, Notifications |
+| **Customer** | Customer portal only (one client) |
+| **Supplier** | Supplier portal only (one supplier) |
 
 Every role has **My Tasks** (Team → My Tasks), which shows only the person's own tasks, and
 **Expense Claims** (Team → Expense Claims) to claim money spent for the company.
 Documents, Procurement, Support, Reception, Communication, Training and Settings are shown to
 Super Admin and Admin only, and only they can delete documents permanently. Salary figures are only
 returned by the API to HR and finance roles.
+
+Customer and supplier logins are portal logins: the API refuses them everything except their portal,
+their own account, their notifications and the files shared with them. They are created from the
+client's 360° page and Procurement → Suppliers, not from Settings → Users.
 
 ---
 

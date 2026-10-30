@@ -12,7 +12,8 @@ export type UserRole =
   | 'PROJECT_MANAGER'
   | 'SALES_STAFF'
   | 'EMPLOYEE'
-  | 'CUSTOMER';
+  | 'CUSTOMER'   // customer portal login (one client)
+  | 'SUPPLIER';  // supplier portal login (one supplier)
 
 export interface User {
   id: string;
@@ -27,6 +28,11 @@ export interface User {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  /** portal logins: the client or supplier they belong to */
+  clientId?: string | null;
+  supplierId?: string | null;
+  clientName?: string;
+  supplierName?: string;
 }
 
 export interface AuthState {

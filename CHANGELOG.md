@@ -11,6 +11,7 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 
 | Version | Date (2026) | Highlights |
 |---|---|---|
+| **1.5.0** | 30 Oct | Customer portal and supplier portal, suppliers and purchase orders |
 | **1.4.0** | 30 Oct | Proforma invoices, credit notes, recurring service invoices, multiple currencies with exchange rates, contract and quotation version history |
 | **1.3.0** | 30 Oct | Expense claims with approvals, quotation discounts, support response times and ratings, document expiry and versions, project warranties, contract → project automation |
 | **1.2.0** | 29 Oct | Document library (clients, projects, search, edit, delete), real file storage, PDF quotations and invoices, financial statements, login fix |
@@ -21,6 +22,71 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 | **0.1.0** | 11–13 Oct | Foundation: first pages, backend skeleton, hosting on Vercel, Render and Neon |
 
 ---
+
+## 1.5.0 — 30 October 2026
+
+### Customer portal and supplier portal (30 Oct)
+Last part of the features still missing from the specification (email and SMS wait for the Brevo and
+Twilio accounts).
+
+- **Customer portal** (`/portal`, CUSTOMER logins, one client each):
+  - Overview of what needs attention and the account manager's contact, latest updates.
+  - Quotations: view lines/totals, PDF, **Accept** or **Decline** (with reason); opening marks it Viewed;
+    expired ones cannot be accepted; sales is notified.
+  - Invoices, proforma invoices and credit notes (never drafts) with what is still to pay and PDFs.
+  - Contracts (from signing onwards) with the signed file; projects with progress and milestones (no
+    budget); shared documents.
+  - Support: open tickets, follow them, rate the help, reopen a resolved one.
+  - Account: name, phone, password.
+  - The client is notified when Santech sends a quotation, an invoice / proforma / credit note, shares a
+    document, activates a contract or updates a ticket.
+- **Supplier portal** (`/supplier`, SUPPLIER logins, one supplier each):
+  - Purchase orders placed with them: confirm with a delivery date, mark dispatched, send the invoice
+    (file + amount). Procurement / Finance and the requester are notified at each step.
+- **Procurement:**
+  - New **Suppliers** list (tab on the Procurement page) with portal access per supplier.
+  - Requests use a supplier from the list (or a name).
+  - **Place order** needs a supplier and gives a PO number (`PO-2026-001`); the supplier is told when an
+    order is placed, received or cancelled.
+  - The request panel shows the supplier's confirmation, dispatch and invoice.
+- **Portal logins** are created from the client's 360° page (Super Admin, Admin, Sales Manager) and from
+  Procurement → Suppliers (Finance, admins):
+  - A temporary password is shown once with the sign-in address.
+  - Reset password, disable / enable. A disabled login is refused straight away.
+- **Documents:** *Share with the client in the customer portal* option for documents linked to a client.
+- **Security:**
+  - Portal logins reach only `/api/portal` (or `/api/supplier-portal`), their own account,
+    notifications, the company profile and the files shared with them. Every staff endpoint answers 403.
+  - Every portal request re-checks that the login is active and linked.
+  - Portal logins are kept out of Settings → Users, staff pickers and search, and cannot be created
+    there.
+- **Login:** customer and supplier logins land in their portal; staff addresses send them back to it.
+  The login page lists the two demo portal accounts.
+- **Technical:**
+  - Migration `20261030300000_customer_and_supplier_portals`, additive:
+    - role `SUPPLIER`;
+    - `users.clientId` / `supplierId`;
+    - table `suppliers`;
+    - purchase `supplierId`, `poNumber`, `orderedAt`, `supplierStatus`, `expectedDelivery`,
+      `supplierNote`, supplier invoice fields;
+    - `documents.sharedWithClient`.
+  - New files:
+    - backend `lib/portal.ts`, `controllers/portalController.ts`, `supplierPortalController.ts`,
+      `portalAdminController.ts`, `routes/portal.ts`;
+    - frontend `pages/portal/*`, `components/shared/PortalLogins.tsx`.
+  - Access check added to `middleware/auth.ts`; file downloads check portal access.
+- **Demo data** (`prisma/seeds/portals.ts`, safe to run again):
+  - six suppliers made from the names already on purchase requests;
+  - PO numbers on placed orders;
+  - portal logins `customer@santech.rw` (N&T PLASTIC) and `supplier@santech.rw` (TechHub Kigali),
+    password `Santech@2026`;
+  - three N&T documents shared with the client.
+- **Tested** against a local copy of the database:
+  - 75 API checks, including every staff endpoint refused to portal logins, other clients' and
+    suppliers' records and files refused, notifications, logins and PO numbers;
+  - 28 checks in a real (headless) Edge browser: login → portal, accepting a quotation, invoices and
+    PDFs, a ticket, a download, the supplier confirming / dispatching / invoicing an order, the staff
+    screens, and the customer portal at phone width.
 
 ## 1.4.0 — 30 October 2026
 

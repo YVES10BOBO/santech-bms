@@ -140,6 +140,8 @@ export const tenderService = {
 export const purchaseService = {
   getAll: () => get('/purchases'),
   create: (b: Body) => post('/purchases', b),
+  /** supplier / notes, before the order is placed */
+  update: (id: string, b: Body) => put(`/purchases/${id}`, b),
   /** PENDING → APPROVED → ORDERED → DELIVERED (adds the expense) or CANCELLED */
   setStatus: (id: string, status: string) => put(`/purchases/${id}/status`, { status }),
 }
@@ -174,6 +176,46 @@ export const companyService = {
 export const exchangeRateService = {
   get: () => get('/settings/exchange-rates'),
   save: (rates: Record<string, number>) => put('/settings/exchange-rates', { rates }),
+}
+
+/** Customer portal (CUSTOMER logins only) */
+export const portalService = {
+  overview: () => get('/portal/overview'),
+  quotations: () => get('/portal/quotations'),
+  viewQuotation: (id: string) => post(`/portal/quotations/${id}/view`),
+  acceptQuotation: (id: string, note?: string) => post(`/portal/quotations/${id}/accept`, { note }),
+  declineQuotation: (id: string, reason: string) => post(`/portal/quotations/${id}/decline`, { reason }),
+  invoices: () => get('/portal/invoices'),
+  contracts: () => get('/portal/contracts'),
+  projects: () => get('/portal/projects'),
+  documents: () => get('/portal/documents'),
+  tickets: () => get('/portal/tickets'),
+  createTicket: (b: Body) => post('/portal/tickets', b),
+  rateTicket: (id: string, satisfaction: number, note?: string) => post(`/portal/tickets/${id}/rate`, { satisfaction, note }),
+  reopenTicket: (id: string, note: string) => post(`/portal/tickets/${id}/reopen`, { note }),
+}
+
+/** Supplier portal (SUPPLIER logins only) */
+export const supplierPortalService = {
+  overview: () => get('/supplier-portal/overview'),
+  orders: () => get('/supplier-portal/orders'),
+  confirm: (id: string, expectedDelivery: string, note?: string) => post(`/supplier-portal/orders/${id}/confirm`, { expectedDelivery, note }),
+  dispatch: (id: string, note?: string) => post(`/supplier-portal/orders/${id}/dispatch`, { note }),
+  invoice: (id: string, b: { fileId: string; fileName: string; amount: number }) => post(`/supplier-portal/orders/${id}/invoice`, b),
+}
+
+/** Staff: suppliers and the portal logins of clients and suppliers */
+export const supplierService = {
+  getAll: () => get('/suppliers'),
+  create: (b: Body) => post('/suppliers', b),
+  update: (id: string, b: Body) => put(`/suppliers/${id}`, b),
+}
+export const portalAdminService = {
+  clientUsers: (clientId: string) => get(`/portal-admin/clients/${clientId}/users`),
+  createClientUser: (clientId: string, b: Body) => post(`/portal-admin/clients/${clientId}/users`, b),
+  createSupplierUser: (supplierId: string, b: Body) => post(`/portal-admin/suppliers/${supplierId}/users`, b),
+  /** { isActive } to enable/disable, { resetPassword: true } for a new temporary password */
+  updateUser: (id: string, b: Body) => put(`/portal-admin/users/${id}`, b),
 }
 
 /** Earlier versions of a contract or quotation */

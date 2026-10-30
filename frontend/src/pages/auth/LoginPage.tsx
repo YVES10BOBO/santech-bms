@@ -40,6 +40,8 @@ const demoAccounts = [
   { role: 'Finance Manager',  email: 'david@santech.rw',  password: 'Santech@2026' },
   { role: 'Project Manager',  email: 'bob@santech.rw',    password: 'Santech@2026' },
   { role: 'Employee',         email: 'frank@santech.rw',  password: 'Santech@2026' },
+  { role: 'Customer portal',  email: 'customer@santech.rw', password: 'Santech@2026' },
+  { role: 'Supplier portal',  email: 'supplier@santech.rw', password: 'Santech@2026' },
 ]
 
 export default function LoginPage() {

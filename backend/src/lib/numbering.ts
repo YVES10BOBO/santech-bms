@@ -5,7 +5,7 @@ import prisma from './prisma'
  * QT-2026-004 or TKT-0012, based on the
  * highest existing number (not the row count, which breaks when rows are deleted).
  */
-export async function nextDocumentNumber(kind: 'INV' | 'PF' | 'CN' | 'CT' | 'QT' | 'TKT' | 'EXP'): Promise<string> {
+export async function nextDocumentNumber(kind: 'INV' | 'PF' | 'CN' | 'CT' | 'QT' | 'TKT' | 'EXP' | 'PO'): Promise<string> {
   const year = new Date().getFullYear()
   const prefix = kind === 'TKT' ? 'TKT-' : `${kind}-${year}-`
   let numbers: string[]
@@ -21,6 +21,9 @@ export async function nextDocumentNumber(kind: 'INV' | 'PF' | 'CN' | 'CT' | 'QT'
       break
     case 'EXP':
       numbers = (await prisma.expenseClaim.findMany({ where: { claimNumber: { startsWith: prefix } }, select: { claimNumber: true } })).map(r => r.claimNumber)
+      break
+    case 'PO':
+      numbers = (await prisma.purchaseRequest.findMany({ where: { poNumber: { startsWith: prefix } }, select: { poNumber: true } })).map(r => r.poNumber!)
       break
     case 'TKT':
       numbers = (await prisma.supportTicket.findMany({ select: { ticketNo: true } })).map(r => r.ticketNo)

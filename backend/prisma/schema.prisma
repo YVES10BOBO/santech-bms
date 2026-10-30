@@ -24,7 +24,8 @@ enum UserRole {
   PROJECT_MANAGER
   SALES_STAFF
   EMPLOYEE
-  CUSTOMER
+  CUSTOMER // customer portal login (linked to a client)
+  SUPPLIER // supplier portal login (linked to a supplier)
 }
 
 enum ClientCategory {
@@ -277,6 +278,12 @@ model User {
   trainingsCreated      TrainingSession[] @relation("TrainingCreatedBy")
   articles              KnowledgeArticle[] @relation("ArticleAuthor")
 
+  // Portal logins: a CUSTOMER belongs to a client, a SUPPLIER to a supplier
+  clientId              String?
+  client                Client?    @relation("ClientPortalUsers", fields: [clientId], references: [id])
+  supplierId            String?
+  supplier              Supplier?  @relation(fields: [supplierId], references: [id])
+
   @@map("users")
 }
 
@@ -393,6 +400,7 @@ model Client {
   communications Communication[]
   meetings     Meeting[]
   subscriptions ClientSubscription[]
+  portalUsers   User[]         @relation("ClientPortalUsers")
   documents    Document[]
 
   @@map("clients")
@@ -1081,6 +1089,7 @@ model Document {
   folderId     String?  // folder an admin filed it in (Drive-style); it still shows in the automatic folders
   folder       DocumentFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
   expiryDate   DateTime? // e.g. certificates, licences, insurance — reminders before it expires
+  sharedWithClient Boolean @default(false) // visible to the client in the customer portal
   version      Int               @default(1)
   versions     DocumentVersion[]
   date         DateTime @default(now())
@@ -1190,6 +1199,18 @@ model PurchaseRequest {
   requestDate   DateTime  @default(now())
   deliveredAt   DateTime?
   expenseId     String?   @unique // expense booked on delivery
+  // Supplier and purchase order (supplier portal)
+  supplierId            String?
+  vendor                Supplier? @relation(fields: [supplierId], references: [id])
+  poNumber              String?   @unique // PO-2026-001, given when the order is placed
+  orderedAt             DateTime?
+  supplierStatus        String?   // CONFIRMED, DISPATCHED (set by the supplier in the portal)
+  expectedDelivery      DateTime?
+  supplierNote          String?
+  supplierInvoiceFileId String?
+  supplierInvoiceName   String?
+  supplierInvoiceAmount Float?
+  supplierUpdatedAt     DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -1357,4 +1378,27 @@ model RecordVersion {
 
   @@index([entity, entityId])
   @@map("record_versions")
+}
+
+// ===========================
+// SUPPLIERS (procurement; they can log in to the supplier portal)
+// ===========================
+
+model Supplier {
+  id          String   @id @default(cuid())
+  name        String
+  contactName String?
+  email       String?
+  phone       String?
+  address     String?
+  tin         String?
+  category    String   @default("OTHER") // IT_EQUIPMENT, OFFICE_SUPPLIES, HARDWARE, SOFTWARE, SERVICES, OTHER
+  notes       String?
+  isActive    Boolean  @default(true)
+  purchases   PurchaseRequest[]
+  users       User[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("suppliers")
 }

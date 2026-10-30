@@ -15,7 +15,7 @@ router.get('/', async (_req, res) => {
         orderBy: { companyName: 'asc' },
       }),
       prisma.user.findMany({
-        where: { isActive: true, role: { not: 'CUSTOMER' } },
+        where: { isActive: true, role: { notIn: ['CUSTOMER', 'SUPPLIER'] } },
         select: { id: true, firstName: true, lastName: true, role: true },
         orderBy: { firstName: 'asc' },
       }),

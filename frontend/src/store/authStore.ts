@@ -27,6 +27,7 @@ export const roleAccess: Record<UserRole, string[]> = {
   SALES_STAFF: ['dashboard', 'crm', 'sales', 'my-tasks', 'expenses', 'notifications'],
   EMPLOYEE: ['dashboard', 'my-tasks', 'expenses', 'notifications', 'team'],
   CUSTOMER: ['portal'],
+  SUPPLIER: ['supplier-portal'],
 }
 
 export const useAuthStore = create<AuthStore>()(

@@ -40,6 +40,7 @@ interface Document {
   expiryDate: string
   version: number
   versions: number
+  sharedWithClient: boolean
 }
 
 interface DocVersion { id: string; version: number; fileId: string; name: string; size: string | null; uploadedByName: string | null; createdAt: string }
@@ -84,7 +85,7 @@ const FOLDER_GREY = '#444746'
 const FOLDER_COLORS = ['', '#1a73e8', '#188038', '#f9ab00', '#e8710a', '#d93025', '#9334e6', '#00897b', '#e52592']
 const DOC_DRAG = 'application/x-santech-document'
 
-const emptyForm = { name: '', category: 'OTHER' as DocCategory, description: '', clientId: '', projectId: '', folderId: '', expiryDate: '' }
+const emptyForm = { name: '', category: 'OTHER' as DocCategory, description: '', clientId: '', projectId: '', folderId: '', expiryDate: '', sharedWithClient: false }
 type Form = typeof emptyForm
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -99,6 +100,7 @@ const toDoc = (d: any): Document => ({
   expiryDate: d.expiryDate ? String(d.expiryDate).slice(0, 10) : '',
   version: d.version ?? 1,
   versions: d._count?.versions ?? 0,
+  sharedWithClient: !!d.sharedWithClient,
 })
 
 /** How soon a document expires: red when expired, amber within 30 days, grey later */
@@ -537,7 +539,7 @@ export default function DocumentsPage() {
 
   const openEdit = (doc: Document) => {
     setEditDoc(doc)
-    setForm({ name: doc.name, category: doc.category, description: doc.description, clientId: doc.clientId, projectId: doc.projectId, folderId: doc.folderId, expiryDate: doc.expiryDate })
+    setForm({ name: doc.name, category: doc.category, description: doc.description, clientId: doc.clientId, projectId: doc.projectId, folderId: doc.folderId, expiryDate: doc.expiryDate, sharedWithClient: doc.sharedWithClient })
     setFile(null)
     setViewDoc(null)
     setShowModal(true)
@@ -570,6 +572,7 @@ export default function DocumentsPage() {
         name: form.name.trim(), category: form.category, description: form.description.trim(),
         clientId: form.clientId || null, projectId: form.projectId || null, folderId: form.folderId || null,
         expiryDate: form.expiryDate || null,
+        sharedWithClient: !!form.clientId && form.sharedWithClient,
         ...(up ? { fileId: up.id, size: formatSize(up.size) } : {}),
       }
       const res = editDoc ? await documentService.update(editDoc.id, payload) : await documentService.create(payload)
@@ -1019,6 +1022,7 @@ export default function DocumentsPage() {
                             {doc.status === 'ARCHIVED' && <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-medium shrink-0">Archived</span>}
                             {(() => { const x = expiryInfo(doc.expiryDate); return x?.soon ? <span className={cn('text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0', x.chip)}>{x.label}</span> : null })()}
                             {doc.version > 1 && <span className="hidden lg:inline text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 font-medium shrink-0">v{doc.version}</span>}
+                            {doc.sharedWithClient && <span className="hidden md:inline text-[10px] px-1.5 py-0.5 rounded bg-sky-100 text-sky-700 font-medium shrink-0">Shared with client</span>}
                           </div>
                         </td>
                         <td className="px-4 py-2.5 hidden md:table-cell max-w-[16rem]">
@@ -1284,6 +1288,12 @@ export default function DocumentsPage() {
                   </select>
                 </div>
               </div>
+              {form.clientId && (
+                <label className="flex items-start gap-2 text-sm text-gray-700 -mt-1 cursor-pointer">
+                  <input type="checkbox" checked={form.sharedWithClient} onChange={e => setForm(f => ({ ...f, sharedWithClient: e.target.checked }))} className="mt-0.5 accent-santech-600" />
+                  <span>Share with the client in the customer portal <span className="block text-xs text-gray-400">Their portal logins can see and download it; they are notified.</span></span>
+                </label>
+              )}
               <p className="text-xs text-gray-400 -mt-2">
                 The folder is where you file it. The client, project and type also show it in the automatic folders
                 (Clients › client › project, and the type's folder) and on the client's 360° page.
@@ -1352,6 +1362,7 @@ export default function DocumentsPage() {
               <p>Date: <span className="text-gray-700 font-medium">{formatDate(viewDoc.date)}</span></p>
               <p>Size: <span className="text-gray-700 font-medium">{viewDoc.size}</span></p>
               {viewDoc.version > 1 && <p>Version: <span className="text-gray-700 font-medium">{viewDoc.version}</span></p>}
+              {viewDoc.sharedWithClient && <p className="text-sky-700">Shared with the client in the customer portal</p>}
               {viewDoc.expiryDate && (
                 <p className="flex items-center gap-1">
                   <CalendarClock className="w-3 h-3" /> Expiry / review:{' '}

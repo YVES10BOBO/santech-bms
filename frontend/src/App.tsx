@@ -50,17 +50,32 @@ import RolesPage from '@/pages/settings/RolesPage'
 import TendersPage from '@/pages/sales/TendersPage'
 import KnowledgeBasePage from '@/pages/support/KnowledgeBasePage'
 import ProfilePage from '@/pages/profile/ProfilePage'
+import CustomerPortalPage from '@/pages/portal/CustomerPortalPage'
+import SupplierPortalPage from '@/pages/portal/SupplierPortalPage'
 
-// Guard: requires authentication
+/** Where each kind of login starts: portal logins have their own portal, staff the dashboard */
+const homeFor = (role?: string) => (role === 'CUSTOMER' ? '/portal' : role === 'SUPPLIER' ? '/supplier' : '/dashboard')
+
+// Guard: staff pages need a staff login (portal logins are sent to their portal)
 function PrivateRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuthStore()
-  return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />
+  const { isAuthenticated, user } = useAuthStore()
+  if (!isAuthenticated) return <Navigate to="/login" replace />
+  if (user?.role === 'CUSTOMER' || user?.role === 'SUPPLIER') return <Navigate to={homeFor(user.role)} replace />
+  return <>{children}</>
 }
 
-// Guard: redirect to dashboard if already logged in
+// Guard: a portal page for one kind of portal login
+function PortalRoute({ role, children }: { role: 'CUSTOMER' | 'SUPPLIER'; children: React.ReactNode }) {
+  const { isAuthenticated, user } = useAuthStore()
+  if (!isAuthenticated) return <Navigate to="/login" replace />
+  if (user?.role !== role) return <Navigate to={homeFor(user?.role)} replace />
+  return <>{children}</>
+}
+
+// Guard: redirect to the right home page if already logged in
 function PublicRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuthStore()
-  return !isAuthenticated ? <>{children}</> : <Navigate to="/dashboard" replace />
+  const { isAuthenticated, user } = useAuthStore()
+  return !isAuthenticated ? <>{children}</> : <Navigate to={homeFor(user?.role)} replace />
 }
 
 export default function App() {
@@ -89,6 +104,10 @@ export default function App() {
             </PublicRoute>
           }
         />
+
+        {/* Customer and supplier portals (their own layout, no staff menus) */}
+        <Route path="/portal" element={<PortalRoute role="CUSTOMER"><CustomerPortalPage /></PortalRoute>} />
+        <Route path="/supplier" element={<PortalRoute role="SUPPLIER"><SupplierPortalPage /></PortalRoute>} />
 
         {/* Protected routes */}
         <Route

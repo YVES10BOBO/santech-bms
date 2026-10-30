@@ -6,6 +6,7 @@ import { Router } from 'express'
 import prisma from '../lib/prisma'
 import { authenticate, type AuthRequest } from '../middleware/auth'
 import { logAudit } from '../lib/audit'
+import { isPortalRole, portalCanOpenFile } from '../lib/portal'
 
 const MAX_BYTES = 5 * 1024 * 1024
 const ALLOWED = /^(application\/pdf|image\/(png|jpe?g|gif|webp)|text\/plain|text\/csv|application\/(msword|vnd\.openxmlformats-officedocument\.[a-z.]+|vnd\.ms-excel|zip))$/
@@ -29,8 +30,12 @@ router.post('/', async (req: AuthRequest, res) => {
   }
 })
 
-router.get('/:id', async (req, res) => {
+router.get('/:id', async (req: AuthRequest, res) => {
   try {
+    // portal logins only open files shared with them (or that they uploaded)
+    if (isPortalRole(req.user?.role) && !(await portalCanOpenFile(req.user!.id, req.params.id))) {
+      res.status(404).json({ success: false, message: 'File not found' }); return
+    }
     const f = await prisma.storedFile.findUnique({ where: { id: req.params.id } })
     if (!f) { res.status(404).json({ success: false, message: 'File not found' }); return }
     res.setHeader('Content-Type', f.mimeType)

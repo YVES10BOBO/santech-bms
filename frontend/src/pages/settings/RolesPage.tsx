@@ -79,9 +79,16 @@ const ROLES: RoleDefinition[] = [
   {
     role: 'CUSTOMER',
     label: 'Customer',
-    description: 'Access to the customer portal only.',
+    description: 'Customer portal only: their own quotations (accept or decline), invoices, contracts, projects, support tickets and shared documents. Created from the client 360° page.',
     modules: ['portal'],
     color: 'bg-yellow-100 text-yellow-700',
+  },
+  {
+    role: 'SUPPLIER',
+    label: 'Supplier',
+    description: 'Supplier portal only: the purchase orders placed with them — confirm, dispatch, send the invoice. Created from Procurement → Suppliers.',
+    modules: ['supplier-portal'],
+    color: 'bg-lime-100 text-lime-700',
   },
 ]
 

@@ -3,6 +3,7 @@ import prisma from '../lib/prisma'
 import { logAudit } from '../lib/audit'
 import { nextDocumentNumber } from '../lib/numbering'
 import { rateFor } from '../lib/currency'
+import { tellClientAboutInvoice } from '../lib/portal'
 import type { AuthRequest } from '../middleware/auth'
 
 // ── PROJECTS ──────────────────────────────────────────────────────────────────
@@ -386,6 +387,7 @@ export async function invoiceMilestone(req: AuthRequest, res: Response): Promise
       return [inv, ms] as const
     })
 
+    await tellClientAboutInvoice(invoice)
     await logAudit(req, {
       action: 'CREATE', entity: 'Invoice', entityId: invoice.id,
       entityName: `${invoice.invoiceNumber} — ${m.project.client.companyName ?? ''}`,

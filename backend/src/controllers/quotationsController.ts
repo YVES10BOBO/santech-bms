@@ -7,6 +7,7 @@ import { nextDocumentNumber } from '../lib/numbering'
 import { ADMINS, SALES, hasRole } from '../lib/roles'
 import { isCurrency, rateFor } from '../lib/currency'
 import { QUOTATION_FIELDS, keepVersion } from '../lib/versions'
+import { notifyClientPortal } from '../lib/portal'
 import type { AuthRequest } from '../middleware/auth'
 
 const fail = (res: Response, error: unknown, where: string) => {
@@ -184,6 +185,8 @@ export async function advanceQuotation(req: AuthRequest, res: Response): Promise
       include,
     })
 
+    // The client sees a sent quotation in the customer portal
+    if (next === 'SENT') await notifyClientPortal(q.clientId, { type: 'SYSTEM', title: 'New Quotation', link: '/portal?tab=quotations', key: `portal-qt-${q.id}`, description: `${q.quotationNumber}: ${q.currency} ${q.totalAmount.toLocaleString('en-US')} — review it and accept or decline` })
     // Tell the next approver
     const label = `${q.quotationNumber} (${q.client.companyName}, RWF ${q.totalAmount.toLocaleString('en-US')})`
     if (next === 'MANAGER_APPROVAL') await notifyRoles(MANAGERS, { type: 'SYSTEM', title: 'Quotation Needs Approval', link: '/sales/quotations', key: `qt-${q.id}-mgr`, description: `${label} is waiting for manager approval` }, req.user!.id)

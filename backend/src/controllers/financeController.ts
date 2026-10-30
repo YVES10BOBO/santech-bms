@@ -8,6 +8,7 @@ import { notify } from '../lib/notifications'
 import { isCurrency, openBalance, rateFor, receivableWhere, toRwf } from '../lib/currency'
 import { CONTRACT_FIELDS, keepVersion } from '../lib/versions'
 import { generateRecurringInvoices } from '../lib/recurring'
+import { notifyClientPortal, tellClientAboutInvoice } from '../lib/portal'
 import type { AuthRequest } from '../middleware/auth'
 
 const fail = (res: Response, error: unknown, where: string) => {
@@ -126,6 +127,7 @@ export async function createInvoice(req: AuthRequest, res: Response): Promise<vo
       newValue: { totalAmount: invoice.totalAmount, status: invoice.status, dueDate: dueDate },
     })
 
+    if (invoice.status === 'SENT') await tellClientAboutInvoice(invoice)
     res.status(201).json({ success: true, data: invoice, message: `${type === 'PROFORMA' ? 'Proforma' : 'Invoice'} ${invoice.invoiceNumber} created` })
   } catch (error: unknown) {
     if ((error as { code?: string }).code === 'P2002') {
@@ -175,6 +177,7 @@ export async function updateInvoice(req: AuthRequest, res: Response): Promise<vo
       oldValue: { status: before.status, dueDate: before.dueDate.toISOString().slice(0, 10) },
       newValue: { status: invoice.status, dueDate: invoice.dueDate.toISOString().slice(0, 10) },
     })
+    if (status === 'SENT' && before.status === 'DRAFT') await tellClientAboutInvoice(invoice)
     res.json({ success: true, data: invoice, message: 'Invoice updated successfully' })
   } catch (error) { fail(res, error, 'updateInvoice') }
 }
@@ -701,6 +704,9 @@ export async function updateContract(req: AuthRequest, res: Response): Promise<v
       newValue: { status: contract.status, value: contract.value, ...(approvalNote ? { note: approvalNote } : {}) },
     })
 
+    if (status === 'ACTIVE' && before.status !== 'ACTIVE') {
+      await notifyClientPortal(contract.clientId, { type: 'SYSTEM', title: 'Contract Active', link: '/portal?tab=contracts', key: `portal-ct-${contract.id}-active`, description: `${contract.contractNumber}${contract.projectName ? ` (${contract.projectName})` : ''} is signed and active` })
+    }
     // Automation: a contract that becomes Active gets its project straight away (unless one is already linked)
     let project: { id: string; name: string } | null = null
     if (status === 'ACTIVE' && before.status !== 'ACTIVE' && !(await prisma.project.count({ where: { contractId: contract.id } }))) {

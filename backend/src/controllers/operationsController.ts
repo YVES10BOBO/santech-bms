@@ -7,6 +7,7 @@ import prisma from '../lib/prisma'
 import { logAudit } from '../lib/audit'
 import { notify } from '../lib/notifications'
 import { nextDocumentNumber } from '../lib/numbering'
+import { notifyClientPortal } from '../lib/portal'
 import type { AuthRequest } from '../middleware/auth'
 
 const fail = (res: Response, error: unknown, where: string) => {
@@ -97,6 +98,11 @@ export async function updateTicket(req: AuthRequest, res: Response): Promise<voi
         : satisfaction !== undefined ? `Customer rated ticket ${t.ticketNo}: ${satisfaction}/5` : `Updated ticket ${t.ticketNo}`,
       oldValue: { status: before.status, assignedToId: before.assignedToId }, newValue: { status: t.status, assignedToId: t.assignedToId },
     })
+    // The client follows its tickets in the customer portal
+    const CLIENT_NEWS: Record<string, string> = { IN_PROGRESS: 'is being worked on', WAITING_CUSTOMER: 'needs information from you', RESOLVED: 'is resolved — please rate the help', CLOSED: 'is closed' }
+    if (nextStatus && nextStatus !== before.status && CLIENT_NEWS[nextStatus]) {
+      await notifyClientPortal(t.clientId, { type: nextStatus === 'WAITING_CUSTOMER' ? 'FOLLOW_UP' : 'SYSTEM', title: 'Support Ticket Update', link: '/portal?tab=support', key: `portal-tkt-${t.id}-${nextStatus}`, description: `${t.ticketNo} (${t.subject}) ${CLIENT_NEWS[nextStatus]}` })
+    }
     res.json({ success: true, data: t, message: 'Ticket updated' })
   } catch (e) { fail(res, e, 'updateTicket') }
 }

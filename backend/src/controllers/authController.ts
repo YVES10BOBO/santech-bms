@@ -82,7 +82,11 @@ export async function getMe(req: AuthRequest, res: Response): Promise<void> {
         email: true, phone: true, role: true,
         avatar: true, isActive: true,
         createdAt: true, updatedAt: true,
-        employee: { select: { department: true, position: true, performanceScore: true } }
+        employee: { select: { department: true, position: true, performanceScore: true } },
+        // portal logins: the client or supplier they belong to
+        clientId: true, supplierId: true,
+        client: { select: { companyName: true, fullName: true, teamName: true, delegationName: true } },
+        supplier: { select: { name: true } },
       }
     })
 
@@ -97,6 +101,8 @@ export async function getMe(req: AuthRequest, res: Response): Promise<void> {
         ...user,
         department: user.employee?.department,
         position: user.employee?.position,
+        clientName: user.client ? user.client.companyName || user.client.fullName || user.client.teamName || user.client.delegationName : undefined,
+        supplierName: user.supplier?.name,
       }
     })
   } catch (error) {

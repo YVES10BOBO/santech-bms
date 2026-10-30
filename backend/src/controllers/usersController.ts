@@ -31,12 +31,16 @@ function guardRole(req: AuthRequest, res: Response, targetRole?: UserRole | stri
   if (targetRole === 'SUPER_ADMIN' && req.user?.role !== 'SUPER_ADMIN') {
     res.status(403).json({ success: false, message: 'Only a Super Admin can manage Super Admin accounts' }); return false
   }
+  if (targetRole === 'CUSTOMER' || targetRole === 'SUPPLIER') {
+    res.status(400).json({ success: false, message: 'Portal logins are created on the 360° page of the client (customers) or Procurement → Suppliers (suppliers)' }); return false
+  }
   return true
 }
 
 export async function getUsers(_req: AuthRequest, res: Response): Promise<void> {
   try {
-    const users = await prisma.user.findMany({ where: { role: { not: 'CUSTOMER' } }, select, orderBy: { createdAt: 'asc' } })
+    // portal logins (customers, suppliers) are managed from Client 360° and Procurement → Suppliers
+    const users = await prisma.user.findMany({ where: { role: { notIn: ['CUSTOMER', 'SUPPLIER'] } }, select, orderBy: { createdAt: 'asc' } })
     res.json({ success: true, data: users })
   } catch (e) { fail(res, e, 'getUsers') }
 }

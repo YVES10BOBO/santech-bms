@@ -70,6 +70,7 @@ import lookupsRouter from './routes/lookups'
 import step2Router from './routes/step2'
 import reportsRouter from './routes/reports'
 import filesRouter from './routes/files'
+import { customerPortal, supplierPortal, portalAdmin, suppliers } from './routes/portal'
 import searchRouter from './routes/search'
 import prisma from './lib/prisma'
 import { generateRecurringInvoices } from './lib/recurring'
@@ -91,6 +92,10 @@ app.use('/api/lookups', lookupsRouter)
 // Leads, quotations, tickets, products, departments, visitors, users, notifications
 app.use('/api/reports', reportsRouter)
 app.use('/api/files', filesRouter)
+app.use('/api/portal', customerPortal)          // customer portal
+app.use('/api/supplier-portal', supplierPortal) // supplier portal
+app.use('/api/portal-admin', portalAdmin)       // staff: portal logins
+app.use('/api/suppliers', suppliers)
 app.use('/api/search', searchRouter) // top-bar quick search (role-aware)
 app.use('/api', step2Router)
 

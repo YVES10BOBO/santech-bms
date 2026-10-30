@@ -51,6 +51,7 @@ function getRoleBadgeClass(role: UserRole): string {
     MARKETING_MANAGER: 'bg-pink-100 text-pink-700',
     PROJECT_MANAGER: 'bg-teal-100 text-teal-700',
     CUSTOMER: 'bg-yellow-100 text-yellow-700',
+    SUPPLIER: 'bg-lime-100 text-lime-700',
   }
   return map[role] ?? 'bg-gray-100 text-gray-700'
 }

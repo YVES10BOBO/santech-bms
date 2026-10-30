@@ -9,6 +9,7 @@ import { logAudit } from '../lib/audit'
 import { nextDocumentNumber } from '../lib/numbering'
 import { CURRENCIES, getRates, openBalance, rateFor } from '../lib/currency'
 import { generateRecurringInvoices } from '../lib/recurring'
+import { tellClientAboutInvoice } from '../lib/portal'
 import { CONTRACT_VIEWERS, FINANCE, SALES, hasRole } from '../lib/roles'
 import type { AuthRequest } from '../middleware/auth'
 
@@ -84,6 +85,7 @@ export async function createCreditNote(req: AuthRequest, res: Response): Promise
       await tx.invoice.update({ where: { id: inv.id }, data: { creditedAmount: credited, status: nextStatus } })
       return cn
     })
+    await tellClientAboutInvoice(note)
     await logAudit(req, {
       action: 'CREATE', entity: 'Invoice', entityId: note.id, entityName: `${note.invoiceNumber} — ${inv.client.companyName ?? ''}`,
       description: `Issued credit note ${note.invoiceNumber} of ${money(amount, inv.currency)} against ${inv.invoiceNumber}: ${reason}`,
@@ -120,6 +122,7 @@ export async function convertProforma(req: AuthRequest, res: Response): Promise<
       },
     })
     if (pf.status === 'DRAFT') await prisma.invoice.update({ where: { id: pf.id }, data: { status: 'SENT' } })
+    await tellClientAboutInvoice(inv)
     await logAudit(req, {
       action: 'CREATE', entity: 'Invoice', entityId: inv.id, entityName: `${inv.invoiceNumber} — ${pf.client.companyName ?? ''}`,
       description: `Converted proforma ${pf.invoiceNumber} into invoice ${inv.invoiceNumber} (${money(inv.totalAmount, inv.currency)})`,

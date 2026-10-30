@@ -13,6 +13,8 @@ import { printDocument, type PrintDoc } from '@/lib/printDocument'
 import { communicationService } from '@/lib/services/operationsService'
 import { apiError } from '@/lib/services/lookupService'
 import { toRwf } from '@/lib/currency'
+import { useAuthStore } from '@/store/authStore'
+import PortalLogins from '@/components/shared/PortalLogins'
 import toast from 'react-hot-toast'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -347,6 +349,8 @@ function AddInteractionModal({ onClose, onSave }: AddInteractionModalProps) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function ClientProfilePage() {
   const { id } = useParams<{ id: string }>()
+  // admins and the sales manager give clients access to the customer portal
+  const canManagePortal = ['SUPER_ADMIN', 'ADMIN', 'SALES_MANAGER'].includes(useAuthStore(st => st.user?.role) ?? '')
   const navigate = useNavigate()
   const [showAddInteraction, setShowAddInteraction] = useState(false)
   const [profile, setProfile] = useState<ClientProfile | undefined>(undefined)
@@ -809,6 +813,8 @@ export default function ClientProfilePage() {
 
         {/* ── RIGHT COLUMN ────────────────────────────────────────────────── */}
         <div className="space-y-5">
+
+          {canManagePortal && id && <PortalLogins kind="client" ownerId={id} ownerName={profile.companyName || profile.fullName || 'this client'} />}
 
           {/* Financial Summary */}
           <div className="bms-card p-5">
