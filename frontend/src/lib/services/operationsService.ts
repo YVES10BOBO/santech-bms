@@ -31,6 +31,14 @@ export const ticketService = {
   update: (id: string, b: Body) => put(`/tickets/${id}`, b),
 }
 
+/** Employee → Manager → Finance */
+export const expenseClaimService = {
+  getAll: () => get('/expense-claims'),
+  create: (b: Body) => post('/expense-claims', b),
+  approve: (id: string) => post(`/expense-claims/${id}/approve`),
+  reject: (id: string, reason: string) => post(`/expense-claims/${id}/reject`, { reason }),
+}
+
 export const productService = {
   getAll: () => get('/products'),
   create: (b: Body) => post('/products', b),
@@ -103,6 +111,8 @@ export const documentService = {
   },
   /** Folder tree: automatic folders (clients → projects, company, types, archive) + admin-made folders */
   folders: () => get('/documents/folders'),
+  /** Earlier files of a document, newest first (kept when a file is replaced) */
+  versions: (id: string) => get(`/documents/${id}/versions`),
   /** Admin-made folders (admins only). Deleting moves the contents up one level. */
   createFolder: (b: Body) => post('/documents/folders', b),
   updateFolder: (id: string, b: Body) => put(`/documents/folders/${id}`, b),

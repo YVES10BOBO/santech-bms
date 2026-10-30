@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { getExpenseClaims, createExpenseClaim, approveExpenseClaim, rejectExpenseClaim } from '../controllers/expenseClaimsController'
 import { authenticate, authorize } from '../middleware/auth'
 import { ADMINS, SALES } from '../lib/roles'
 import { getLeads, createLead, updateLead, advanceLead, convertLead, deleteLead } from '../controllers/leadsController'
@@ -14,7 +15,7 @@ import { getCommunications, createCommunication, updateCommunication, getMeeting
 import { getSubscriptions, saveSubscription, paySubscription, renewSubscription, getCampaigns, saveCampaign, getTimesheets, createTimesheet, reviewTimesheet } from '../controllers/growthController'
 import { FINANCE, PROJECT_LEADS } from '../lib/roles'
 import {
-  getDocuments, getDocumentFolders, createDocumentFolder, updateDocumentFolder, deleteDocumentFolder, saveDocument, deleteDocument, getAttendance, saveAttendance, requestLeave, reviewLeave,
+  getDocuments, getDocumentVersions, getDocumentFolders, createDocumentFolder, updateDocumentFolder, deleteDocumentFolder, saveDocument, deleteDocument, getAttendance, saveAttendance, requestLeave, reviewLeave,
   getTenders, saveTender, getPurchases, createPurchase, updatePurchaseStatus,
   getTrainings, saveTraining, addAttendee, updateAttendee,
   getArticles, saveArticle, viewArticle, getCompany, saveCompany,
@@ -26,7 +27,7 @@ const router = Router()
 router.use([
   '/leads', '/quotations', '/tickets', '/products', '/departments', '/visitors', '/users', '/notifications',
   '/communications', '/meetings', '/client-services', '/campaigns', '/timesheets',
-  '/documents', '/attendance', '/leave', '/tenders', '/purchases', '/trainings', '/articles', '/settings',
+  '/documents', '/expense-claims', '/attendance', '/leave', '/tenders', '/purchases', '/trainings', '/articles', '/settings',
 ], authenticate)
 
 // Leads (sales team)
@@ -101,6 +102,7 @@ router.post('/documents/folders', authorize(...ADMINS), createDocumentFolder)   
 router.put('/documents/folders/:id', authorize(...ADMINS), updateDocumentFolder)    // rename / colour / move
 router.delete('/documents/folders/:id', authorize(...ADMINS), deleteDocumentFolder) // contents move up a level
 router.get('/documents', getDocuments)
+router.get('/documents/:id/versions', getDocumentVersions) // earlier files of a document
 router.post('/documents', saveDocument)
 router.put('/documents/:id', saveDocument)
 router.delete('/documents/:id', authorize(...ADMINS), deleteDocument) // permanent, archived only
@@ -142,5 +144,11 @@ router.put('/settings/company', authorize(...ADMINS), saveCompany)
 router.get('/notifications', getNotifications)
 router.get('/notifications/unread-count', getUnreadCount)
 router.post('/notifications/read', markNotificationsRead)
+
+// Expense claims: Employee → Manager → Finance (final approval books the expense)
+router.get('/expense-claims', getExpenseClaims)
+router.post('/expense-claims', createExpenseClaim)
+router.post('/expense-claims/:id/approve', approveExpenseClaim)
+router.post('/expense-claims/:id/reject', rejectExpenseClaim)
 
 export default router

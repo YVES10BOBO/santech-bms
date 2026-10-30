@@ -16,7 +16,7 @@ interface RoleDefinition {
 const ALL_MODULES = [
   'dashboard', 'crm', 'sales', 'marketing', 'contracts', 'finance',
   'projects', 'team', 'support', 'reports', 'settings', 'notifications',
-  'reception', 'communication', 'training', 'documents', 'procurement',
+  'reception', 'communication', 'training', 'documents', 'procurement', 'expenses',
 ]
 
 const ROLES: RoleDefinition[] = [

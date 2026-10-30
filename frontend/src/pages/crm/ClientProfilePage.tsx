@@ -519,7 +519,7 @@ export default function ClientProfilePage() {
                   description: String(i.description ?? ''), quantity: Number(i.quantity ?? 0),
                   unitPrice: Number(i.unitPrice ?? 0), total: Number(i.total ?? 0),
                 })),
-                subtotal: Number(q.subtotal ?? 0), vatRate: Number(q.vatRate ?? 0), vatAmount: Number(q.vatAmount ?? 0),
+                subtotal: Number(q.subtotal ?? 0), discountRate: Number(q.discountRate ?? 0), discountAmount: Number(q.discountAmount ?? 0), vatRate: Number(q.vatRate ?? 0), vatAmount: Number(q.vatAmount ?? 0),
                 total: Number(q.totalAmount ?? 0), currency: String(q.currency ?? 'RWF'),
                 paymentTerms: q.paymentTerms ? String(q.paymentTerms) : undefined, notes: q.notes ? String(q.notes) : undefined,
               },

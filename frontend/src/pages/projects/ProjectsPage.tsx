@@ -31,6 +31,7 @@ interface Project {
   progress: number
   startDate: string
   endDate: string
+  warrantyEndDate?: string | null
   description: string
   milestones: ({ name: string; isCompleted: boolean } | string)[]
   contractId?: string | null
@@ -62,6 +63,15 @@ function getMilestones(project: Project): { name: string; isCompleted: boolean }
     }
     return m
   })
+}
+
+/** Warranty state for the details panel */
+function warrantyInfo(date?: string | null): { label: string; chip: string } | null {
+  if (!date) return null
+  const days = Math.ceil((new Date(`${String(date).slice(0, 10)}T23:59:59`).getTime() - Date.now()) / 86400000) - 1
+  if (days < 0) return { label: 'Ended', chip: 'bg-gray-100 text-gray-600' }
+  if (days <= 30) return { label: `Ends in ${days} day${days === 1 ? '' : 's'}`, chip: 'bg-amber-100 text-amber-700' }
+  return { label: 'Active', chip: 'bg-green-100 text-green-700' }
 }
 
 // ─── Badge helpers ─────────────────────────────────────────────────────────────
@@ -110,6 +120,7 @@ interface ProjectForm {
   budget: string
   startDate: string
   endDate: string
+  warrantyEndDate: string
   priority: Priority
   status: ProjectStatus
   description: string
@@ -124,6 +135,7 @@ const emptyForm: ProjectForm = {
   budget: '',
   startDate: '',
   endDate: '',
+  warrantyEndDate: '',
   priority: 'MEDIUM',
   status: 'PLANNING',
   description: '',
@@ -272,6 +284,7 @@ export default function ProjectsPage() {
       budget: String(p.budget),
       startDate: p.startDate ? String(p.startDate).slice(0, 10) : '',
       endDate: p.endDate ? String(p.endDate).slice(0, 10) : '',
+      warrantyEndDate: p.warrantyEndDate ? String(p.warrantyEndDate).slice(0, 10) : '',
       priority: p.priority,
       status: p.status,
       description: p.description ?? '',
@@ -304,6 +317,7 @@ export default function ProjectsPage() {
       contractValue: contract?.value ?? (Number(form.budget) || 0),
       startDate: form.startDate || undefined,
       endDate: form.endDate || undefined,
+      warrantyEndDate: form.warrantyEndDate || null,
       priority: form.priority,
       status: form.status,
       description: form.description || undefined,
@@ -743,6 +757,20 @@ export default function ProjectsPage() {
                 </div>
               </div>
 
+              {/* Warranty / support period after delivery */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Warranty ends (optional)</label>
+                <input
+                  name="warrantyEndDate"
+                  type="date"
+                  value={form.warrantyEndDate}
+                  min={form.endDate || undefined}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500"
+                />
+                <p className="text-[11px] text-gray-400 mt-0.5">Free support after delivery. The project manager is reminded 30 days before it ends.</p>
+              </div>
+
               {/* Priority + Status */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -919,6 +947,15 @@ export default function ProjectsPage() {
                     {formatDate(viewProject.endDate)}
                   </p>
                 </div>
+                {viewProject.warrantyEndDate && (
+                  <div>
+                    <p className="text-gray-400 font-medium uppercase tracking-wide">Warranty Until</p>
+                    <p className="text-gray-700 font-medium mt-0.5 flex items-center gap-1.5 flex-wrap">
+                      {formatDate(viewProject.warrantyEndDate)}
+                      {(() => { const w = warrantyInfo(viewProject.warrantyEndDate); return w ? <span className={cn('text-[10px] px-1.5 py-0.5 rounded-full', w.chip)}>{w.label}</span> : null })()}
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Description */}

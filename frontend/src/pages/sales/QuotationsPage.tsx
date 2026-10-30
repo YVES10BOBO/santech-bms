@@ -40,6 +40,8 @@ interface Quotation {
   status: QuotationStatus
   items: QuotationItem[]
   subtotal: number
+  discountRate: number
+  discountAmount: number
   vatRate: number
   vatAmount: number
   totalAmount: number
@@ -69,6 +71,8 @@ function toQuotation(q: any): Quotation {
     status: q.status,
     items: Array.isArray(q.items) ? q.items : [],
     subtotal: Number(q.subtotal),
+    discountRate: Number(q.discountRate ?? 0),
+    discountAmount: Number(q.discountAmount ?? 0),
     vatRate: Number(q.vatRate),
     vatAmount: Number(q.vatAmount),
     totalAmount: Number(q.totalAmount),
@@ -121,7 +125,7 @@ const newItem = (): QuotationItem => ({ id: String(Date.now()), description: '',
 
 const emptyForm = {
   clientId: '', contactName: '', contactEmail: '', contactPhone: '',
-  vatRate: '0', validUntil: '', paymentTerms: '', notes: '',
+  vatRate: '0', discountRate: '0', validUntil: '', paymentTerms: '', notes: '',
   assignedToId: '', linkedDeal: '',
 }
 
@@ -173,6 +177,13 @@ export default function QuotationsPage() {
   // ── Item calculations ──────────────────────────────────────────────────────
   const calcSubtotal = (its: QuotationItem[]) => its.reduce((s, i) => s + i.total, 0)
   const calcVat = (sub: number, rate: number) => Math.round(sub * rate / 100)
+  /** Same rule as the server: subtotal − discount, then VAT on what is left */
+  const calcTotals = (its: QuotationItem[]) => {
+    const subtotal = calcSubtotal(its)
+    const discount = Math.round(subtotal * Math.min(100, Math.max(0, parseFloat(form.discountRate) || 0)) / 100)
+    const vat = calcVat(subtotal - discount, parseFloat(form.vatRate) || 0)
+    return { subtotal, discount, vat, total: subtotal - discount + vat }
+  }
 
   const updateItem = (id: string, field: keyof QuotationItem, value: string | number) => {
     setItems(prev => prev.map(item => {
@@ -200,7 +211,7 @@ export default function QuotationsPage() {
   }
 
   const openEdit = (q: Quotation) => {
-    setForm({ clientId: q.clientId, contactName: q.contactName, contactEmail: q.contactEmail, contactPhone: q.contactPhone, vatRate: String(q.vatRate), validUntil: q.validUntil, paymentTerms: q.paymentTerms, notes: q.notes, assignedToId: q.assignedToId, linkedDeal: q.linkedDeal })
+    setForm({ clientId: q.clientId, contactName: q.contactName, contactEmail: q.contactEmail, contactPhone: q.contactPhone, vatRate: String(q.vatRate), discountRate: String(q.discountRate), validUntil: q.validUntil, paymentTerms: q.paymentTerms, notes: q.notes, assignedToId: q.assignedToId, linkedDeal: q.linkedDeal })
     setItems(q.items.map(i => ({ ...i })))
     setEditId(q.id); setError(''); setShowModal(true); setViewQuotation(null)
   }
@@ -217,7 +228,7 @@ export default function QuotationsPage() {
     if (items.every(i => !i.description)) { setError('Add at least one line item.'); return }
     const payload = {
       clientId: form.clientId, contactName: form.contactName, contactEmail: form.contactEmail, contactPhone: form.contactPhone,
-      vatRate: parseFloat(form.vatRate) || 0, validUntil: form.validUntil || null,
+      vatRate: parseFloat(form.vatRate) || 0, discountRate: parseFloat(form.discountRate) || 0, validUntil: form.validUntil || null,
       paymentTerms: form.paymentTerms, notes: form.notes,
       assignedToId: form.assignedToId || undefined, linkedDeal: form.linkedDeal,
       items: items.filter(i => i.description).map(i => ({ id: i.id, description: i.description, quantity: Number(i.quantity), unitPrice: Number(i.unitPrice) })),
@@ -453,7 +464,7 @@ export default function QuotationsPage() {
                 <button onClick={() => printDocument({
                   kind: 'QUOTATION', number: viewQuotation.quotationNumber, date: viewQuotation.createdAt, dueOrValid: viewQuotation.validUntil,
                   clientName: viewQuotation.clientName, contactName: viewQuotation.contactName, contactPhone: viewQuotation.contactPhone, contactEmail: viewQuotation.contactEmail,
-                  lines: viewQuotation.items, subtotal: viewQuotation.subtotal, vatRate: viewQuotation.vatRate, vatAmount: viewQuotation.vatAmount,
+                  lines: viewQuotation.items, subtotal: viewQuotation.subtotal, discountRate: viewQuotation.discountRate, discountAmount: viewQuotation.discountAmount, vatRate: viewQuotation.vatRate, vatAmount: viewQuotation.vatAmount,
                   total: viewQuotation.totalAmount, currency: viewQuotation.currency, paymentTerms: viewQuotation.paymentTerms, notes: viewQuotation.notes,
                 })} className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg bg-santech-50 text-santech-700 hover:bg-santech-100 font-medium"><Download className="w-3.5 h-3.5" /> PDF</button>
                 <button onClick={() => setViewQuotation(null)}><X className="w-5 h-5 text-gray-400" /></button>
@@ -535,6 +546,11 @@ export default function QuotationsPage() {
                     <div className="flex justify-between text-xs text-gray-500">
                       <span>Subtotal</span><span>{formatCurrency(viewQuotation.subtotal)}</span>
                     </div>
+                    {viewQuotation.discountAmount > 0 && (
+                      <div className="flex justify-between text-xs text-green-700">
+                        <span>Discount ({viewQuotation.discountRate}%)</span><span>−{formatCurrency(viewQuotation.discountAmount)}</span>
+                      </div>
+                    )}
                     {viewQuotation.vatAmount > 0 && (
                       <div className="flex justify-between text-xs text-gray-500">
                         <span>VAT ({viewQuotation.vatRate}%)</span><span>{formatCurrency(viewQuotation.vatAmount)}</span>
@@ -670,17 +686,23 @@ export default function QuotationsPage() {
                   {/* Totals preview */}
                   <div className="border-t border-gray-200 bg-gray-50 px-3 py-2 space-y-1">
                     <div className="flex justify-between text-xs text-gray-500">
-                      <span>Subtotal</span><span>{formatCurrency(calcSubtotal(items))}</span>
+                      <span>Subtotal</span><span>{formatCurrency(calcTotals(items).subtotal)}</span>
                     </div>
+                    {calcTotals(items).discount > 0 && (
+                      <div className="flex justify-between text-xs text-green-700">
+                        <span>Discount ({form.discountRate}%)</span>
+                        <span>−{formatCurrency(calcTotals(items).discount)}</span>
+                      </div>
+                    )}
                     {parseFloat(form.vatRate) > 0 && (
                       <div className="flex justify-between text-xs text-gray-500">
                         <span>VAT ({form.vatRate}%)</span>
-                        <span>{formatCurrency(calcVat(calcSubtotal(items), parseFloat(form.vatRate)))}</span>
+                        <span>{formatCurrency(calcTotals(items).vat)}</span>
                       </div>
                     )}
                     <div className="flex justify-between text-sm font-bold text-gray-800 pt-1 border-t border-gray-200">
                       <span>Total</span>
-                      <span>{formatCurrency(calcSubtotal(items) + calcVat(calcSubtotal(items), parseFloat(form.vatRate) || 0))}</span>
+                      <span>{formatCurrency(calcTotals(items).total)}</span>
                     </div>
                   </div>
                 </div>
@@ -693,6 +715,11 @@ export default function QuotationsPage() {
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1">VAT Rate (%)</label>
                     <input name="vatRate" type="number" min="0" max="100" value={form.vatRate} onChange={handleChange} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Discount (%)</label>
+                    <input name="discountRate" type="number" min="0" max="100" step="0.5" value={form.discountRate} onChange={handleChange} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500" />
+                    <p className="text-[11px] text-gray-400 mt-0.5">Taken off the subtotal before VAT; managers see it when approving</p>
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1">Valid Until</label>

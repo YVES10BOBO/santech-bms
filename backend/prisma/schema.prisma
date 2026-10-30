@@ -267,6 +267,7 @@ model User {
   timesheetsReviewed    Timesheet[]    @relation("TimesheetReviewer")
   documentsUploaded     Document[]     @relation("DocumentUploadedBy")
   documentFolders       DocumentFolder[] @relation("DocumentFolderCreatedBy")
+  expenseClaims         ExpenseClaim[]     @relation("ExpenseClaimRequestedBy")
   attendance            Attendance[]   @relation("AttendanceUser")
   leaveRequests         LeaveRequest[] @relation("LeaveUser")
   leaveReviews          LeaveRequest[] @relation("LeaveReviewer")
@@ -608,6 +609,7 @@ model Project {
   progress         Float         @default(0)
   description      String?       @db.Text
   risks            String?
+  warrantyEndDate  DateTime? // after handover; reminders before it ends
   tasks            Task[]
   milestones       Milestone[]
   invoices         Invoice[]
@@ -774,6 +776,8 @@ model Quotation {
   status          QuotationStatus @default(DRAFT)
   items           Json            // [{ id, description, quantity, unitPrice, total }]
   subtotal        Float
+  discountRate    Float           @default(0) // % off the subtotal, before VAT
+  discountAmount  Float           @default(0)
   vatRate         Float           @default(0)
   vatAmount       Float           @default(0)
   totalAmount     Float
@@ -833,6 +837,9 @@ model SupportTicket {
   createdById  String
   createdBy    User         @relation("TicketCreatedBy", fields: [createdById], references: [id])
   resolvedAt   DateTime?
+  firstResponseAt  DateTime? // first time the team worked on it (In Progress / Waiting / Resolved)
+  satisfaction     Int? // customer rating 1–5, recorded when resolved
+  satisfactionNote String?
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
@@ -1042,6 +1049,9 @@ model Document {
   uploadedBy   User     @relation("DocumentUploadedBy", fields: [uploadedById], references: [id])
   folderId     String?  // folder an admin filed it in (Drive-style); it still shows in the automatic folders
   folder       DocumentFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  expiryDate   DateTime? // e.g. certificates, licences, insurance — reminders before it expires
+  version      Int               @default(1)
+  versions     DocumentVersion[]
   date         DateTime @default(now())
   createdAt    DateTime @default(now())
 
@@ -1249,4 +1259,51 @@ model StoredFile {
   createdAt    DateTime @default(now())
 
   @@map("stored_files")
+}
+
+/// Earlier files of a document: replacing the file keeps the old one here
+model DocumentVersion {
+  id             String   @id @default(cuid())
+  documentId     String
+  document       Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  version        Int
+  fileId         String
+  name           String
+  size           String?
+  uploadedById   String
+  uploadedByName String?
+  createdAt      DateTime @default(now())
+
+  @@index([documentId])
+  @@map("document_versions")
+}
+
+/// Expense claims: Employee → Manager → Finance. Final approval books the expense in Finance.
+model ExpenseClaim {
+  id              String    @id @default(cuid())
+  claimNumber     String    @unique // EXP-2026-001
+  description     String
+  category        String
+  amount          Float
+  currency        String    @default("RWF")
+  date            DateTime
+  receiptFileId   String?
+  receiptName     String?
+  notes           String?
+  status          String    @default("PENDING") // PENDING → MANAGER_APPROVED → APPROVED, or REJECTED
+  requestedById   String
+  requestedBy     User      @relation("ExpenseClaimRequestedBy", fields: [requestedById], references: [id])
+  managerId       String? // who gave the manager approval (Finance must be someone else)
+  managerName     String?
+  managerAt       DateTime?
+  financeName     String?
+  financeAt       DateTime?
+  rejectedByName  String?
+  rejectionReason String?
+  expenseId       String?   @unique // the Finance expense booked on final approval
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([requestedById])
+  @@map("expense_claims")
 }

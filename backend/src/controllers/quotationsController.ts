@@ -35,7 +35,8 @@ const CAN_ADVANCE: Partial<Record<QuotationStatus, UserRole[]>> = {
   NEGOTIATION: SALES,
 }
 
-function computeTotals(items: Item[], vatRate: number) {
+/** Totals: subtotal − discount (%) = taxable amount; VAT on the taxable amount; total = taxable + VAT */
+function computeTotals(items: Item[], vatRate: number, discountRate = 0) {
   const clean = items
     .filter(i => i.description && String(i.description).trim())
     .map((i, idx) => {
@@ -44,8 +45,11 @@ function computeTotals(items: Item[], vatRate: number) {
       return { id: i.id || `i${idx + 1}`, description: String(i.description).trim(), quantity, unitPrice, total: quantity * unitPrice }
     })
   const subtotal = clean.reduce((s, i) => s + i.total, 0)
-  const vatAmount = Math.round(subtotal * vatRate / 100)
-  return { items: clean, subtotal, vatRate, vatAmount, totalAmount: subtotal + vatAmount }
+  const rate = Math.min(100, Math.max(0, discountRate || 0))
+  const discountAmount = Math.round(subtotal * rate / 100)
+  const taxable = subtotal - discountAmount
+  const vatAmount = Math.round(taxable * vatRate / 100)
+  return { items: clean, subtotal, discountRate: rate, discountAmount, vatRate, vatAmount, totalAmount: taxable + vatAmount }
 }
 
 async function actorName(req: AuthRequest) {
@@ -71,7 +75,9 @@ export async function createQuotation(req: AuthRequest, res: Response): Promise<
   try {
     const b = req.body
     if (!b.clientId) { res.status(400).json({ success: false, message: 'Client is required' }); return }
-    const totals = computeTotals(Array.isArray(b.items) ? b.items : [], parseFloat(b.vatRate) || 0)
+    const discount = parseFloat(b.discountRate) || 0
+    if (discount < 0 || discount > 100) { res.status(400).json({ success: false, message: 'Discount must be between 0 and 100%' }); return }
+    const totals = computeTotals(Array.isArray(b.items) ? b.items : [], parseFloat(b.vatRate) || 0, discount)
     if (!totals.items.length) { res.status(400).json({ success: false, message: 'Add at least one line item' }); return }
     const q = await prisma.quotation.create({
       data: {
@@ -103,7 +109,10 @@ export async function updateQuotation(req: AuthRequest, res: Response): Promise<
       res.status(400).json({ success: false, message: 'Only draft, in-review or negotiation quotations can be edited' }); return
     }
     const b = req.body
-    const totals = b.items ? computeTotals(b.items, parseFloat(b.vatRate ?? before.vatRate) || 0) : null
+    const discount = b.discountRate !== undefined ? parseFloat(b.discountRate) || 0 : before.discountRate
+    if (discount < 0 || discount > 100) { res.status(400).json({ success: false, message: 'Discount must be between 0 and 100%' }); return }
+    const items = b.items ?? (b.vatRate !== undefined || b.discountRate !== undefined ? (before.items as unknown as Item[]) : null)
+    const totals = items ? computeTotals(items, parseFloat(b.vatRate ?? before.vatRate) || 0, discount) : null
     if (totals && !totals.items.length) { res.status(400).json({ success: false, message: 'Add at least one line item' }); return }
     const history = (before.approvalHistory as unknown as HistoryEvent[] | null) ?? []
     const q = await prisma.quotation.update({

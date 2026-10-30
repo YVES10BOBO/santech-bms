@@ -64,7 +64,7 @@ export async function getClient(req: AuthRequest, res: Response): Promise<void> 
         quotations: {
           select: {
             id: true, quotationNumber: true, status: true, createdAt: true, validUntil: true, currency: true,
-            items: true, subtotal: true, vatRate: true, vatAmount: true, totalAmount: true,
+            items: true, subtotal: true, discountRate: true, discountAmount: true, vatRate: true, vatAmount: true, totalAmount: true,
             contactName: true, contactPhone: true, contactEmail: true, paymentTerms: true, notes: true,
           },
           orderBy: { createdAt: 'desc' },

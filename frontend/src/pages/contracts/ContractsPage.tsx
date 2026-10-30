@@ -144,10 +144,13 @@ export default function ContractsPage() {
   /** Saves changes and refreshes the row + side panel. Returns false on failure. */
   const saveContract = async (id: string, changes: Record<string, unknown>, success: string) => {
     try {
-      const updated = toContract(await contractService.update(id, changes))
+      const { contract, message } = await contractService.save(id, changes)
+      const updated = toContract(contract)
       setContracts(prev => prev.map(c => c.id === id ? updated : c))
       setViewContract(prev => prev && prev.id === id ? updated : prev)
-      toast.success(success)
+      // Activation also creates the project — show that message instead
+      toast.success(/automatically/i.test(message) ? message : success, { duration: /automatically/i.test(message) ? 6000 : 3000 })
+      if (/automatically/i.test(message)) lookups.reload().catch(() => { /* lists refresh on next page */ })
       return true
     } catch (err) {
       const msg = apiError(err, 'Failed to update contract')

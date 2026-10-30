@@ -17,7 +17,7 @@ const userName = { select: { id: true, firstName: true, lastName: true } }
 
 // ── SUPPORT TICKETS ───────────────────────────────────────────────────────────
 
-const ticketInclude = { client: { select: { id: true, companyName: true } }, assignedTo: userName, createdBy: userName }
+const ticketInclude = { client: { select: { id: true, companyName: true, fullName: true, teamName: true, delegationName: true } }, assignedTo: userName, createdBy: userName }
 
 export async function getTickets(_req: AuthRequest, res: Response): Promise<void> {
   try {
@@ -59,11 +59,21 @@ export async function updateTicket(req: AuthRequest, res: Response): Promise<voi
   try {
     const before = await prisma.supportTicket.findUnique({ where: { id: req.params.id } })
     if (!before) { res.status(404).json({ success: false, message: 'Ticket not found' }); return }
-    const { status, assignedToId, priority } = req.body as { status?: TicketStatus; assignedToId?: string | null; priority?: string }
+    const { status, assignedToId, priority, satisfaction, satisfactionNote } = req.body as {
+      status?: TicketStatus; assignedToId?: string | null; priority?: string; satisfaction?: number; satisfactionNote?: string
+    }
     if (before.status === 'CLOSED' && status && status !== 'CLOSED') {
       res.status(400).json({ success: false, message: 'Closed tickets cannot be reopened — create a new ticket' }); return
     }
     const nextStatus = status ?? (assignedToId && before.status === 'NEW' ? 'ASSIGNED' : undefined)
+    // Customer satisfaction (1–5) can only be given once the ticket is resolved
+    if (satisfaction !== undefined) {
+      const rating = Number(satisfaction)
+      if (!Number.isInteger(rating) || rating < 1 || rating > 5) { res.status(400).json({ success: false, message: 'Rating must be 1 to 5' }); return }
+      if (!['RESOLVED', 'CLOSED'].includes(nextStatus ?? before.status)) { res.status(400).json({ success: false, message: 'Rate the support after the ticket is resolved' }); return }
+    }
+    // First response: the first time the team actually works on the ticket
+    const responded = !before.firstResponseAt && !!nextStatus && ['IN_PROGRESS', 'WAITING_CUSTOMER', 'RESOLVED', 'CLOSED'].includes(nextStatus)
     const t = await prisma.supportTicket.update({
       where: { id: before.id },
       data: {
@@ -71,6 +81,9 @@ export async function updateTicket(req: AuthRequest, res: Response): Promise<voi
         ...(assignedToId !== undefined && { assignedToId: assignedToId || null }),
         ...(priority && { priority: priority as Prisma.SupportTicketUpdateInput['priority'] }),
         ...(nextStatus === 'RESOLVED' && !before.resolvedAt && { resolvedAt: new Date() }),
+        ...(nextStatus === 'CLOSED' && !before.resolvedAt && { resolvedAt: new Date() }),
+        ...(responded && { firstResponseAt: new Date() }),
+        ...(satisfaction !== undefined && { satisfaction: Number(satisfaction), satisfactionNote: satisfactionNote?.trim() || null }),
       },
       include: ticketInclude,
     })
@@ -80,7 +93,8 @@ export async function updateTicket(req: AuthRequest, res: Response): Promise<voi
     await logAudit(req, {
       action: nextStatus && nextStatus !== before.status ? 'STATUS_CHANGE' : 'UPDATE',
       entity: 'Ticket', entityId: t.id, entityName: `${t.ticketNo} — ${t.client.companyName ?? ''}`,
-      description: nextStatus && nextStatus !== before.status ? `Ticket ${t.ticketNo} moved from ${before.status} to ${nextStatus}` : `Updated ticket ${t.ticketNo}`,
+      description: nextStatus && nextStatus !== before.status ? `Ticket ${t.ticketNo} moved from ${before.status} to ${nextStatus}`
+        : satisfaction !== undefined ? `Customer rated ticket ${t.ticketNo}: ${satisfaction}/5` : `Updated ticket ${t.ticketNo}`,
       oldValue: { status: before.status, assignedToId: before.assignedToId }, newValue: { status: t.status, assignedToId: t.assignedToId },
     })
     res.json({ success: true, data: t, message: 'Ticket updated' })

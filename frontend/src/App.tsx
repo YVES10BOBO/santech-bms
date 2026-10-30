@@ -36,6 +36,7 @@ import ProductCatalogPage from '@/pages/settings/ProductCatalogPage'
 import ClientProfilePage from '@/pages/crm/ClientProfilePage'
 import WorkloadPage from '@/pages/team/WorkloadPage'
 import AttendancePage from '@/pages/team/AttendancePage'
+import ExpenseClaimsPage from '@/pages/team/ExpenseClaimsPage'
 import CampaignsPage from '@/pages/marketing/CampaignsPage'
 import MilestonesPage from '@/pages/projects/MilestonesPage'
 import MeetingsPage from '@/pages/communication/MeetingsPage'
@@ -131,6 +132,7 @@ export default function App() {
           <Route path="team/salary" element={<SalaryPage />} />
           <Route path="team/workload" element={<WorkloadPage />} />
           <Route path="team/attendance" element={<AttendancePage />} />
+          <Route path="team/expenses" element={<ExpenseClaimsPage />} />
 
           {/* Contracts */}
           <Route path="contracts" element={<ContractsPage />} />

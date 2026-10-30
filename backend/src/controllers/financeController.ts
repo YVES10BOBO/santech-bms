@@ -4,6 +4,7 @@ import prisma from '../lib/prisma'
 import { logAudit } from '../lib/audit'
 import { nextDocumentNumber, guessIncomeCategory } from '../lib/numbering'
 import { ADMINS, hasRole } from '../lib/roles'
+import { notify } from '../lib/notifications'
 import type { AuthRequest } from '../middleware/auth'
 
 const fail = (res: Response, error: unknown, where: string) => {
@@ -630,7 +631,39 @@ export async function updateContract(req: AuthRequest, res: Response): Promise<v
       oldValue: { status: before.status, value: before.value },
       newValue: { status: contract.status, value: contract.value, ...(approvalNote ? { note: approvalNote } : {}) },
     })
-    res.json({ success: true, data: contract, message: 'Contract updated successfully' })
+
+    // Automation: a contract that becomes Active gets its project straight away (unless one is already linked)
+    let project: { id: string; name: string } | null = null
+    if (status === 'ACTIVE' && before.status !== 'ACTIVE' && !(await prisma.project.count({ where: { contractId: contract.id } }))) {
+      const start = contract.startDate ?? new Date()
+      const end = contract.endDate ?? new Date(start.getTime() + 90 * 24 * 3600 * 1000)
+      const managerId = contract.responsibleManagerId ?? req.user!.id
+      project = await prisma.project.create({
+        data: {
+          name: contract.projectName || `${contract.client.companyName ?? 'Client'} — ${contract.contractNumber}`,
+          clientId: contract.clientId, contractId: contract.id, projectManagerId: managerId,
+          budget: contract.value, contractValue: contract.value, currency: contract.currency ?? 'RWF',
+          startDate: start, endDate: end, status: 'PLANNING',
+          description: `Created automatically when contract ${contract.contractNumber} became active. Add milestones and tasks to plan the work.`,
+        },
+        select: { id: true, name: true },
+      })
+      if (managerId !== req.user!.id) {
+        await notify(managerId, {
+          type: 'SYSTEM', title: 'New Project Assigned', link: '/projects', key: `project-auto-${project.id}`,
+          description: `Contract ${contract.contractNumber} is active — project "${project.name}" was created and assigned to you`,
+        })
+      }
+      await logAudit(req, {
+        action: 'CREATE', entity: 'Project', entityId: project.id, entityName: project.name,
+        description: `Project "${project.name}" created automatically from contract ${contract.contractNumber}`,
+        newValue: { contract: contract.contractNumber, value: contract.value },
+      })
+    }
+    res.json({
+      success: true, data: contract,
+      message: project ? `Contract active — project "${project.name}" created automatically` : 'Contract updated successfully',
+    })
   } catch (error) { fail(res, error, 'updateContract') }
 }
 

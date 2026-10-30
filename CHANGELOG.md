@@ -11,6 +11,7 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 
 | Version | Date (2026) | Highlights |
 |---|---|---|
+| **1.3.0** | 30 Oct | Expense claims with approvals, quotation discounts, support response times and ratings, document expiry and versions, project warranties, contract → project automation |
 | **1.2.0** | 29 Oct | Document library (clients, projects, search, edit, delete), real file storage, PDF quotations and invoices, financial statements, login fix |
 | **1.1.0** | 28–29 Oct | Every page reads and saves through the API; all demo data seeded in Neon |
 | **1.0.0** | 26–28 Oct | Real login and the core pages on the database |
@@ -19,6 +20,74 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 | **0.1.0** | 11–13 Oct | Foundation: first pages, backend skeleton, hosting on Vercel, Render and Neon |
 
 ---
+
+## 1.3.0 — 30 October 2026
+
+### Expense claims, discounts, support times, document expiry and versions, warranties (30 Oct)
+First batch of the features still missing from the specification.
+
+- **Expense claims** — new page **Team → Expense Claims**, open to every staff role:
+  - Claim money spent for the company: description, category (Transport, Equipment, Internet,
+    Marketing, Other), amount, date, notes and a receipt (photo or PDF, up to 5 MB).
+  - Approvals: Employee → Manager (Admin, Project, Sales, Marketing or Finance Manager) → Finance
+    (Finance Manager or Admin). The Finance approval books the claim as a Finance expense.
+  - Nobody approves their own claim; the Finance approval must come from a different person than the
+    manager approval. Rejecting needs a reason.
+  - Each step notifies the next approvers and the employee, and is written to the Audit Trail.
+  - Progress shown in the table (Submitted → Manager → Finance), full approval trail in **View**,
+    **Waiting for me** filter for approvers, CSV export.
+- **Quotation discount:**
+  - **Discount (%)** field next to the VAT rate in the quotation builder.
+  - It is taken off the subtotal before VAT: subtotal − discount + VAT = total.
+  - Shown in the live preview, the quotation panel, the PDF and Client 360°.
+  - Changing only the discount or the VAT rate recalculates the totals on the server.
+- **Support tickets:**
+  - The first response is recorded when work starts, the resolution time when the ticket is resolved
+    or closed. Both show in the ticket panel.
+  - Once resolved, record the customer's rating (1–5 stars) and comment.
+  - New stats: average first response, average resolution time, average satisfaction.
+  - Fix: clients without a company name (individuals, teams, delegations) now show their name in the
+    Client column; it was blank.
+- **Documents:**
+  - Optional **expiry / review date**, with *Expires in N days* / *Expired* labels.
+  - New automatic folder **Expiring soon** (within 30 days or past).
+  - **Version history:** replacing a file keeps the old one as an earlier version, listed in
+    **Details** with a download button. Deleting a document removes its versions' files too.
+- **Projects:** optional **Warranty ends** date (free support after delivery), shown in the project panel
+  as Active / Ends in N days / Ended.
+- **Automation:**
+  - **Contract → project:** when a contract becomes Active and has no project, a project is created
+    (Planning) from the contract's client, value and dates, with the contract's responsible manager as
+    project manager. The manager is notified.
+  - **New reminders:**
+    - milestones due within 7 days or late (project managers);
+    - sent quotations expiring within 3 days (salesperson and Sales Manager);
+    - documents expiring within 30 days (admins);
+    - warranties ending within 30 days (project managers).
+- **Technical:**
+  - Migration `20261030100000_discounts_support_times_expense_claims_doc_versions_warranty`.
+    It is additive only:
+    - `quotations.discountRate` / `discountAmount`;
+    - `support_tickets.firstResponseAt` / `satisfaction` / `satisfactionNote`;
+    - `documents.expiryDate` / `version`;
+    - `projects.warrantyEndDate`;
+    - new tables `document_versions` and `expense_claims`.
+  - API:
+    - `GET/POST /api/expense-claims`, `POST /api/expense-claims/:id/approve`, `POST …/reject`
+      (`controllers/expenseClaimsController.ts`);
+    - `GET /api/documents/:id/versions`;
+    - `GET /api/documents?expiring=1`.
+  - Claim numbers use the shared numbering: `EXP-2026-001`, …
+- **Demo data** (`prisma/seeds/claimsExpiryWarranty.ts`, safe to run again):
+  - four claims, one at each step;
+  - expiry dates on four documents;
+  - an earlier version of the ECOBANK proposal;
+  - response times and ratings on support tickets;
+  - warranty dates on three projects.
+- **Tested** against a local copy of the database:
+  - 48 API checks: approval rules, totals, times, versions, file clean-up, reminders, automation;
+  - 28 checks in a real (headless) Edge browser, including the full claim flow as Employee → Project
+    Manager → Finance Manager, and the page at phone width.
 
 ## 1.2.0 — 29 October 2026
 

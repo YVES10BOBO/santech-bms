@@ -165,6 +165,7 @@ const navItems: NavItem[] = [
       { label: 'My Tasks', path: '/team/my-tasks', module: 'my-tasks' },
       { label: 'Salary', path: '/team/salary', module: 'team' },
       { label: 'Attendance & Leave', path: '/team/attendance', module: 'team' },
+      { label: 'Expense Claims', path: '/team/expenses', module: 'expenses' },
     ],
   },
   {

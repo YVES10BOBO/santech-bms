@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Plus, Search, X, Eye, CheckCircle2, XCircle } from 'lucide-react'
+import { Plus, Search, X, Eye, CheckCircle2, XCircle, Star } from 'lucide-react'
 import { cn, formatDate } from '@/lib/utils'
 import { ticketService } from '@/lib/services/operationsService'
 import { useLookups, apiError } from '@/lib/services/lookupService'
@@ -32,6 +32,11 @@ interface Ticket {
   assigned: string
   created: string
   updated: string
+  createdAt: string
+  firstResponseAt: string | null
+  resolvedAt: string | null
+  satisfaction: number | null
+  satisfactionNote: string
 }
 
 // ─── Mock data ─────────────────────────────────────────────────────────────────
@@ -40,7 +45,8 @@ function toTicket(t: any): Ticket {
   return {
     id: t.id,
     ticketNo: t.ticketNo,
-    client: t.client?.companyName ?? '',
+    // individuals, teams and delegations have no company name
+    client: t.client ? t.client.companyName || t.client.fullName || t.client.teamName || t.client.delegationName || '' : '',
     subject: t.subject,
     description: t.description,
     product: t.product,
@@ -50,7 +56,47 @@ function toTicket(t: any): Ticket {
     assignedId: t.assignedToId ?? '',
     created: String(t.createdAt).slice(0, 10),
     updated: String(t.updatedAt).slice(0, 10),
+    createdAt: String(t.createdAt),
+    firstResponseAt: t.firstResponseAt ?? null,
+    resolvedAt: t.resolvedAt ?? null,
+    satisfaction: t.satisfaction ?? null,
+    satisfactionNote: t.satisfactionNote ?? '',
   }
+}
+
+// ─── Response / resolution times ───────────────────────────────────────────────
+const hoursBetween = (from: string, to: string | null) =>
+  to ? Math.max(0, (new Date(to).getTime() - new Date(from).getTime()) / 3600000) : null
+
+/** 0.4 → "24 min", 5.2 → "5 h", 30 → "1 d 6 h" */
+function fmtHours(h: number | null): string {
+  if (h === null) return '—'
+  if (h < 1) return `${Math.max(1, Math.round(h * 60))} min`
+  if (h < 24) return `${Math.round(h)} h`
+  const days = Math.floor(h / 24)
+  const rest = Math.round(h - days * 24)
+  return rest ? `${days} d ${rest} h` : `${days} d`
+}
+
+const average = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null)
+
+function Stars({ value, onPick, size = 'w-4 h-4' }: { value: number; onPick?: (n: number) => void; size?: string }) {
+  return (
+    <span className="inline-flex items-center gap-0.5">
+      {[1, 2, 3, 4, 5].map(n => (
+        <button
+          key={n}
+          type="button"
+          disabled={!onPick}
+          onClick={() => onPick?.(n)}
+          aria-label={`${n} star${n > 1 ? 's' : ''}`}
+          className={cn('disabled:cursor-default', onPick && 'hover:scale-110 transition-transform')}
+        >
+          <Star className={cn(size, n <= value ? 'fill-amber-400 text-amber-400' : 'text-gray-300')} />
+        </button>
+      ))}
+    </span>
+  )
 }
 
 
@@ -179,7 +225,33 @@ export default function SupportPage() {
       value: tickets.filter(t => t.status === 'RESOLVED' && t.updated === today).length,
       color: 'text-green-600',
     },
+    {
+      label: 'Avg First Response',
+      value: fmtHours(average(tickets.map(t => hoursBetween(t.createdAt, t.firstResponseAt)).filter((h): h is number => h !== null))),
+      color: 'text-indigo-600',
+    },
+    {
+      label: 'Avg Resolution Time',
+      value: fmtHours(average(tickets.map(t => hoursBetween(t.createdAt, t.resolvedAt)).filter((h): h is number => h !== null))),
+      color: 'text-teal-600',
+    },
+    {
+      label: `Satisfaction (${tickets.filter(t => t.satisfaction).length} ratings)`,
+      value: (() => {
+        const avg = average(tickets.map(t => t.satisfaction ?? 0).filter(n => n > 0))
+        return avg === null ? '—' : `${avg.toFixed(1)} / 5`
+      })(),
+      color: 'text-amber-600',
+    },
   ]
+
+  // Rating form in the side panel
+  const [rating, setRating] = useState(0)
+  const [ratingNote, setRatingNote] = useState('')
+  useEffect(() => {
+    setRating(viewTicket?.satisfaction ?? 0)
+    setRatingNote(viewTicket?.satisfactionNote ?? '')
+  }, [viewTicket?.id, viewTicket?.satisfaction, viewTicket?.satisfactionNote])
 
   // ── Filtering ────────────────────────────────────────────────────────────────
   const filtered = tickets.filter(t => {
@@ -284,7 +356,7 @@ export default function SupportPage() {
       </div>
 
       {/* KPI Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3">
         {stats.map(s => (
           <div key={s.label} className="kpi-card p-4 text-center">
             <p className={cn('text-2xl font-bold', s.color)}>{s.value}</p>
@@ -426,6 +498,11 @@ export default function SupportPage() {
                       >
                         {STATUS_LABELS[ticket.status]}
                       </span>
+                      {ticket.satisfaction ? (
+                        <div className="mt-1" title={`Customer rating ${ticket.satisfaction}/5`}>
+                          <Stars value={ticket.satisfaction} size="w-3 h-3" />
+                        </div>
+                      ) : null}
                     </td>
                     {/* Assigned To */}
                     <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">
@@ -762,7 +839,47 @@ export default function SupportPage() {
                   </dt>
                   <dd className="text-gray-800 mt-0.5">{formatDate(viewTicket.updated)}</dd>
                 </div>
+                <div>
+                  <dt className="text-xs text-gray-400 font-medium uppercase tracking-wide">
+                    First Response
+                  </dt>
+                  <dd className="text-gray-800 mt-0.5">
+                    {viewTicket.firstResponseAt ? `after ${fmtHours(hoursBetween(viewTicket.createdAt, viewTicket.firstResponseAt))}` : 'Not yet'}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-gray-400 font-medium uppercase tracking-wide">
+                    Resolution Time
+                  </dt>
+                  <dd className="text-gray-800 mt-0.5">
+                    {viewTicket.resolvedAt
+                      ? fmtHours(hoursBetween(viewTicket.createdAt, viewTicket.resolvedAt))
+                      : `open for ${fmtHours(hoursBetween(viewTicket.createdAt, new Date().toISOString()))}`}
+                  </dd>
+                </div>
               </dl>
+
+              {/* Customer satisfaction (once resolved) */}
+              {(viewTicket.status === 'RESOLVED' || viewTicket.status === 'CLOSED') && (
+                <div className="rounded-lg border border-amber-100 bg-amber-50/60 p-3 space-y-2">
+                  <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Customer Satisfaction</p>
+                  <p className="text-[11px] text-gray-500">Record how the customer rated the help they got.</p>
+                  <Stars value={rating} onPick={setRating} size="w-6 h-6" />
+                  <input
+                    value={ratingNote}
+                    onChange={e => setRatingNote(e.target.value)}
+                    placeholder="What the customer said (optional)"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500"
+                  />
+                  <button
+                    onClick={() => saveTicket(viewTicket.id, { satisfaction: rating, satisfactionNote: ratingNote }, 'Rating saved')}
+                    disabled={!rating || (rating === viewTicket.satisfaction && ratingNote === viewTicket.satisfactionNote)}
+                    className="px-3 py-1.5 bg-amber-500 text-white rounded-lg text-xs font-medium hover:bg-amber-600 disabled:opacity-40"
+                  >
+                    {viewTicket.satisfaction ? 'Update rating' : 'Save rating'}
+                  </button>
+                </div>
+              )}
 
               {/* Description */}
               <div>

@@ -231,11 +231,15 @@ again. On phones, the menu button in the top bar opens the sidebar, and its X bu
 #### Quotations
 **Where:** Sales → Quotations
 - Multi-line quotation builder; subtotal, VAT and total calculated by the server
+- **Discount (%)** next to the VAT rate: taken off the subtotal before VAT
+  (subtotal − discount + VAT = total). It shows in the preview, the quotation panel, the PDF and the
+  client's 360° page, so approvers see it.
 - Approval chain: Salesperson → Sales Manager → CEO; each step notifies the next approver, who can
   send it back with a reason
 - After approval: Sent → Viewed → Negotiation → Accepted, or Rejected by the client; quotations past
   their *valid until* date expire automatically
 - **Convert** an accepted quotation into a draft contract with the same value and line items
+- Reminder to the salesperson (and Sales Manager) 3 days before a sent quotation's *valid until* date
 - **PDF:** open a quotation → **PDF** → the print window opens → *Save as PDF*. The page carries the
   company details from Settings → Company Profile.
 
@@ -273,6 +277,9 @@ again. On phones, the menu button in the top bar opens the sidebar, and its X bu
   is attached
 - **Attach signed contract file** (PDF, Word or image, up to 5 MB) and **Open signed document** from
   the contract panel
+- **Project created automatically:** when a contract becomes Active and no project is linked to it,
+  a project is created (status Planning) with the contract's client, value and dates and its
+  responsible manager as project manager (or the person who activated it). The manager is notified.
 - Stats: total, active, pending signature, active value
 
 #### Client Services & Renewals
@@ -344,7 +351,13 @@ again. On phones, the menu button in the top bar opens the sidebar, and its X bu
 - Priority badges: Low, Medium, High, Urgent
 - New Ticket form (client, subject, description, product, priority, assignee)
 - Side panel with Mark Resolved and Close Ticket
-- Stats: total, open, in progress, resolved today
+- **Response and resolution times:** the first response is recorded when work starts (In Progress,
+  Waiting Customer, Resolved or Closed); the resolution time when it is resolved or closed. Both show
+  in the ticket panel.
+- **Customer satisfaction:** once a ticket is resolved, record the customer's rating (1–5 stars) and
+  what they said. Ratings show as stars in the table.
+- Stats: total, open, in progress, resolved today, average first response, average resolution time,
+  average satisfaction
 
 #### Knowledge Base
 **Where:** Support → Knowledge Base
@@ -384,6 +397,8 @@ again. On phones, the menu button in the top bar opens the sidebar, and its X bu
   - **Clients** → one folder per client → one per project;
   - **Company documents** (no client);
   - one folder per type (**Contracts, Invoices, Proposals, Reports, Policies, Other documents**);
+  - **Expiring soon** (shown when there are any): documents whose expiry or review date is within
+    30 days or already past;
   - **Archive** for archived documents.
 - **Grid or list layout,** switched with the list/grid button at the top right. The page remembers
   your choice. **Breadcrumbs** (*Documents › Clients › client › project*) take you back up, and so
@@ -407,6 +422,12 @@ again. On phones, the menu button in the top bar opens the sidebar, and its X bu
 - **Delete permanently** (Super Admin and Admin, any document): after one confirmation, the document
   is archived and removed for good with its file, unless another document or a signed contract uses
   the same file. Recorded in the Audit Trail.
+- **Expiry / review date** (optional, in the upload and edit form) for licences, certificates,
+  policies and offers. Files show *Expires in N days* or *Expired*, and admins get a reminder 30 days
+  before.
+- **Version history:** replacing a document's file (Edit → drop a new file) keeps the old file as an
+  earlier version. **Details** shows the version number and lists earlier versions to download.
+  Deleting the document removes its versions too.
 - Documents linked to a client also appear in that client's Client 360° profile
 
 ### Projects
@@ -416,6 +437,9 @@ again. On phones, the menu button in the top bar opens the sidebar, and its X bu
 - Project table with progress bars, status/priority badges
 - Stats: total, active, completed, delayed
 - Add/Edit form with all project fields; side panel with milestones and contract reference
+- **Warranty ends** (optional): the free-support period after delivery. The panel shows *Active*,
+  *Ends in N days* or *Ended*; the project manager is reminded 30 days before it ends.
+- Projects are also created automatically when a contract becomes Active (see Contracts)
 - Filters: status, priority, search
 
 #### Tasks
@@ -480,6 +504,19 @@ again. On phones, the menu button in the top bar opens the sidebar, and its X bu
 - Leave requests: Annual, Sick, Maternity, Paternity, Emergency, Unpaid
 - Approve or reject; the employee is notified and shows as *On Leave* when the leave covers today
 
+#### Expense Claims
+**Where:** Team → Expense Claims (every staff role)
+- Claim money you spent for the company: what it was for, category (Transport, Equipment, Internet,
+  Marketing, Other), amount, date and a receipt (photo or PDF, up to 5 MB).
+- **Approvals:** Employee → **Manager** (Admin, Project, Sales, Marketing or Finance Manager) →
+  **Finance** (Finance Manager or Admin). Finance approval books the claim as a Finance expense.
+- Nobody approves their own claim, and the Finance approval must come from someone other than the
+  manager who approved it. Rejecting needs a reason, which the employee sees.
+- Each step notifies the next approver and the employee. The table shows the progress
+  (Submitted → Manager → Finance); **View** shows the full approval trail and the receipt.
+- Employees see their own claims; approvers see everyone's and can filter **Waiting for me**.
+  **Export** downloads the list as CSV.
+
 ### Settings
 
 #### User Management
@@ -515,7 +552,8 @@ again. On phones, the menu button in the top bar opens the sidebar, and its X bu
 **Where:** Notifications, or the bell on the top bar (live unread count)
 - Reminders for overdue and due invoices, contract expiry/signature/approval, task deadlines and
   approvals, lead and deal follow-ups, service renewals, tender deadlines, meetings and communication
-  follow-ups
+  follow-ups, milestones due within 7 days or late, quotations about to expire, documents expiring
+  within 30 days, project warranties ending, and expense claims waiting for approval
 - Filter tabs: All, Unread, Payment, Follow-up, Tasks
 - Mark one or all as read
 
@@ -567,14 +605,15 @@ only protection.
 |---|---|
 | **Super Admin** | Everything, including promotions and CEO approval of quotations |
 | **Admin (HR)** | Everything except Super Admin-only actions |
-| **Finance Manager** | Dashboard, Finance, Contracts, My Tasks, Reports, Notifications |
-| **Sales Manager** | Dashboard, CRM, Sales, Marketing, My Tasks, Reports, Notifications |
-| **Marketing Manager** | Dashboard, CRM, Marketing, My Tasks, Reports, Notifications |
-| **Project Manager** | Dashboard, Projects, Team, My Tasks, Reports, Notifications |
-| **Sales Staff** | Dashboard, CRM, Sales, My Tasks, Notifications |
-| **Employee** | Dashboard, My Tasks, Team, Notifications |
+| **Finance Manager** | Dashboard, Finance, Contracts, My Tasks, Expense Claims, Reports, Notifications |
+| **Sales Manager** | Dashboard, CRM, Sales, Marketing, My Tasks, Expense Claims, Reports, Notifications |
+| **Marketing Manager** | Dashboard, CRM, Marketing, My Tasks, Expense Claims, Reports, Notifications |
+| **Project Manager** | Dashboard, Projects, Team, My Tasks, Expense Claims, Reports, Notifications |
+| **Sales Staff** | Dashboard, CRM, Sales, My Tasks, Expense Claims, Notifications |
+| **Employee** | Dashboard, My Tasks, Expense Claims, Team, Notifications |
 
-Every role has **My Tasks** (Team → My Tasks), which shows only the person's own tasks.
+Every role has **My Tasks** (Team → My Tasks), which shows only the person's own tasks, and
+**Expense Claims** (Team → Expense Claims) to claim money spent for the company.
 Documents, Procurement, Support, Reception, Communication, Training and Settings are shown to
 Super Admin and Admin only, and only they can delete documents permanently. Salary figures are only
 returned by the API to HR and finance roles.

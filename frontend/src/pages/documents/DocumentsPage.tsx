@@ -4,7 +4,7 @@ import { useSearchParams } from 'react-router-dom'
 import {
   Folder, FolderOpen, FolderPlus, FolderInput, Plus, Search, X, FileText, FileSpreadsheet, FileImage, FileArchive, File as FileIcon,
   Archive, Download, Upload, Edit2, Trash2, MoreVertical, Check, ChevronRight, ChevronDown,
-  Eye, ExternalLink, FolderUp, FileUp, Loader2, CheckCircle2, AlertCircle, type LucideIcon,
+  Eye, ExternalLink, FolderUp, FileUp, Loader2, CheckCircle2, AlertCircle, CalendarClock, History, type LucideIcon,
 } from 'lucide-react'
 import { cn, formatDate } from '@/lib/utils'
 import { documentService } from '@/lib/services/operationsService'
@@ -37,7 +37,12 @@ interface Document {
   projectId: string
   projectName: string
   folderId: string
+  expiryDate: string
+  version: number
+  versions: number
 }
+
+interface DocVersion { id: string; version: number; fileId: string; name: string; size: string | null; uploadedByName: string | null; createdAt: string }
 
 interface Stat { count: number; lastDate: string | null }
 /** A folder an admin made (Drive-style). files = active documents directly inside */
@@ -47,6 +52,7 @@ interface FolderTree {
   company: Stat
   categories: Record<DocCategory, Stat>
   archive: Stat
+  expiring?: Stat
   custom: CustomFolder[]
 }
 
@@ -54,7 +60,7 @@ interface FolderTree {
 type Loc =
   | { kind: 'root' } | { kind: 'folder'; id: string }
   | { kind: 'clients' } | { kind: 'client'; id: string } | { kind: 'project'; id: string }
-  | { kind: 'company' } | { kind: 'type'; category: DocCategory } | { kind: 'archive' }
+  | { kind: 'company' } | { kind: 'type'; category: DocCategory } | { kind: 'archive' } | { kind: 'expiring' }
 
 interface FolderEntry { key: string; loc: Loc; name: string; items: number; lastDate: string | null; color: string; preset?: Partial<Form>; custom?: CustomFolder }
 interface MenuItem { label: string; icon: LucideIcon; onClick: () => void; danger?: boolean }
@@ -78,7 +84,7 @@ const FOLDER_GREY = '#444746'
 const FOLDER_COLORS = ['', '#1a73e8', '#188038', '#f9ab00', '#e8710a', '#d93025', '#9334e6', '#00897b', '#e52592']
 const DOC_DRAG = 'application/x-santech-document'
 
-const emptyForm = { name: '', category: 'OTHER' as DocCategory, description: '', clientId: '', projectId: '', folderId: '' }
+const emptyForm = { name: '', category: 'OTHER' as DocCategory, description: '', clientId: '', projectId: '', folderId: '', expiryDate: '' }
 type Form = typeof emptyForm
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -90,11 +96,24 @@ const toDoc = (d: any): Document => ({
   clientId: d.clientId ?? '', clientName: d.client?.companyName ?? '',
   projectId: d.projectId ?? '', projectName: d.project?.name ?? '',
   folderId: d.folderId ?? '',
+  expiryDate: d.expiryDate ? String(d.expiryDate).slice(0, 10) : '',
+  version: d.version ?? 1,
+  versions: d._count?.versions ?? 0,
 })
+
+/** How soon a document expires: red when expired, amber within 30 days, grey later */
+function expiryInfo(date: string): { label: string; chip: string; soon: boolean } | null {
+  if (!date) return null
+  const days = Math.ceil((new Date(`${date}T23:59:59`).getTime() - Date.now()) / 86400000) - 1
+  if (days < 0) return { label: 'Expired', chip: 'bg-red-100 text-red-700', soon: true }
+  if (days === 0) return { label: 'Expires today', chip: 'bg-red-100 text-red-700', soon: true }
+  if (days <= 30) return { label: `Expires in ${days} day${days === 1 ? '' : 's'}`, chip: 'bg-amber-100 text-amber-700', soon: true }
+  return { label: `Expires ${formatDate(date)}`, chip: 'bg-gray-100 text-gray-600', soon: false }
+}
 
 function parseLoc(f: string | null): Loc {
   if (!f) return { kind: 'root' }
-  if (f === 'clients' || f === 'company' || f === 'archive') return { kind: f }
+  if (f === 'clients' || f === 'company' || f === 'archive' || f === 'expiring') return { kind: f }
   const dot = f.indexOf('.')
   const [kind, id] = [f.slice(0, dot), f.slice(dot + 1)]
   if (!id) return { kind: 'root' }
@@ -200,6 +219,17 @@ export default function DocumentsPage() {
   const [form, setForm] = useState<Form>(emptyForm)
   const [file, setFile] = useState<File | null>(null)
   const [viewDoc, setViewDoc] = useState<Document | null>(null)
+  const [versions, setVersions] = useState<DocVersion[] | null>(null)
+  useEffect(() => {
+    setVersions(null)
+    if (!viewDoc?.versions) return
+    let live = true
+    documentService.versions(viewDoc.id)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then((res: any) => { if (live) setVersions(res.data ?? []) })
+      .catch(() => { if (live) setVersions([]) })
+    return () => { live = false }
+  }, [viewDoc?.id, viewDoc?.versions])
   const [folderForm, setFolderForm] = useState<{ id?: string; parentId: string | null; name: string; color: string } | null>(null)
   const [moving, setMoving] = useState<{ kind: 'doc' | 'folder'; id: string; name: string; current: string | null } | null>(null)
   const [moveTarget, setMoveTarget] = useState<string | null>(null)
@@ -292,6 +322,7 @@ export default function DocumentsPage() {
       case 'company': return { ...common, clientId: 'none', status: 'ACTIVE' }
       case 'type': return { ...common, category: loc.category, status: 'ACTIVE' }
       case 'archive': return { ...common, status: 'ARCHIVED' }
+      case 'expiring': return { ...common, expiring: '1', status: 'ACTIVE' }
     }
   }
 
@@ -383,6 +414,7 @@ export default function DocumentsPage() {
       case 'company': return [home, { label: 'Company documents' }]
       case 'type': return [home, { label: TYPES[loc.category].label }]
       case 'archive': return [home, { label: 'Archive' }]
+      case 'expiring': return [home, { label: 'Expiring soon' }]
     }
   })()
 
@@ -426,6 +458,9 @@ export default function DocumentsPage() {
           { key: 'clients', loc: { kind: 'clients' }, name: 'Clients', items: tree.clients.length, lastDate: clientsDate, color: FOLDER_GREY },
           { key: 'company', loc: { kind: 'company' }, name: 'Company documents', items: tree.company.count, lastDate: tree.company.lastDate, color: FOLDER_GREY, preset: {} },
           ...CATEGORIES.map(c => ({ key: `type.${c}`, loc: { kind: 'type', category: c } as Loc, name: TYPES[c].label, items: tree.categories[c]?.count ?? 0, lastDate: tree.categories[c]?.lastDate ?? null, color: TYPES[c].color, preset: { category: c } })),
+          ...(tree.expiring?.count
+            ? [{ key: 'expiring', loc: { kind: 'expiring' } as Loc, name: 'Expiring soon', items: tree.expiring.count, lastDate: tree.expiring.lastDate, color: '#d93025' }]
+            : []),
           { key: 'archive', loc: { kind: 'archive' }, name: 'Archive', items: tree.archive.count, lastDate: tree.archive.lastDate, color: '#b06000' },
         ]
       }
@@ -502,7 +537,7 @@ export default function DocumentsPage() {
 
   const openEdit = (doc: Document) => {
     setEditDoc(doc)
-    setForm({ name: doc.name, category: doc.category, description: doc.description, clientId: doc.clientId, projectId: doc.projectId, folderId: doc.folderId })
+    setForm({ name: doc.name, category: doc.category, description: doc.description, clientId: doc.clientId, projectId: doc.projectId, folderId: doc.folderId, expiryDate: doc.expiryDate })
     setFile(null)
     setViewDoc(null)
     setShowModal(true)
@@ -534,6 +569,7 @@ export default function DocumentsPage() {
       const payload = {
         name: form.name.trim(), category: form.category, description: form.description.trim(),
         clientId: form.clientId || null, projectId: form.projectId || null, folderId: form.folderId || null,
+        expiryDate: form.expiryDate || null,
         ...(up ? { fileId: up.id, size: formatSize(up.size) } : {}),
       }
       const res = editDoc ? await documentService.update(editDoc.id, payload) : await documentService.create(payload)
@@ -873,6 +909,7 @@ export default function DocumentsPage() {
             <p className="text-sm text-gray-400 mt-1">
               {searching || filtered ? 'Try another word or clear the filters.'
                 : loc.kind === 'archive' ? 'Archived documents appear here.'
+                  : loc.kind === 'expiring' ? 'Nothing expires in the next 30 days.'
                   : 'Drag files or folders from your computer onto this page, or use “New”.'}
             </p>
           </div>
@@ -936,6 +973,7 @@ export default function DocumentsPage() {
                           <span className={cn('absolute bottom-2 left-2 text-[10px] px-1.5 py-0.5 rounded-full font-medium', TYPES[doc.category].chip)}>{TYPES[doc.category].label}</span>
                           {doc.status === 'ARCHIVED' && <span className="absolute top-2 right-2 text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-medium">Archived</span>}
                           {!doc.fileId && <span className="absolute top-2 left-2 text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 font-medium">No file</span>}
+                          {(() => { const x = expiryInfo(doc.expiryDate); return x?.soon ? <span className={cn('absolute bottom-2 right-2 text-[10px] px-1.5 py-0.5 rounded-full font-medium', x.chip)}>{x.label}</span> : null })()}
                         </div>
                         <p className="px-1.5 pt-2 text-xs text-gray-500 truncate">
                           {where.folder && <Folder className="inline w-3 h-3 mr-1 -mt-0.5" fill="currentColor" />}{where.label} · {formatDate(doc.date)}
@@ -979,6 +1017,8 @@ export default function DocumentsPage() {
                             <span className="font-medium text-gray-800 truncate max-w-[22rem]">{doc.name}</span>
                             <span className={cn('hidden xl:inline text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0', TYPES[doc.category].chip)}>{TYPES[doc.category].label}</span>
                             {doc.status === 'ARCHIVED' && <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-medium shrink-0">Archived</span>}
+                            {(() => { const x = expiryInfo(doc.expiryDate); return x?.soon ? <span className={cn('text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0', x.chip)}>{x.label}</span> : null })()}
+                            {doc.version > 1 && <span className="hidden lg:inline text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 font-medium shrink-0">v{doc.version}</span>}
                           </div>
                         </td>
                         <td className="px-4 py-2.5 hidden md:table-cell max-w-[16rem]">
@@ -1253,6 +1293,16 @@ export default function DocumentsPage() {
                 <textarea name="description" value={form.description} onChange={handleFormChange} rows={3}
                   placeholder="What is it? Add keywords people will search for." className={cn(inputCls, 'resize-none')} />
               </div>
+              <div>
+                <label className={labelCls}>Expiry / review date (optional)</label>
+                <input type="date" name="expiryDate" value={form.expiryDate} onChange={handleFormChange} className={inputCls} />
+                <p className="text-[11px] text-gray-400 mt-0.5">For licences, certificates, policies and offers — admins are reminded 30 days before.</p>
+              </div>
+              {editDoc && file && editDoc.fileId && (
+                <p className="text-xs text-santech-700 bg-santech-50 rounded-lg px-3 py-2 flex items-center gap-2">
+                  <History className="w-3.5 h-3.5 shrink-0" /> The current file is kept as version {editDoc.version}; the new one becomes version {editDoc.version + 1}.
+                </p>
+              )}
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowModal(false)}
                   className="flex-1 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 font-medium">
@@ -1301,8 +1351,43 @@ export default function DocumentsPage() {
               <p>Uploaded by: <span className="text-gray-700 font-medium">{viewDoc.uploadedBy}</span></p>
               <p>Date: <span className="text-gray-700 font-medium">{formatDate(viewDoc.date)}</span></p>
               <p>Size: <span className="text-gray-700 font-medium">{viewDoc.size}</span></p>
+              {viewDoc.version > 1 && <p>Version: <span className="text-gray-700 font-medium">{viewDoc.version}</span></p>}
+              {viewDoc.expiryDate && (
+                <p className="flex items-center gap-1">
+                  <CalendarClock className="w-3 h-3" /> Expiry / review:{' '}
+                  <span className="text-gray-700 font-medium">{formatDate(viewDoc.expiryDate)}</span>
+                  {(() => { const x = expiryInfo(viewDoc.expiryDate); return x?.soon ? <span className={cn('ml-1 text-[10px] px-1.5 py-0.5 rounded-full font-medium', x.chip)}>{x.label}</span> : null })()}
+                </p>
+              )}
               {!viewDoc.fileId && <p className="text-amber-600">No file attached — this is a record only.</p>}
             </div>
+            {viewDoc.versions > 0 && (
+              <div className="border border-gray-100 rounded-lg">
+                <p className="px-3 py-2 text-xs font-medium text-gray-500 flex items-center gap-1.5 border-b border-gray-100">
+                  <History className="w-3.5 h-3.5" /> Earlier versions
+                </p>
+                {versions === null ? (
+                  <p className="px-3 py-2 text-xs text-gray-400">Loading…</p>
+                ) : versions.length === 0 ? (
+                  <p className="px-3 py-2 text-xs text-gray-400">None</p>
+                ) : (
+                  <ul className="divide-y divide-gray-50 max-h-40 overflow-y-auto">
+                    {versions.map(v => (
+                      <li key={v.id} className="px-3 py-2 flex items-center gap-2 text-xs">
+                        <span className="font-semibold text-gray-600 shrink-0">v{v.version}</span>
+                        <span className="flex-1 min-w-0">
+                          <span className="block truncate text-gray-700">{v.name}</span>
+                          <span className="text-gray-400">{formatDate(v.createdAt)}{v.uploadedByName && ` · ${v.uploadedByName}`}{v.size && ` · ${v.size}`}</span>
+                        </span>
+                        <button onClick={() => fileService.open(v.fileId, true, v.name)} className="p-1.5 rounded-full hover:bg-gray-100" aria-label={`Download version ${v.version}`} title="Download">
+                          <Download className="w-3.5 h-3.5 text-gray-600" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
             <div className="flex gap-2 flex-wrap">
               {viewDoc.fileId && (
                 <button onClick={() => fileService.open(viewDoc.fileId!)}

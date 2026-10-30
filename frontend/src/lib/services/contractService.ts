@@ -16,4 +16,9 @@ export const contractService = {
     const { data } = await api.put(`/finance/contracts/${id}`, contract)
     return data.data
   },
+  /** Same as update, plus the server's message (e.g. "project created automatically") */
+  save: async (id: string, contract: Record<string, unknown>): Promise<{ contract: unknown; message: string }> => {
+    const { data } = await api.put(`/finance/contracts/${id}`, contract)
+    return { contract: data.data, message: data.message ?? '' }
+  },
 }

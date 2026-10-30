@@ -77,7 +77,7 @@ export async function createProject(req: AuthRequest, res: Response): Promise<vo
     const {
       name, clientId, contractId, projectManagerId,
       budget, contractValue, currency, startDate, endDate,
-      priority, status, progress, description, risks,
+      priority, status, progress, description, risks, warrantyEndDate,
       milestones: milestonesInput
     } = req.body
 
@@ -102,6 +102,7 @@ export async function createProject(req: AuthRequest, res: Response): Promise<vo
         progress: parseFloat(progress) || 0,
         description: description || null,
         risks: risks || null,
+        warrantyEndDate: warrantyEndDate ? new Date(warrantyEndDate) : null,
         milestones: milestonesInput?.length ? {
           create: milestonesInput.map((m: { name: string; deadline: string; deliverables?: string; paymentPercentage?: number }, i: number) => ({
             name: m.name,
@@ -136,7 +137,7 @@ export async function updateProject(req: AuthRequest, res: Response): Promise<vo
     const {
       name, clientId, contractId, projectManagerId,
       budget, contractValue, currency, startDate, endDate,
-      priority, status, progress, description, risks
+      priority, status, progress, description, risks, warrantyEndDate
     } = req.body
 
     const before = await prisma.project.findUnique({ where: { id: req.params.id } })
@@ -159,6 +160,7 @@ export async function updateProject(req: AuthRequest, res: Response): Promise<vo
         ...(progress !== undefined && { progress: parseFloat(progress) }),
         ...(description !== undefined && { description }),
         ...(risks !== undefined && { risks }),
+        ...(warrantyEndDate !== undefined && { warrantyEndDate: warrantyEndDate ? new Date(warrantyEndDate) : null }),
       },
       include: {
         client: { select: { id: true, companyName: true } },

@@ -17,6 +17,8 @@ export interface PrintDoc {
   contactEmail?: string
   lines: PrintLine[]
   subtotal: number
+  discountRate?: number
+  discountAmount?: number
   vatRate?: number
   vatAmount: number
   total: number
@@ -91,6 +93,7 @@ ${doc.lines.map((l, i) => `<tr><td>${i + 1}</td><td>${esc(l.description)}</td><t
 </tbody></table>
 <table class="totals">
   <tr><td>Subtotal</td><td class="r">${money(doc.subtotal, cur)}</td></tr>
+  ${doc.discountAmount ? `<tr><td>Discount${doc.discountRate ? ` (${doc.discountRate}%)` : ''}</td><td class="r">-${money(doc.discountAmount, cur)}</td></tr>` : ''}
   <tr><td>VAT${doc.vatRate ? ` (${doc.vatRate}%)` : ''}</td><td class="r">${money(doc.vatAmount, cur)}</td></tr>
   <tr class="grand"><td>Total</td><td class="r">${money(doc.total, cur)}</td></tr>
   ${doc.kind === 'INVOICE' && doc.paid ? `<tr><td>Paid</td><td class="r">${money(doc.paid, cur)}</td></tr><tr class="grand"><td>Balance due</td><td class="r">${money(balance, cur)}</td></tr>` : ''}

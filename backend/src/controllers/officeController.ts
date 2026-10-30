@@ -26,6 +26,7 @@ const docInclude = {
   client: { select: { id: true, companyName: true } },
   project: { select: { id: true, name: true } },
   folder: { select: { id: true, name: true } },
+  _count: { select: { versions: true } },
 }
 const ONE_DAY = 24 * 60 * 60 * 1000
 
@@ -48,6 +49,7 @@ export async function getDocuments(req: AuthRequest, res: Response): Promise<voi
     if (q.clientId) where.clientId = q.clientId === 'none' ? null : String(q.clientId)
     if (q.projectId) where.projectId = q.projectId === 'none' ? null : String(q.projectId)
     if (q.folderId) where.folderId = q.folderId === 'none' ? null : String(q.folderId)
+    if (q.expiring) where.expiryDate = { not: null, lte: new Date(Date.now() + 30 * ONE_DAY) }
     if (q.from || q.to) {
       where.date = {
         ...(q.from ? { gte: day(q.from) } : {}),
@@ -90,7 +92,7 @@ export async function getDocumentFolders(_req: AuthRequest, res: Response): Prom
   try {
     const [docs, custom] = await Promise.all([
       prisma.document.findMany({
-        select: { status: true, category: true, date: true, folderId: true, client: { select: { id: true, companyName: true } }, project: { select: { id: true, name: true } } },
+        select: { status: true, category: true, date: true, folderId: true, expiryDate: true, client: { select: { id: true, companyName: true } }, project: { select: { id: true, name: true } } },
       }),
       prisma.documentFolder.findMany({ include: { createdBy: userName }, orderBy: { name: 'asc' } }),
     ])
@@ -100,8 +102,11 @@ export async function getDocumentFolders(_req: AuthRequest, res: Response): Prom
     const categories: Record<string, { count: number; lastDate: Date | null }> = Object.fromEntries(DOC_CATEGORIES.map(c => [c, { count: 0, lastDate: null }]))
     const company = { count: 0, lastDate: null as Date | null }
     const archive = { count: 0, lastDate: null as Date | null }
+    const expiring = { count: 0, lastDate: null as Date | null }
+    const expiryLimit = new Date(Date.now() + 30 * ONE_DAY)
     for (const d of docs) {
       if (d.status !== 'ACTIVE') { archive.count++; archive.lastDate = latest(archive.lastDate, d.date); continue }
+      if (d.expiryDate && d.expiryDate <= expiryLimit) { expiring.count++; expiring.lastDate = latest(expiring.lastDate, d.date) }
       if (d.folderId) {
         const f = inFolder.get(d.folderId) ?? { count: 0, lastDate: null }
         f.count++; f.lastDate = latest(f.lastDate, d.date)
@@ -124,7 +129,7 @@ export async function getDocumentFolders(_req: AuthRequest, res: Response): Prom
       success: true,
       data: {
         clients: [...clients.values()].sort(byName).map(c => ({ ...c, projects: [...c.projects.values()].sort(byName) })),
-        company, categories, archive,
+        company, categories, archive, expiring,
         // Folders admins made (flat list; parentId builds the tree). files = active documents directly inside
         custom: custom.map(f => ({
           id: f.id, name: f.name, color: f.color, parentId: f.parentId, createdBy: nameOf(f.createdBy),
@@ -133,6 +138,14 @@ export async function getDocumentFolders(_req: AuthRequest, res: Response): Prom
       },
     })
   } catch (e) { fail(res, e, 'getDocumentFolders') }
+}
+
+/** Earlier files of a document (newest first) — GET /documents/:id/versions */
+export async function getDocumentVersions(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const rows = await prisma.documentVersion.findMany({ where: { documentId: req.params.id }, orderBy: { version: 'desc' } })
+    res.json({ success: true, data: rows })
+  } catch (e) { fail(res, e, 'getDocumentVersions') }
 }
 
 export async function saveDocument(req: AuthRequest, res: Response): Promise<void> {
@@ -175,6 +188,10 @@ export async function saveDocument(req: AuthRequest, res: Response): Promise<voi
       res.status(400).json({ success: false, message: 'Folder not found' }); return
     }
 
+    if (b.expiryDate && isNaN(new Date(b.expiryDate).getTime())) {
+      res.status(400).json({ success: false, message: 'Expiry date is not a valid date' }); return
+    }
+
     const data = {
       ...(b.name !== undefined && { name: String(b.name).trim() }),
       ...(b.category !== undefined && { category: b.category }),
@@ -185,6 +202,19 @@ export async function saveDocument(req: AuthRequest, res: Response): Promise<voi
       ...(clientId !== undefined && { clientId }),
       ...(projectId !== undefined && { projectId }),
       ...(folderId !== undefined && { folderId }),
+      ...(b.expiryDate !== undefined && { expiryDate: b.expiryDate ? new Date(b.expiryDate) : null }),
+    }
+    // A new file replaces the old one: keep the old file as an earlier version
+    const replacing = !!before && !!b.fileId && !!before.fileId && b.fileId !== before.fileId
+    if (replacing) {
+      const by = await prisma.user.findUnique({ where: { id: before!.uploadedById }, select: { firstName: true, lastName: true } })
+      await prisma.documentVersion.create({
+        data: {
+          documentId: before!.id, version: before!.version, fileId: before!.fileId!, name: before!.name, size: before!.size,
+          uploadedById: before!.uploadedById, uploadedByName: by ? `${by.firstName} ${by.lastName}` : null,
+        },
+      })
+      Object.assign(data, { version: before!.version + 1 })
     }
     const d = id
       ? await prisma.document.update({ where: { id }, data, include: docInclude })
@@ -209,7 +239,8 @@ export async function saveDocument(req: AuthRequest, res: Response): Promise<voi
     res.status(before ? 200 : 201).json({
       success: true, data: d,
       message: !before ? 'Document added' : statusChanged ? (d.status === 'ARCHIVED' ? 'Document archived' : 'Document restored')
-        : moved ? (d.folder ? `Moved to ${d.folder.name}` : 'Removed from its folder') : 'Document updated',
+        : moved ? (d.folder ? `Moved to ${d.folder.name}` : 'Removed from its folder')
+        : replacing ? `New version saved (version ${d.version}) — the earlier file is kept` : 'Document updated',
     })
   } catch (e) { fail(res, e, 'saveDocument') }
 }
@@ -339,14 +370,16 @@ export async function deleteDocument(req: AuthRequest, res: Response): Promise<v
       res.status(400).json({ success: false, message: 'Archive the document first, then delete it' }); return
     }
     let fileRemoved = false
+    const versionFiles = (await prisma.documentVersion.findMany({ where: { documentId: doc.id }, select: { fileId: true } })).map(v => v.fileId)
     await prisma.$transaction(async tx => {
-      await tx.document.delete({ where: { id: doc.id } })
-      if (doc.fileId) {
-        const stillUsed = (await tx.document.count({ where: { fileId: doc.fileId } }))
-          + (await tx.contract.count({ where: { signedDocumentUrl: `/files/${doc.fileId}` } }))
+      await tx.document.delete({ where: { id: doc.id } }) // earlier versions go with it
+      for (const fileId of [...new Set([doc.fileId, ...versionFiles].filter((f): f is string => !!f))]) {
+        const stillUsed = (await tx.document.count({ where: { fileId } }))
+          + (await tx.documentVersion.count({ where: { fileId } }))
+          + (await tx.contract.count({ where: { signedDocumentUrl: `/files/${fileId}` } }))
         if (!stillUsed) {
-          await tx.storedFile.deleteMany({ where: { id: doc.fileId } })
-          fileRemoved = true
+          await tx.storedFile.deleteMany({ where: { id: fileId } })
+          if (fileId === doc.fileId) fileRemoved = true
         }
       }
     })

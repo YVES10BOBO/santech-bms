@@ -167,6 +167,74 @@ export async function generateReminders(userId: string, role: UserRole): Promise
     }
   }
 
+  // Project leads: milestones due within 7 days or overdue (admins see all, project managers their own projects)
+  if (hasRole(role, PROJECT_LEADS)) {
+    const milestones = await prisma.milestone.findMany({
+      where: {
+        isCompleted: false, status: { in: ['NOT_STARTED', 'IN_PROGRESS'] }, deadline: { lte: new Date(today.getTime() + 7 * DAY) },
+        ...(hasRole(role, ADMINS) ? {} : { project: { projectManagerId: userId } }),
+      },
+      include: { project: { select: { name: true } } },
+    })
+    for (const m of milestones) {
+      const days = Math.round((m.deadline.getTime() - today.getTime()) / DAY)
+      const overdue = days < 0
+      jobs.push(notify(userId, {
+        type: 'TASK_DEADLINE', link: '/projects/milestones', key: `milestone-${m.id}-${overdue ? 'late' : 'soon'}`,
+        title: overdue ? 'Milestone Overdue' : 'Milestone Due Soon',
+        description: overdue
+          ? `"${m.name}" (${m.project.name}) was due on ${fmtDate(m.deadline)}`
+          : `"${m.name}" (${m.project.name}) is due ${days === 0 ? 'today' : `in ${days} day${days === 1 ? '' : 's'}`}`,
+      }))
+    }
+  }
+
+  // Admins: documents (certificates, licences, …) expiring within 30 days, or expired
+  if (hasRole(role, ADMINS)) {
+    const docs = await prisma.document.findMany({ where: { status: 'ACTIVE', expiryDate: { not: null, lte: new Date(today.getTime() + 30 * DAY) } } })
+    for (const d of docs) {
+      const days = Math.round((d.expiryDate!.getTime() - today.getTime()) / DAY)
+      const stage = days < 0 ? 'expired' : days <= 7 ? '7' : '30'
+      jobs.push(notify(userId, {
+        type: 'CONTRACT_EXPIRY', title: days < 0 ? 'Document Expired' : 'Document Expiring', link: '/documents?f=expiring', key: `doc-expiry-${d.id}-${stage}`,
+        description: days < 0 ? `"${d.name}" expired on ${fmtDate(d.expiryDate!)} — upload the renewed one` : `"${d.name}" expires ${days === 0 ? 'today' : `in ${days} day${days === 1 ? '' : 's'}`} (${fmtDate(d.expiryDate!)})`,
+      }))
+    }
+  }
+
+  // Admins and the project manager: warranties ending within 30 days, or ended
+  if (hasRole(role, PROJECT_LEADS)) {
+    const projects = await prisma.project.findMany({
+      where: { warrantyEndDate: { not: null, lte: new Date(today.getTime() + 30 * DAY), gte: new Date(today.getTime() - 7 * DAY) }, ...(hasRole(role, ADMINS) ? {} : { projectManagerId: userId }) },
+      include: { client: { select: { companyName: true } } },
+    })
+    for (const p of projects) {
+      const days = Math.round((p.warrantyEndDate!.getTime() - today.getTime()) / DAY)
+      jobs.push(notify(userId, {
+        type: 'CONTRACT_EXPIRY', title: days < 0 ? 'Warranty Ended' : 'Warranty Ending', link: '/projects', key: `warranty-${p.id}-${days < 0 ? 'ended' : days <= 7 ? '7' : '30'}`,
+        description: `${p.name} (${p.client.companyName ?? 'client'}): warranty ${days < 0 ? 'ended' : 'ends'} on ${fmtDate(p.warrantyEndDate!)}${days >= 0 ? ' — offer a maintenance contract' : ''}`,
+      }))
+    }
+  }
+
+  // Sales: quotations sent to clients that expire within 3 days without an answer
+  if (hasRole(role, SALES)) {
+    const quotes = await prisma.quotation.findMany({
+      where: {
+        status: { in: ['SENT', 'VIEWED', 'NEGOTIATION'] }, validUntil: { gte: today, lte: new Date(today.getTime() + 3 * DAY) },
+        ...(hasRole(role, [...ADMINS, 'SALES_MANAGER']) ? {} : { assignedToId: userId }),
+      },
+      include: { client: { select: { companyName: true } } },
+    })
+    for (const q of quotes) {
+      const days = Math.round((q.validUntil!.getTime() - today.getTime()) / DAY)
+      jobs.push(notify(userId, {
+        type: 'FOLLOW_UP', title: 'Quotation Expiring', link: '/sales/quotations', key: `quote-expiry-${q.id}`,
+        description: `${q.quotationNumber} for ${q.client.companyName ?? 'the client'} expires ${days === 0 ? 'today' : `in ${days} day${days === 1 ? '' : 's'}`} — follow up for an answer`,
+      }))
+    }
+  }
+
   // Sales: follow-ups due within 2 days on own leads and deals
   if (hasRole(role, SALES)) {
     const soon = new Date(today.getTime() + 2 * DAY)
