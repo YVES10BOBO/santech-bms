@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import {
   Folder, FolderOpen, FolderPlus, FolderInput, Plus, Search, X, FileText, FileSpreadsheet, FileImage, FileArchive, File as FileIcon,
   Archive, Download, Upload, Edit2, Trash2, MoreVertical, LayoutGrid, List, Check, ChevronRight, ChevronDown,
-  Eye, ExternalLink, type LucideIcon,
+  Eye, ExternalLink, FolderUp, FileUp, Loader2, CheckCircle2, AlertCircle, type LucideIcon,
 } from 'lucide-react'
 import { cn, formatDate } from '@/lib/utils'
 import { documentService } from '@/lib/services/operationsService'
@@ -57,6 +57,9 @@ type Loc =
 
 interface FolderEntry { key: string; loc: Loc; name: string; items: number; lastDate: string | null; color: string; preset?: Partial<Form>; custom?: CustomFolder }
 interface MenuItem { label: string; icon: LucideIcon; onClick: () => void; danger?: boolean }
+/** A file picked or dropped, with the folders it sat in (for folder uploads) */
+interface Picked { file: File; path: string[] }
+interface UploadItem { id: number; label: string; status: 'waiting' | 'uploading' | 'done' | 'error'; error?: string }
 
 // ── Constants & helpers ──────────────────────────────────────────────────────
 
@@ -122,6 +125,47 @@ function fileKind(name: string): { Icon: LucideIcon; color: string; label: strin
 const readView = (): View => { try { return localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'grid' } catch { return 'grid' } }
 const items = (n: number) => `${n} item${n === 1 ? '' : 's'}`
 
+/** Guess the type from the file name, e.g. "Invoice INV-2026-004.pdf" → Invoices */
+function guessCategory(name: string): DocCategory {
+  const n = name.toLowerCase()
+  if (/invoice|receipt|facture/.test(n)) return 'INVOICE'
+  if (/contract|agreement|\bct-\d/.test(n)) return 'CONTRACT'
+  if (/proposal|quotation|quote|\bqt-\d|tender|\bbid\b/.test(n)) return 'PROPOSAL'
+  if (/report|minutes|statement|survey/.test(n)) return 'REPORT'
+  if (/policy|procedure|code of conduct|handbook/.test(n)) return 'POLICY'
+  return 'OTHER'
+}
+
+/** System files that should never be uploaded from a dropped folder */
+const SKIP_FILE = /^(\.|desktop\.ini$|thumbs\.db$)/i
+
+/**
+ * Files from a drag & drop — including whole folders with their subfolders.
+ * Must be called inside the drop event (the browser only allows reading it there).
+ */
+function collectDropped(dt: DataTransfer): Promise<Picked[]> {
+  const entries = Array.from(dt.items ?? []).filter(i => i.kind === 'file').map(i => i.webkitGetAsEntry?.() ?? null)
+  const plain = Array.from(dt.files ?? [])
+  return (async () => {
+    if (!entries.length || entries.some(e => !e)) return plain.map(file => ({ file, path: [] }))
+    const out: Picked[] = []
+    const walk = async (entry: FileSystemEntry, path: string[]): Promise<void> => {
+      if (entry.isFile) {
+        out.push({ file: await new Promise<File>((res, rej) => (entry as FileSystemFileEntry).file(res, rej)), path })
+      } else if (entry.isDirectory) {
+        const reader = (entry as FileSystemDirectoryEntry).createReader()
+        for (;;) { // a folder is read in batches until an empty batch comes back
+          const batch = await new Promise<FileSystemEntry[]>((res, rej) => reader.readEntries(res, rej))
+          if (!batch.length) break
+          for (const child of batch) await walk(child, [...path, entry.name])
+        }
+      }
+    }
+    for (const e of entries as FileSystemEntry[]) await walk(e, [])
+    return out
+  })()
+}
+
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function DocumentsPage() {
@@ -160,6 +204,16 @@ export default function DocumentsPage() {
   const [moving, setMoving] = useState<{ kind: 'doc' | 'folder'; id: string; name: string; current: string | null } | null>(null)
   const [moveTarget, setMoveTarget] = useState<string | null>(null)
   const [dropTarget, setDropTarget] = useState<string | null>(null)
+  // Uploads from the computer (drag & drop or File / Folder upload)
+  const [uploads, setUploads] = useState<UploadItem[]>([])
+  const [pageDrag, setPageDrag] = useState(false)
+  const [zoneOver, setZoneOver] = useState(false)
+  const dragDepth = useRef(0)
+  const uploadSeq = useRef(0)
+  const filesInput = useRef<HTMLInputElement>(null)
+  const folderInput = useRef<HTMLInputElement>(null)
+  const dropRef = useRef<(dt: DataTransfer) => void>(() => {})
+  const blockedRef = useRef(false)
 
   const setView = (v: View) => { setViewState(v); try { localStorage.setItem(VIEW_KEY, v) } catch { /* remembered for this visit only */ } }
   const goTo = (l: Loc) => { setSearch(''); setSearchQuery(''); setParams(locKey(l) ? { f: locKey(l) } : {}) }
@@ -179,6 +233,38 @@ export default function DocumentsPage() {
     window.addEventListener('keydown', onKey)
     return () => { window.removeEventListener('scroll', close, true); window.removeEventListener('keydown', onKey) }
   }, [menu])
+
+  // Drag files or folders from the computer anywhere onto the page to upload them here
+  useEffect(() => {
+    const hasFiles = (e: DragEvent) => Array.from(e.dataTransfer?.types ?? []).includes('Files')
+    const enter = (e: DragEvent) => { if (!hasFiles(e) || blockedRef.current) return; dragDepth.current++; setPageDrag(true) }
+    const over = (e: DragEvent) => { if (hasFiles(e)) e.preventDefault() } // keeps the browser from opening the file
+    const leave = (e: DragEvent) => {
+      if (!hasFiles(e)) return
+      dragDepth.current = Math.max(0, dragDepth.current - 1)
+      if (!dragDepth.current) setPageDrag(false)
+    }
+    const drop = (e: DragEvent) => {
+      if (!hasFiles(e)) return
+      e.preventDefault()
+      dragDepth.current = 0
+      setPageDrag(false)
+      if (!blockedRef.current && e.dataTransfer) dropRef.current(e.dataTransfer)
+    }
+    window.addEventListener('dragenter', enter)
+    window.addEventListener('dragover', over)
+    window.addEventListener('dragleave', leave)
+    window.addEventListener('drop', drop)
+    return () => {
+      window.removeEventListener('dragenter', enter)
+      window.removeEventListener('dragover', over)
+      window.removeEventListener('dragleave', leave)
+      window.removeEventListener('drop', drop)
+    }
+  }, [])
+
+  // "Folder upload" picks a whole folder (the attribute is not in React's types)
+  useEffect(() => { folderInput.current?.setAttribute('webkitdirectory', ''); folderInput.current?.setAttribute('directory', '') })
 
   // ── Loading ──
   const loadTree = async () => {
@@ -523,17 +609,84 @@ export default function DocumentsPage() {
     }
   }
 
+  // ── Upload files / folders from the computer ──
+  /** Where uploads go: a folder card they were dropped on, otherwise the folder that is open */
+  const uploadTarget = (f?: FolderEntry): { preset: Partial<Form>; parentFolderId: string | null } =>
+    f ? { preset: f.preset ?? {}, parentFolderId: f.custom?.id ?? null }
+      : { preset: presetFor(loc), parentFolderId: loc.kind === 'folder' ? loc.id : null }
+
+  const uploadMany = async (picked: Picked[], target: { preset: Partial<Form>; parentFolderId: string | null }) => {
+    const list = picked.filter(p => !SKIP_FILE.test(p.file.name))
+    if (!list.length) { toast.error('Nothing to upload — the folder is empty'); return }
+    const base = uploadSeq.current
+    uploadSeq.current += list.length
+    setUploads(prev => [
+      ...prev.filter(u => u.status === 'waiting' || u.status === 'uploading'),
+      ...list.map((p, i) => ({ id: base + i, label: [...p.path, p.file.name].join(' / '), status: 'waiting' as const })),
+    ])
+    const mark = (id: number, patch: Partial<UploadItem>) => setUploads(prev => prev.map(u => (u.id === id ? { ...u, ...patch } : u)))
+
+    // A dropped folder becomes a folder here (and its subfolders too). Reuses a folder with the same name.
+    const known = [...custom]
+    const made = new Map<string, string | null>()
+    const ensureFolder = async (path: string[]): Promise<string | null> => {
+      if (!path.length || !isAdmin) return target.parentFolderId
+      const key = path.join('/')
+      if (made.has(key)) return made.get(key)!
+      const parentId = await ensureFolder(path.slice(0, -1))
+      const name = path[path.length - 1].trim().slice(0, 80)
+      let id = known.find(f => f.parentId === parentId && f.name.toLowerCase() === name.toLowerCase())?.id
+      if (!id) {
+        const res = await documentService.createFolder({ name, parentId })
+        id = res.data.id as string
+        known.push({ id, name, color: null, parentId, createdBy: '', files: 0, lastDate: null })
+      }
+      made.set(key, id)
+      return id
+    }
+
+    let ok = 0
+    for (const [i, p] of list.entries()) {
+      const id = base + i
+      mark(id, { status: 'uploading' })
+      try {
+        const folderId = await ensureFolder(p.path)
+        const up = await fileService.upload(p.file)
+        await documentService.create({
+          name: p.file.name, description: '',
+          category: target.preset.category ?? guessCategory(p.file.name),
+          clientId: target.preset.clientId || null, projectId: target.preset.projectId || null,
+          folderId, fileId: up.id, size: formatSize(up.size),
+        })
+        mark(id, { status: 'done' })
+        ok++
+      } catch (err) {
+        mark(id, { status: 'error', error: apiError(err, err instanceof Error ? err.message : 'Upload failed') })
+      }
+    }
+    const failed = list.length - ok
+    if (ok) toast.success(`${ok} file${ok === 1 ? '' : 's'} uploaded${failed ? ` · ${failed} failed` : ''}`)
+    else toast.error('Nothing was uploaded — see the list for the reason')
+    await refresh()
+  }
+
   // ── Drag a file onto one of your folders ──
   const dragProps = (doc: Document) => canEdit(doc)
     ? { draggable: true, onDragStart: (e: React.DragEvent) => { e.dataTransfer.setData(DOC_DRAG, doc.id); e.dataTransfer.effectAllowed = 'move' } }
     : {}
-  const dropProps = (f: FolderEntry) => f.custom ? {
-    onDragOver: (e: React.DragEvent) => { if (e.dataTransfer.types.includes(DOC_DRAG)) { e.preventDefault(); setDropTarget(f.key) } },
+  /** Folder cards accept files from the computer (upload into them) and, for your folders, documents from the page (move) */
+  const dropProps = (f: FolderEntry) => (f.custom || f.preset) ? {
+    onDragOver: (e: React.DragEvent) => {
+      const types = Array.from(e.dataTransfer.types)
+      if (types.includes('Files') || (f.custom && types.includes(DOC_DRAG))) { e.preventDefault(); e.stopPropagation(); setDropTarget(f.key) }
+    },
     onDragLeave: () => setDropTarget(t => (t === f.key ? null : t)),
     onDrop: (e: React.DragEvent) => {
-      e.preventDefault(); setDropTarget(null)
+      e.preventDefault(); e.stopPropagation()
+      setDropTarget(null); dragDepth.current = 0; setPageDrag(false)
+      if (Array.from(e.dataTransfer.types).includes('Files')) { collectDropped(e.dataTransfer).then(p => uploadMany(p, uploadTarget(f))); return }
       const id = e.dataTransfer.getData(DOC_DRAG)
-      if (id) moveDoc(id, f.custom!.id)
+      if (id && f.custom) moveDoc(id, f.custom.id)
     },
   } : {}
 
@@ -569,8 +722,14 @@ export default function DocumentsPage() {
   ]
   const newMenu = (e: React.MouseEvent) => openMenu(e, [
     ...(isAdmin ? [{ label: loc.kind === 'folder' ? 'New subfolder' : 'New folder', icon: FolderPlus, onClick: () => newFolder(loc.kind === 'folder' ? loc.id : null) }] : []),
-    { label: 'Upload document', icon: Upload, onClick: () => openAdd() },
+    { label: 'File upload', icon: FileUp, onClick: () => filesInput.current?.click() },
+    { label: 'Folder upload', icon: FolderUp, onClick: () => folderInput.current?.click() },
+    { label: 'Upload with details…', icon: Upload, onClick: () => openAdd() },
   ])
+
+  // Latest handlers for the page-wide drop listener
+  dropRef.current = dt => { collectDropped(dt).then(p => uploadMany(p, uploadTarget())) }
+  blockedRef.current = loading || showModal || !!folderForm || !!moving || !!viewDoc
 
   if (loading) return <PageLoader />
 
@@ -729,8 +888,7 @@ export default function DocumentsPage() {
             <p className="text-sm text-gray-400 mt-1">
               {searching || filtered ? 'Try another word or clear the filters.'
                 : loc.kind === 'archive' ? 'Archived documents appear here.'
-                  : loc.kind === 'folder' ? 'Use “New” to upload here or add a subfolder, or drag files onto this folder.'
-                    : 'Use “New” to add a document here.'}
+                  : 'Drag files or folders from your computer onto this page, or use “New”.'}
             </p>
           </div>
         ) : view === 'grid' ? (
@@ -867,10 +1025,64 @@ export default function DocumentsPage() {
               allFolders.length ? `${allFolders.length} folder${allFolders.length === 1 ? '' : 's'}` : '',
               showFiles ? `${sortedFiles.length} file${sortedFiles.length === 1 ? '' : 's'}` : '',
             ].filter(Boolean).join(' · ')}
-            {isAdmin && ' · Tip: drag a file onto one of your folders to move it there.'}
+            {' · Tip: drag files or folders from your computer onto the page or onto a folder to upload them.'}
           </p>
         )}
       </div>
+
+      {/* File / Folder upload pickers (opened from New) */}
+      <input ref={filesInput} type="file" multiple className="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.zip,.pptx,image/*"
+        onChange={e => { const list = Array.from(e.target.files ?? []); e.target.value = ''; if (list.length) uploadMany(list.map(file => ({ file, path: [] })), uploadTarget()) }} />
+      <input ref={folderInput} type="file" multiple className="hidden"
+        onChange={e => {
+          const list = Array.from(e.target.files ?? []); e.target.value = ''
+          if (list.length) uploadMany(list.map(file => ({ file, path: (file.webkitRelativePath || file.name).split('/').slice(0, -1) })), uploadTarget())
+        }} />
+
+      {/* Drop overlay while files are dragged over the page */}
+      {pageDrag && (
+        <div className="fixed inset-0 z-40 pointer-events-none">
+          <div className="absolute inset-2 rounded-2xl border-4 border-dashed border-[#0b57d0] bg-[#0b57d0]/5" />
+          <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full bg-[#0b57d0] px-5 py-3 text-white text-sm font-medium shadow-lg whitespace-nowrap">
+            <Upload className="w-4 h-4" /> Drop to upload to “{(dropTarget && allFolders.find(f => f.key === dropTarget)?.name) || trail[trail.length - 1].label}”
+          </div>
+        </div>
+      )}
+
+      {/* Upload progress, like Google Drive */}
+      {uploads.length > 0 && (() => {
+        const busy = uploads.some(u => u.status === 'waiting' || u.status === 'uploading')
+        const done = uploads.filter(u => u.status === 'done').length
+        const failed = uploads.filter(u => u.status === 'error').length
+        return (
+          <div className="fixed bottom-4 right-4 z-50 w-80 max-w-[calc(100vw-2rem)] bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 bg-[#f0f4f9]">
+              <p className="text-sm font-medium text-gray-800">
+                {busy ? `Uploading ${Math.min(done + failed + 1, uploads.length)} of ${uploads.length}…` : `${done} upload${done === 1 ? '' : 's'} complete${failed ? ` · ${failed} failed` : ''}`}
+              </p>
+              {!busy && <button onClick={() => setUploads([])} className="p-1 rounded-full hover:bg-black/10" aria-label="Close"><X className="w-4 h-4 text-gray-600" /></button>}
+            </div>
+            <div className="max-h-64 overflow-y-auto divide-y divide-gray-100">
+              {uploads.map(u => {
+                const k = fileKind(u.label)
+                return (
+                  <div key={u.id} className="flex items-center gap-3 px-4 py-2 text-sm">
+                    <k.Icon className={cn('w-4 h-4 shrink-0', k.color)} />
+                    <div className="flex-1 min-w-0">
+                      <p className="truncate text-gray-700" title={u.label}>{u.label}</p>
+                      {u.error && <p className="text-xs text-red-600 truncate" title={u.error}>{u.error}</p>}
+                    </div>
+                    {u.status === 'uploading' ? <Loader2 className="w-4 h-4 shrink-0 animate-spin text-santech-600" />
+                      : u.status === 'done' ? <CheckCircle2 className="w-4 h-4 shrink-0 text-green-600" />
+                        : u.status === 'error' ? <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
+                          : <span className="w-4 h-4 shrink-0 rounded-full border-2 border-gray-300" />}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )
+      })()}
 
       {/* ⋮ menu */}
       {menu && (
@@ -995,9 +1207,19 @@ export default function DocumentsPage() {
                 <label className={labelCls}>
                   {editDoc ? 'Replace file (optional)' : 'File (PDF, Word, Excel, image — max 5 MB)'}
                 </label>
-                <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 px-3 py-3 text-sm text-gray-600 hover:bg-gray-50">
+                <label
+                  onDragOver={e => { if (Array.from(e.dataTransfer.types).includes('Files')) { e.preventDefault(); e.stopPropagation(); setZoneOver(true) } }}
+                  onDragLeave={() => setZoneOver(false)}
+                  onDrop={e => {
+                    e.preventDefault(); e.stopPropagation(); setZoneOver(false)
+                    const f = e.dataTransfer.files?.[0]
+                    if (f) { setFile(f); if (!form.name) setForm(prev => ({ ...prev, name: f.name })) }
+                  }}
+                  className={cn('flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed px-3 py-5 text-sm text-gray-600 transition-colors',
+                    zoneOver ? 'border-santech-500 bg-santech-50' : 'border-gray-300 hover:bg-gray-50')}
+                >
                   <Upload className="h-4 w-4" />
-                  {file ? `${file.name} (${formatSize(file.size)})` : editDoc?.fileId ? 'Keep the current file, or choose a new one' : 'Choose a file'}
+                  {file ? `${file.name} (${formatSize(file.size)})` : editDoc?.fileId ? 'Keep the current file, or drop / choose a new one' : 'Drag a file here, or click to choose'}
                   <input type="file" className="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.zip,image/*"
                     onChange={e => { const f = e.target.files?.[0] ?? null; setFile(f); if (f && !form.name) setForm(prev => ({ ...prev, name: f.name })) }} />
                 </label>

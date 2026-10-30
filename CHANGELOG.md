@@ -22,6 +22,37 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 
 ## 1.2.0 — 29 October 2026
 
+### Documents: drag & drop files and folders from your computer (30 Oct)
+- **What:**
+  - **The upload window's box** now accepts a dropped file (before, it only opened the file picker).
+    The name fills itself in.
+  - **Drop anywhere on the Documents page:** drag files, or whole folders, from your computer. A blue
+    frame shows *Drop to upload to "…"*, and they upload into the open folder.
+  - **Drop onto a folder card:** uploads straight into that folder (your folders, client and project
+    folders, type folders, Company documents).
+  - **A dropped folder is rebuilt here** with its subfolders, like Google Drive; an existing folder with
+    the same name is reused.
+  - **New → File upload / Folder upload** pick several files, or a whole folder, from the computer.
+  - **An upload panel** (bottom right) shows each file with a tick, or the reason it failed.
+- **Rules:**
+  - Each file: up to 5 MB, and PDF, Word, Excel, PowerPoint (.pptx), image, text/CSV or zip.
+  - The type is guessed from the file name (*invoice/receipt*, *contract*, *proposal/quotation*,
+    *report/minutes*, *policy*) and can be changed with Edit.
+  - Files dropped in a client or project folder are linked to that client or project.
+  - System files (`desktop.ini`, `Thumbs.db`, hidden files) are skipped.
+  - Creating folders from a dropped folder needs Super Admin or Admin.
+- **Also fixed:** uploads now send the file type from its extension. Windows reports zip files as
+  `application/x-zip-compressed`, and some files have no type, so the server used to refuse them.
+- **Technical:** frontend only (`DocumentsPage.tsx`, `fileService.ts`). Dropped folders are read with
+  the browser's folder entries (`webkitGetAsEntry`); *Folder upload* uses a `webkitdirectory` input.
+- **Tested:** 20 checks in a real (headless) Edge browser against a local copy of the database:
+  - upload-window drop;
+  - page drop of several files;
+  - folder drop with a subfolder;
+  - drop on a folder card;
+  - type guessing and system-file skipping;
+  - dragging a document onto a folder still moves it.
+
 ### Documents: your own folders and subfolders (admins)
 - **What:** Next to the automatic folders, admins now create their own folders, as in Google Drive. They
   work as categories the company manages itself, for example *Contracts › Signed contracts*,

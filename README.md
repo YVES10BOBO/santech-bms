@@ -389,7 +389,12 @@ again. On phones, the menu button in the top bar opens the sidebar, and its X bu
 - **Search** looks through every folder (name, description, client, project). Each result shows its
   location; click it to open that folder. Filter by **type** and **modified date**, and sort by
   newest, oldest or name.
-- **New document:** PDF, Word, Excel, images, text/CSV or zip, up to 5 MB. Files are stored in the
+- **Drag & drop from your computer:** drop files or whole folders anywhere on the page to upload them
+  into the open folder, or onto a folder card to upload into that folder. Dropped folders keep their
+  subfolders. **New → File upload / Folder upload** does the same with a picker; an upload panel shows
+  the progress. The type is guessed from the file name.
+- **New → Upload with details:** PDF, Word, Excel, images, text/CSV or zip, up to 5 MB (drop the file on
+  the box or click to choose). Files are stored in the
   database, so they survive redeploys. When you start inside a folder, the document is linked to that
   client, project or type automatically.
 - **Each folder and file has a ⋮ menu:**

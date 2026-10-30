@@ -13,11 +13,24 @@ function toBase64(file: File): Promise<string> {
   })
 }
 
+/**
+ * File type from the extension first: browsers often send an empty or odd type
+ * (Windows reports zip files as "application/x-zip-compressed", some CSVs have none).
+ */
+const TYPES_BY_EXT: Record<string, string> = {
+  pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp',
+  txt: 'text/plain', csv: 'text/csv', zip: 'application/zip',
+  doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  ppt: 'application/vnd.ms-powerpoint', pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+}
+export const mimeFor = (file: File) => TYPES_BY_EXT[file.name.split('.').pop()?.toLowerCase() ?? ''] || file.type || 'application/octet-stream'
+
 export const fileService = {
   /** Uploads a file (max 5 MB) and returns its stored id */
   upload: async (file: File): Promise<UploadedFile> => {
     if (file.size > MAX) throw new Error('File is larger than 5 MB')
-    const { data } = await api.post('/files', { name: file.name, mimeType: file.type || 'application/octet-stream', base64: await toBase64(file) })
+    const { data } = await api.post('/files', { name: file.name, mimeType: mimeFor(file), base64: await toBase64(file) })
     return data.data
   },
   /** Opens a stored file in a new tab (or downloads it) — sends the login token */
