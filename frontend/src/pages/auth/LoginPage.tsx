@@ -91,8 +91,8 @@ export default function LoginPage() {
 
         <div className="relative z-10 flex min-h-0 flex-1 flex-col justify-between lg:min-h-[calc(520px-3rem)]">
           <div className="flex items-center gap-3">
-            <div className="grid h-12 w-12 place-items-center rounded-md bg-white shadow-lg shadow-black/10">
-              <span className="text-lg font-black text-[#0b1f44]">ST</span>
+            <div className="grid h-12 w-12 place-items-center rounded-md bg-white p-1.5 shadow-lg shadow-black/10">
+              <img src="/assets/santech_mark.png" alt="Santech" className="h-full w-full object-contain" />
             </div>
             <div>
               <p className="text-xl font-bold text-white">SAN-BMS</p>
@@ -131,6 +131,7 @@ export default function LoginPage() {
       <main className="flex w-full items-center justify-center bg-white px-6 py-6 sm:px-12 lg:min-h-[520px] lg:px-10 xl:px-12">
         <div className="auth-rise w-full max-w-xs">
           <header className="mb-5">
+            <img src="/assets/santech_logo.png" alt="Santech — Making your ideas happen" className="mb-4 h-20 w-auto" />
             <p className="mb-3 text-xs font-semibold uppercase text-[#3972c5]">Member sign-in</p>
             <h2 className="mb-2 text-3xl font-semibold text-[#0b1f44]">Welcome back.</h2>
             <p className="text-sm text-gray-500">Sign in to continue to your workspace.</p>

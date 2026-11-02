@@ -58,6 +58,7 @@ export async function printDocument(doc: PrintDoc): Promise<void> {
   * { box-sizing: border-box }
   body { font-family: 'Segoe UI', Arial, sans-serif; color: #1f2937; font-size: 12px; margin: 0 }
   .head { display: flex; justify-content: space-between; border-bottom: 3px solid #1e3a8a; padding-bottom: 12px }
+  .co .logo { height: 64px; width: auto; display: block; margin-bottom: 6px }
   .co h1 { margin: 0; font-size: 20px; color: #1e3a8a } .co p { margin: 2px 0; color: #4b5563 }
   .doc { text-align: right } .doc h2 { margin: 0; font-size: 24px; letter-spacing: 2px; color: #1e3a8a }
   .doc p { margin: 2px 0 }
@@ -75,7 +76,8 @@ export async function printDocument(doc: PrintDoc): Promise<void> {
   .bottom { margin-top: 30px; text-align: center; color: #9ca3af; font-size: 10px }
 </style></head><body>
 <div class="head">
-  <div class="co"><h1>${esc(c.name || 'Santech Innovate')}</h1>
+  <div class="co"><img class="logo" src="${window.location.origin}/assets/santech_logo.png" alt="Santech">
+    <h1>${esc(c.name || 'Santech Innovate')}</h1>
     <p>${esc([c.address, c.city, c.country].filter(Boolean).join(', '))}</p>
     <p>${esc([c.phone, c.email].filter(Boolean).join(' · '))}</p>
     ${c.tin ? `<p>TIN: ${esc(c.tin)}</p>` : ''}</div>

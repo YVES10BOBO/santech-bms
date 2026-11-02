@@ -84,6 +84,8 @@ export default function Topbar({ onOpenMobileSidebar }: TopbarProps) {
       >
         <Menu className="w-5 h-5" />
       </button>
+      {/* Phones: the logo (it is in the sidebar on computers) */}
+      <img src="/assets/santech_mark.png" alt="Santech" className={`lg:hidden h-7 w-7 object-contain ${searchOpen ? 'hidden' : ''}`} />
 
       {/* Search */}
       <div className={`flex-1 max-w-md transition-all ${searchOpen ? 'block' : 'hidden sm:block'}`}>

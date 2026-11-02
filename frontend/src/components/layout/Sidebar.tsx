@@ -18,7 +18,6 @@ import {
   Settings,
   ChevronDown,
   ChevronRight,
-  Building2,
   Bell,
   BarChart2,
   Headphones,
@@ -240,8 +239,8 @@ export default function Sidebar({ collapsed, mobileOpen, onMobileClose, onToggle
       )}>
         {!collapsed && (
           <>
-            <div className="w-8 h-8 bg-santech-400 rounded-lg flex items-center justify-center flex-shrink-0">
-              <Building2 className="w-4 h-4 text-santech-900" />
+            <div className="w-9 h-9 bg-white rounded-lg p-1 flex items-center justify-center flex-shrink-0 shadow-sm">
+              <img src="/assets/santech_mark.png" alt="Santech" className="w-full h-full object-contain" />
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-bold text-sm leading-tight text-white">Santech</p>

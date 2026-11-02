@@ -162,6 +162,12 @@ again. On phones, the menu button in the top bar opens the sidebar, and its X bu
   grey-blue layer (`#f4f6fa`, the portals' colour, at 85%) in front of the Imigongo pattern and behind
   the white cards, so the colour leads and the pattern shows faintly. It is one setting, `--page-layer`
   in `frontend/src/index.css` (higher = fainter pattern, solid `#f4f6fa` = hidden).
+- **Santech logo** (`frontend/public/assets/`):
+  - `santech_logo.png` is the full logo with the tagline. It is used above the sign-in form and at the top of
+    every PDF (quotations, invoices, proformas, credit notes).
+  - `santech_mark.png` is the blue "S" alone, on a white tile. It is used on navy backgrounds: the sidebar,
+    the login panel, the customer and supplier portal header, and the top bar on phones.
+  - `favicon.png` and `apple-touch-icon.png` are the browser-tab and phone home-screen icons.
 - **Card borders:** every card and grid tile on every page has a 2px border in the sidebar's navy blue
   (`#0b1f44`, setting `--card-border` in `frontend/src/index.css`), so the grids stand out clearly from the
   background.

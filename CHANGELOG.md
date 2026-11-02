@@ -26,6 +26,22 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 
 ## 1.6.0 — 2 November 2026
 
+### Santech logo everywhere (2 Nov)
+- **What:** the Santech logo replaces the placeholder icons and letters:
+  - the sidebar (was a building icon) and the login page (was "ST");
+  - the customer and supplier portal header (was "S");
+  - the top bar on phones, the browser-tab icon (was a missing `logo.svg`) and the phone home-screen icon;
+  - the top of every PDF.
+- **Where each version is used:**
+  - The full logo with the tagline is above the sign-in form and on PDFs.
+  - On the navy sidebar, panel and header, the blue "S" mark sits on a white tile, because the navy
+    "SAN" lettering would not show on navy.
+- **File fix:** the uploaded `santech_logo.png` was really an AVIF image with a `.png` name, which PDFs, the tab
+  icon and older phones may not show. It was converted to a real PNG (300×261, transparent background).
+  The "S" mark, favicon and home-screen icon were made from it.
+- **Checked** in a real browser: the login page, sidebar, phone top bar, customer portal, a printed invoice
+  and the tab icon; every logo image loads.
+
 ### Card borders in the sidebar's navy (2 Nov)
 - **What:** the 2px card border is now the sidebar's navy blue (`#0b1f44`) instead of light blue-grey, on every
   card and grid tile, the pipeline deal cards and the loading placeholders.
