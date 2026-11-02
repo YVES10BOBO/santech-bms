@@ -96,6 +96,7 @@ santech-bms-current/
 │       ├── components/layout/        ← sidebar, top bar (live notification bell), page shell
 │       ├── lib/api.ts                ← Axios client (JWT header, 401 → login)
 │       ├── lib/printDocument.ts      ← branded A4 quotation / invoice → Save as PDF
+│       ├── lib/roles.ts              ← module list + "can this role open it" (Roles page, My Profile)
 │       ├── lib/services/             ← one small client per API area
 │       │   ├── lookupService.ts      ← shared dropdown data (clients, staff, contracts, projects)
 │       │   ├── fileService.ts        ← upload, open and download stored files
@@ -177,7 +178,8 @@ again. On phones, the menu button in the top bar opens the sidebar, and its X bu
   still waking up (Render free plan)
 - **Top-bar search** across clients, leads, quotations, contracts, invoices, projects, tasks, documents
   and staff, only in the areas your role can open
-- **My Profile** (profile menu, top right): change your name, phone and password
+- **My Profile** (profile menu, top right): change your name, phone and password, and see which modules
+  your role lets you open
 
 ### Dashboard
 **Where:** Dashboard
@@ -646,14 +648,17 @@ only ever see their own client's records and never the staff menus or API.
 #### Company Profile
 **Where:** Settings → Company Profile
 - Legal and trading name, registration number, TIN, address, city, country, phone, email, website,
-  industry, description
+  industry, description (two columns on wide screens)
 - Used on the PDF quotations and invoices
 - **Currencies & exchange rates:** RWF for 1 USD, EUR, GBP, KES, UGX and TZS (same card as
   Finance → Currencies)
 
 #### Roles & Permissions
 **Where:** Settings → Roles & Permissions
-- Each role's accessible modules (the same rules the sidebar and API use) with live user counts
+- Role cards: what each role is for, how many modules it opens, live user counts, and a "You" tag on your role
+- **Who can open what** table: modules down the side, the 10 roles across the top, a tick where the role has
+  access (the same rules the sidebar and API use), portals as a separate group, and the module count per
+  role. Click a role to highlight its column.
 
 #### Product Catalog
 **Where:** Settings → Product Catalog

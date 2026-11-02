@@ -11,7 +11,7 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 
 | Version | Date (2026) | Highlights |
 |---|---|---|
-| **1.6.0** | 2 Nov | Features linked together (deal ↔ quotation ↔ contract, leads ↔ campaigns, employees ↔ departments, tickets ↔ projects, visitors ↔ clients, catalogue lines), lost-deal reasons, 2px card borders |
+| **1.6.0** | 2 Nov | Features linked together (deal ↔ quotation ↔ contract, leads ↔ campaigns, employees ↔ departments, tickets ↔ projects, visitors ↔ clients, catalogue lines), lost-deal reasons, 2px card borders, Santech logo, full-width Roles / Company / Profile pages |
 | **1.5.0** | 30 Oct | Customer portal and supplier portal, suppliers and purchase orders |
 | **1.4.0** | 30 Oct | Proforma invoices, credit notes, recurring service invoices, multiple currencies with exchange rates, contract and quotation version history |
 | **1.3.0** | 30 Oct | Expense claims with approvals, quotation discounts, support response times and ratings, document expiry and versions, project warranties, contract → project automation |
@@ -25,6 +25,32 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 ---
 
 ## 1.6.0 — 2 November 2026
+
+### Roles & Permissions, Company Profile and My Profile use the full width (2 Nov)
+- **Why:** these three pages were held to a narrow column, leaving a large empty space on the right.
+- **Roles & Permissions** (Settings → Roles & Permissions):
+  - The 10 roles are cards: 5 per row on wide screens, 2 per row on phones. Each card shows what the role
+    is for, how many modules it opens and how many active users have it. A "You" tag marks your role.
+  - Below the cards, a **"Who can open what"** table: one row per module (with what it contains) and one
+    column per role, with a tick or a dash. Portals are a separate group, and the last row counts the
+    modules per role.
+  - Clicking a role card (or a column heading) highlights that role's column.
+  - On phones the table scrolls sideways inside its card, and the module names stay pinned on the left.
+  - Customer and Supplier columns show no user count, because portal logins are managed per client and
+    per supplier, not in User Management.
+- **Company Profile:** two columns. Identity and contact details are on the left, location and the company
+  description on the right. The currencies card is below, full width, so all six rates sit in one row.
+  On phones it is one column, as before.
+- **My Profile:**
+  - Personal details and Change password sit side by side.
+  - The top card adds **"What you can open"**: the modules your role gives you, with a link to all roles
+    for admins.
+- **Technical:**
+  - New `frontend/src/lib/roles.ts` holds the module list (`MODULES`) and `roleCanOpen()`, built on the same
+    `roleAccess` rules as the sidebar. The Roles page and My Profile both use it, so the page can never
+    differ from what the app enforces.
+  - No access rules changed.
+  - The Roles page no longer has its own copy of each role's modules.
 
 ### Card borders back to light blue, a little stronger (2 Nov)
 - **What:** the navy border was too heavy. Cards are back to a light-blue 2px border, slightly deeper than

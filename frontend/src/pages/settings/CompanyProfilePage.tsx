@@ -69,7 +69,7 @@ export default function CompanyProfilePage() {
   const labelCls = 'block text-xs font-medium text-gray-700 mb-1'
 
   return (
-    <div className="space-y-5 max-w-3xl">
+    <div className="space-y-5">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -84,91 +84,98 @@ export default function CompanyProfilePage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
-        {/* Identity */}
-        <div className="bms-card p-6 space-y-4">
-          <h2 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
-            <Building2 className="w-4 h-4 text-santech-600" /> Company Identity
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className={labelCls}>Trading Name</label>
-              <input name="name" value={profile.name} onChange={handleChange} className={inputCls} />
+        {/* Two columns on wide screens (one on phones): identity and contact | location and about */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(420px, 100%), 1fr))', gap: '1.25rem', alignItems: 'start' }}>
+          <div className="space-y-5">
+            {/* Identity */}
+            <div className="bms-card p-6 space-y-4">
+              <h2 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+                <Building2 className="w-4 h-4 text-santech-600" /> Company Identity
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className={labelCls}>Trading Name</label>
+                  <input name="name" value={profile.name} onChange={handleChange} className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>Legal Name</label>
+                  <input name="legalName" value={profile.legalName} onChange={handleChange} className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>Registration Number</label>
+                  <input name="registrationNumber" value={profile.registrationNumber} onChange={handleChange} className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>TIN</label>
+                  <input name="tin" value={profile.tin} onChange={handleChange} className={inputCls} />
+                </div>
+                <div className="md:col-span-2">
+                  <label className={labelCls}>Industry</label>
+                  <input name="industry" value={profile.industry} onChange={handleChange} className={inputCls} />
+                </div>
+              </div>
             </div>
-            <div>
-              <label className={labelCls}>Legal Name</label>
-              <input name="legalName" value={profile.legalName} onChange={handleChange} className={inputCls} />
-            </div>
-            <div>
-              <label className={labelCls}>Registration Number</label>
-              <input name="registrationNumber" value={profile.registrationNumber} onChange={handleChange} className={inputCls} />
-            </div>
-            <div>
-              <label className={labelCls}>TIN</label>
-              <input name="tin" value={profile.tin} onChange={handleChange} className={inputCls} />
-            </div>
-            <div className="md:col-span-2">
-              <label className={labelCls}>Industry</label>
-              <input name="industry" value={profile.industry} onChange={handleChange} className={inputCls} />
+
+            {/* Contact */}
+            <div className="bms-card p-6 space-y-4">
+              <h2 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+                <Phone className="w-4 h-4 text-santech-600" /> Contact Details
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className={labelCls}><Phone className="w-3 h-3 inline mr-1" />Phone</label>
+                  <input name="phone" value={profile.phone} onChange={handleChange} className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}><Mail className="w-3 h-3 inline mr-1" />Email</label>
+                  <input name="email" type="email" value={profile.email} onChange={handleChange} className={inputCls} />
+                </div>
+                <div className="md:col-span-2">
+                  <label className={labelCls}><Globe className="w-3 h-3 inline mr-1" />Website</label>
+                  <input name="website" value={profile.website} onChange={handleChange} className={inputCls} />
+                </div>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Location */}
-        <div className="bms-card p-6 space-y-4">
-          <h2 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
-            <MapPin className="w-4 h-4 text-santech-600" /> Location
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="md:col-span-2">
-              <label className={labelCls}>Address</label>
-              <input name="address" value={profile.address} onChange={handleChange} className={inputCls} />
+          <div className="space-y-5">
+            {/* Location */}
+            <div className="bms-card p-6 space-y-4">
+              <h2 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-santech-600" /> Location
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="md:col-span-2">
+                  <label className={labelCls}>Address</label>
+                  <input name="address" value={profile.address} onChange={handleChange} className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>City</label>
+                  <input name="city" value={profile.city} onChange={handleChange} className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>Country</label>
+                  <input name="country" value={profile.country} onChange={handleChange} className={inputCls} />
+                </div>
+              </div>
             </div>
-            <div>
-              <label className={labelCls}>City</label>
-              <input name="city" value={profile.city} onChange={handleChange} className={inputCls} />
-            </div>
-            <div>
-              <label className={labelCls}>Country</label>
-              <input name="country" value={profile.country} onChange={handleChange} className={inputCls} />
-            </div>
-          </div>
-        </div>
 
-        {/* Contact */}
-        <div className="bms-card p-6 space-y-4">
-          <h2 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
-            <Phone className="w-4 h-4 text-santech-600" /> Contact Details
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className={labelCls}><Phone className="w-3 h-3 inline mr-1" />Phone</label>
-              <input name="phone" value={profile.phone} onChange={handleChange} className={inputCls} />
+            {/* Description */}
+            <div className="bms-card p-6 space-y-4">
+              <h2 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+                <FileText className="w-4 h-4 text-santech-600" /> About
+              </h2>
+              <div>
+                <label className={labelCls}>Company Description</label>
+                <textarea
+                  name="description"
+                  value={profile.description}
+                  onChange={handleChange}
+                  rows={6}
+                  className={`${inputCls} resize-none`}
+                />
+              </div>
             </div>
-            <div>
-              <label className={labelCls}><Mail className="w-3 h-3 inline mr-1" />Email</label>
-              <input name="email" type="email" value={profile.email} onChange={handleChange} className={inputCls} />
-            </div>
-            <div className="md:col-span-2">
-              <label className={labelCls}><Globe className="w-3 h-3 inline mr-1" />Website</label>
-              <input name="website" value={profile.website} onChange={handleChange} className={inputCls} />
-            </div>
-          </div>
-        </div>
-
-        {/* Description */}
-        <div className="bms-card p-6 space-y-4">
-          <h2 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
-            <FileText className="w-4 h-4 text-santech-600" /> About
-          </h2>
-          <div>
-            <label className={labelCls}>Company Description</label>
-            <textarea
-              name="description"
-              value={profile.description}
-              onChange={handleChange}
-              rows={4}
-              className={`${inputCls} resize-none`}
-            />
           </div>
         </div>
 
@@ -184,6 +191,7 @@ export default function CompanyProfilePage() {
         </div>
       </form>
 
+      {/* Currencies: full width so the rate boxes sit side by side */}
       <ExchangeRatesCard canEdit={canEdit} />
     </div>
   )

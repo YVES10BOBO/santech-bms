@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { KeyRound, Save, UserCircle } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { authService } from '@/lib/services/authService'
 import { apiError } from '@/lib/services/lookupService'
 import { getInitials } from '@/lib/utils'
+import { modulesFor } from '@/lib/roles'
 import toast from 'react-hot-toast'
 
 const ROLE_LABELS: Record<string, string> = {
@@ -14,7 +15,7 @@ const ROLE_LABELS: Record<string, string> = {
 
 /** My Profile: your details (name, phone) and password. Email and role are managed by an admin. */
 export default function ProfilePage() {
-  const { user, updateUser } = useAuthStore()
+  const { user, updateUser, canAccess } = useAuthStore()
   const location = useLocation()
   const passwordRef = useRef<HTMLDivElement>(null)
   const [profile, setProfile] = useState({ firstName: user?.firstName ?? '', lastName: user?.lastName ?? '', phone: user?.phone ?? '' })
@@ -61,77 +62,95 @@ export default function ProfilePage() {
   const inputCls = 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500'
   const labelCls = 'block text-xs font-medium text-gray-700 mb-1'
   const changed = profile.firstName !== user.firstName || profile.lastName !== user.lastName || profile.phone !== (user.phone ?? '')
+  const myModules = modulesFor(user.role)
 
   return (
-    <div className="space-y-5 max-w-3xl">
+    <div className="space-y-5">
       <div>
         <h1 className="text-2xl font-bold text-gray-800">My Profile</h1>
-        <p className="text-gray-500 text-sm mt-0.5">Your details and password</p>
+        <p className="text-gray-500 text-sm mt-0.5">Your details, your password and what you can open</p>
       </div>
 
-      <div className="bms-card p-5 flex items-center gap-4">
-        <div className="w-16 h-16 rounded-full bg-santech-600 text-white flex items-center justify-center text-xl font-bold shrink-0">
-          {getInitials(`${user.firstName} ${user.lastName}`)}
+      {/* Who you are | what your role lets you open */}
+      <div className="bms-card p-5" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(320px, 100%), 1fr))', gap: '1rem', alignItems: 'center' }}>
+        <div className="flex items-center gap-4 min-w-0">
+          <div className="w-16 h-16 rounded-full bg-santech-600 text-white flex items-center justify-center text-xl font-bold shrink-0">
+            {getInitials(`${user.firstName} ${user.lastName}`)}
+          </div>
+          <div className="min-w-0">
+            <p className="text-lg font-semibold text-gray-800">{user.firstName} {user.lastName}</p>
+            <p className="text-sm text-gray-500">{user.email}</p>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {ROLE_LABELS[user.role] ?? user.role}{user.position ? ` · ${user.position}` : ''}{user.department ? ` · ${user.department}` : ''}
+            </p>
+          </div>
         </div>
         <div className="min-w-0">
-          <p className="text-lg font-semibold text-gray-800">{user.firstName} {user.lastName}</p>
-          <p className="text-sm text-gray-500">{user.email}</p>
-          <p className="text-xs text-gray-400 mt-0.5">
-            {ROLE_LABELS[user.role] ?? user.role}{user.position ? ` · ${user.position}` : ''}{user.department ? ` · ${user.department}` : ''}
+          <p className="text-xs font-medium text-gray-500 mb-1.5">
+            What you can open ({myModules.length})
+            {canAccess('settings') && <Link to="/settings/roles" className="ml-2 text-santech-700 hover:underline font-normal">All roles →</Link>}
           </p>
+          <div className="flex flex-wrap gap-1.5">
+            {myModules.map(m => (
+              <span key={m.key} title={m.hint} className="text-[11px] px-2 py-0.5 bg-santech-50 text-santech-700 rounded-full font-medium">{m.label}</span>
+            ))}
+          </div>
         </div>
       </div>
 
-      <form onSubmit={saveProfile} className="bms-card p-5 space-y-4">
-        <h2 className="font-semibold text-gray-800 flex items-center gap-2"><UserCircle className="w-5 h-5 text-santech-600" /> Personal details</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label className={labelCls}>First name</label>
-            <input value={profile.firstName} onChange={e => setProfile(p => ({ ...p, firstName: e.target.value }))} required className={inputCls} />
-          </div>
-          <div>
-            <label className={labelCls}>Last name</label>
-            <input value={profile.lastName} onChange={e => setProfile(p => ({ ...p, lastName: e.target.value }))} required className={inputCls} />
-          </div>
-          <div>
-            <label className={labelCls}>Phone</label>
-            <input value={profile.phone} onChange={e => setProfile(p => ({ ...p, phone: e.target.value }))} placeholder="+250 7xx xxx xxx" className={inputCls} />
-          </div>
-          <div>
-            <label className={labelCls}>Email</label>
-            <input value={user.email} disabled className={`${inputCls} bg-gray-50 text-gray-500`} />
-          </div>
-        </div>
-        <p className="text-xs text-gray-400">Your email and role are managed by an admin (Settings → User Management).</p>
-        <button type="submit" disabled={saving === 'profile' || !changed}
-          className="flex items-center gap-2 px-4 py-2 bg-santech-600 text-white rounded-lg text-sm font-medium hover:bg-santech-700 disabled:opacity-50">
-          <Save className="w-4 h-4" /> {saving === 'profile' ? 'Saving…' : 'Save details'}
-        </button>
-      </form>
-
-      <div ref={passwordRef} id="password">
-        <form onSubmit={savePassword} className="bms-card p-5 space-y-4">
-          <h2 className="font-semibold text-gray-800 flex items-center gap-2"><KeyRound className="w-5 h-5 text-santech-600" /> Change password</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      {/* Personal details | change password, side by side on wide screens */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(380px, 100%), 1fr))', gap: '1.25rem' }}>
+        <form onSubmit={saveProfile} className="bms-card p-5 space-y-4">
+          <h2 className="font-semibold text-gray-800 flex items-center gap-2"><UserCircle className="w-5 h-5 text-santech-600" /> Personal details</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className={labelCls}>Current password</label>
-              <input type="password" autoComplete="current-password" value={pw.current} onChange={e => setPw(p => ({ ...p, current: e.target.value }))} required className={inputCls} />
+              <label className={labelCls}>First name</label>
+              <input value={profile.firstName} onChange={e => setProfile(p => ({ ...p, firstName: e.target.value }))} required className={inputCls} />
             </div>
             <div>
-              <label className={labelCls}>New password</label>
-              <input type="password" autoComplete="new-password" value={pw.next} onChange={e => setPw(p => ({ ...p, next: e.target.value }))} required minLength={8} className={inputCls} />
+              <label className={labelCls}>Last name</label>
+              <input value={profile.lastName} onChange={e => setProfile(p => ({ ...p, lastName: e.target.value }))} required className={inputCls} />
             </div>
             <div>
-              <label className={labelCls}>Repeat new password</label>
-              <input type="password" autoComplete="new-password" value={pw.confirm} onChange={e => setPw(p => ({ ...p, confirm: e.target.value }))} required className={inputCls} />
+              <label className={labelCls}>Phone</label>
+              <input value={profile.phone} onChange={e => setProfile(p => ({ ...p, phone: e.target.value }))} placeholder="+250 7xx xxx xxx" className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Email</label>
+              <input value={user.email} disabled className={`${inputCls} bg-gray-50 text-gray-500`} />
             </div>
           </div>
-          <p className="text-xs text-gray-400">At least 8 characters, different from the current one.</p>
-          <button type="submit" disabled={saving === 'password'}
+          <p className="text-xs text-gray-400">Your email and role are managed by an admin (Settings → User Management).</p>
+          <button type="submit" disabled={saving === 'profile' || !changed}
             className="flex items-center gap-2 px-4 py-2 bg-santech-600 text-white rounded-lg text-sm font-medium hover:bg-santech-700 disabled:opacity-50">
-            <KeyRound className="w-4 h-4" /> {saving === 'password' ? 'Saving…' : 'Change password'}
+            <Save className="w-4 h-4" /> {saving === 'profile' ? 'Saving…' : 'Save details'}
           </button>
         </form>
+
+        <div ref={passwordRef} id="password">
+          <form onSubmit={savePassword} className="bms-card p-5 space-y-4 h-full">
+            <h2 className="font-semibold text-gray-800 flex items-center gap-2"><KeyRound className="w-5 h-5 text-santech-600" /> Change password</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="sm:col-span-2">
+                <label className={labelCls}>Current password</label>
+                <input type="password" autoComplete="current-password" value={pw.current} onChange={e => setPw(p => ({ ...p, current: e.target.value }))} required className={inputCls} />
+              </div>
+              <div>
+                <label className={labelCls}>New password</label>
+                <input type="password" autoComplete="new-password" value={pw.next} onChange={e => setPw(p => ({ ...p, next: e.target.value }))} required minLength={8} className={inputCls} />
+              </div>
+              <div>
+                <label className={labelCls}>Repeat new password</label>
+                <input type="password" autoComplete="new-password" value={pw.confirm} onChange={e => setPw(p => ({ ...p, confirm: e.target.value }))} required className={inputCls} />
+              </div>
+            </div>
+            <p className="text-xs text-gray-400">At least 8 characters, different from the current one.</p>
+            <button type="submit" disabled={saving === 'password'}
+              className="flex items-center gap-2 px-4 py-2 bg-santech-600 text-white rounded-lg text-sm font-medium hover:bg-santech-700 disabled:opacity-50">
+              <KeyRound className="w-4 h-4" /> {saving === 'password' ? 'Saving…' : 'Change password'}
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   )
