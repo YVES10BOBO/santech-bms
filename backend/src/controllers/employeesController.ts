@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs'
 import prisma from '../lib/prisma'
 import { logAudit } from '../lib/audit'
 import { PAYROLL, hasRole } from '../lib/roles'
+import { findDepartment } from '../lib/links'
 import type { AuthRequest } from '../middleware/auth'
 
 export async function getEmployees(req: AuthRequest, res: Response): Promise<void> {
@@ -102,6 +103,8 @@ export async function createEmployee(req: AuthRequest, res: Response): Promise<v
     if (!firstName || !lastName || !email || !employeeCode || !department || !position || !hireDate) {
       res.status(400).json({ success: false, message: 'Required fields missing' }); return
     }
+    const dept = await findDepartment(department)
+    if (!dept) { res.status(400).json({ success: false, message: 'Choose a department from the list (Team → Departments)' }); return }
 
     const hashedPw = await bcrypt.hash(password || 'Santech@2026', 12)
 
@@ -117,7 +120,8 @@ export async function createEmployee(req: AuthRequest, res: Response): Promise<v
       data: {
         userId: user.id,
         employeeCode,
-        department,
+        department: dept.name,
+        departmentId: dept.id,
         position,
         hireDate: new Date(hireDate),
         employmentStatus: employmentStatus || 'ACTIVE',
@@ -158,6 +162,8 @@ export async function updateEmployee(req: AuthRequest, res: Response): Promise<v
       include: { user: { select: { firstName: true, lastName: true } } }
     })
     if (!employee) { res.status(404).json({ success: false, message: 'Employee not found' }); return }
+    const dept = department !== undefined ? await findDepartment(department) : null
+    if (department !== undefined && !dept) { res.status(400).json({ success: false, message: 'Choose a department from the list (Team → Departments)' }); return }
 
     await prisma.$transaction([
       prisma.user.update({
@@ -171,7 +177,7 @@ export async function updateEmployee(req: AuthRequest, res: Response): Promise<v
       prisma.employee.update({
         where: { id: req.params.id },
         data: {
-          ...(department !== undefined && { department }),
+          ...(dept && { department: dept.name, departmentId: dept.id }),
           ...(position !== undefined && { position }),
           ...(employmentStatus !== undefined && { employmentStatus }),
           ...(baseSalary !== undefined && { baseSalary: parseFloat(baseSalary) }),

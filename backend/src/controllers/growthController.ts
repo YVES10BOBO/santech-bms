@@ -145,8 +145,21 @@ export async function renewSubscription(req: AuthRequest, res: Response): Promis
 
 export async function getCampaigns(_req: AuthRequest, res: Response): Promise<void> {
   try {
-    const rows = await prisma.campaign.findMany({ include: { createdBy: userName }, orderBy: { startDate: 'desc' } })
-    res.json({ success: true, data: rows })
+    const [rows, leads] = await Promise.all([
+      prisma.campaign.findMany({ include: { createdBy: userName }, orderBy: { startDate: 'desc' } }),
+      prisma.lead.findMany({ where: { campaignId: { not: null } }, select: { campaignId: true, clientId: true, opportunity: { select: { stage: true, estimatedValue: true } } } }),
+    ])
+    // Results from the leads linked to each campaign (leads → clients → won deals)
+    const tracked = (id: string) => {
+      const mine = leads.filter(l => l.campaignId === id)
+      return {
+        leads: mine.length,
+        clients: mine.filter(l => l.clientId).length,
+        wonDeals: mine.filter(l => l.opportunity?.stage === 'WON').length,
+        wonValue: mine.reduce((s, l) => s + (l.opportunity?.stage === 'WON' ? l.opportunity.estimatedValue : 0), 0),
+      }
+    }
+    res.json({ success: true, data: rows.map(c => ({ ...c, tracked: tracked(c.id) })) })
   } catch (e) { fail(res, e, 'getCampaigns') }
 }
 

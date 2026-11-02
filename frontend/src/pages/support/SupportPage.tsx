@@ -30,6 +30,9 @@ interface Ticket {
   priority: Priority
   status: TicketStatus
   assigned: string
+  projectId: string
+  projectName: string
+  warrantyEndDate: string | null
   created: string
   updated: string
   createdAt: string
@@ -54,6 +57,9 @@ function toTicket(t: any): Ticket {
     status: t.status,
     assigned: t.assignedTo ? `${t.assignedTo.firstName} ${t.assignedTo.lastName}` : 'Unassigned',
     assignedId: t.assignedToId ?? '',
+    projectId: t.projectId ?? '',
+    projectName: t.project?.name ?? '',
+    warrantyEndDate: t.project?.warrantyEndDate ?? null,
     created: String(t.createdAt).slice(0, 10),
     updated: String(t.updatedAt).slice(0, 10),
     createdAt: String(t.createdAt),
@@ -63,6 +69,11 @@ function toTicket(t: any): Ticket {
     satisfactionNote: t.satisfactionNote ?? '',
   }
 }
+
+// ─── Warranty of the project a ticket is about ─────────────────────────────────
+const warrantyActive = (end: string | null) => !!end && new Date(end).getTime() >= Date.now() - 86400000
+const warrantyLabel = (end: string | null) =>
+  !end ? '' : warrantyActive(end) ? `under warranty until ${formatDate(end)}` : `warranty ended ${formatDate(end)}`
 
 // ─── Response / resolution times ───────────────────────────────────────────────
 const hoursBetween = (from: string, to: string | null) =>
@@ -165,6 +176,7 @@ interface TicketForm {
   product: Product
   priority: Priority
   assigned: string
+  projectId: string
 }
 
 const emptyForm: TicketForm = {
@@ -174,6 +186,7 @@ const emptyForm: TicketForm = {
   product: 'EVS',
   priority: 'MEDIUM',
   assigned: '',
+  projectId: '',
 }
 
 // ─── Component ─────────────────────────────────────────────────────────────────
@@ -201,6 +214,8 @@ export default function SupportPage() {
   // Modal
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState<TicketForm>(emptyForm)
+  // projects of the client chosen in the New Ticket form
+  const clientProjects = lookups.projects.filter(p => p.clientId === form.clientId)
   const [formErrors, setFormErrors] = useState<Partial<Record<keyof TicketForm, string>>>({})
 
   // Side panel
@@ -310,7 +325,7 @@ export default function SupportPage() {
     try {
       const res = await ticketService.create({
         clientId: form.clientId, subject: form.subject, description: form.description,
-        product: form.product, priority: form.priority, assignedToId: form.assigned || undefined,
+        product: form.product, priority: form.priority, assignedToId: form.assigned || undefined, projectId: form.projectId || undefined,
       })
       setTickets(prev => [toTicket(res.data), ...prev])
       toast.success(res.message)
@@ -716,6 +731,21 @@ export default function SupportPage() {
                 </div>
               </div>
 
+              {/* Project (and its warranty) */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Project / system</label>
+                <select
+                  name="projectId"
+                  value={form.projectId}
+                  onChange={handleChange}
+                  disabled={!form.clientId}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500 disabled:bg-gray-50"
+                >
+                  <option value="">{!form.clientId ? 'Choose the client first' : clientProjects.length ? 'Not about a specific project' : 'This client has no project'}</option>
+                  {clientProjects.map(p => <option key={p.id} value={p.id}>{p.name}{warrantyLabel(p.warrantyEndDate) ? ` — ${warrantyLabel(p.warrantyEndDate)}` : ''}</option>)}
+                </select>
+              </div>
+
               {/* Assigned To */}
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Assigned To</label>
@@ -815,6 +845,19 @@ export default function SupportPage() {
                   </dt>
                   <dd className="text-gray-800 mt-0.5">{viewTicket.product}</dd>
                 </div>
+                {viewTicket.projectName && (
+                  <div className="col-span-2">
+                    <dt className="text-xs text-gray-400 font-medium uppercase tracking-wide">Project</dt>
+                    <dd className="text-gray-800 mt-0.5 flex items-center gap-2 flex-wrap">
+                      {viewTicket.projectName}
+                      {warrantyLabel(viewTicket.warrantyEndDate) && (
+                        <span className={cn('text-[10px] px-1.5 py-0.5 rounded-full', warrantyActive(viewTicket.warrantyEndDate) ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500')}>
+                          {warrantyLabel(viewTicket.warrantyEndDate)}
+                        </span>
+                      )}
+                    </dd>
+                  </div>
+                )}
                 <div>
                   <dt className="text-xs text-gray-400 font-medium uppercase tracking-wide">
                     Assigned To

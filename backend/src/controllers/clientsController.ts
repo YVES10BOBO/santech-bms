@@ -76,7 +76,9 @@ export async function getClient(req: AuthRequest, res: Response): Promise<void> 
         },
         communications: { include: { loggedBy: { select: { firstName: true, lastName: true } } }, orderBy: { dateTime: 'desc' }, take: 50 },
         meetings: { orderBy: { date: 'desc' }, take: 20 },
-        tickets: { select: { id: true, ticketNo: true, subject: true, status: true, createdAt: true }, orderBy: { createdAt: 'desc' }, take: 20 },
+        tickets: { select: { id: true, ticketNo: true, subject: true, status: true, createdAt: true, project: { select: { name: true } } }, orderBy: { createdAt: 'desc' }, take: 20 },
+        visitors: { select: { id: true, visitorName: true, purpose: true, expectedDate: true, checkInTime: true, status: true, host: { select: { firstName: true, lastName: true } } }, orderBy: { expectedDate: 'desc' }, take: 20 },
+        convertedLeads: { select: { id: true, createdAt: true, source: true, campaign: { select: { name: true } } } },
       }
     })
     if (!client) {

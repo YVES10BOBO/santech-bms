@@ -162,6 +162,8 @@ again. On phones, the menu button in the top bar opens the sidebar, and its X bu
   grey-blue layer (`#f4f6fa`, the portals' colour, at 85%) in front of the Imigongo pattern and behind
   the white cards, so the colour leads and the pattern shows faintly. It is one setting, `--page-layer`
   in `frontend/src/index.css` (higher = fainter pattern, solid `#f4f6fa` = hidden).
+- **Card borders:** every card and grid tile on every page has a 2px border (`--card-border` in
+  `frontend/src/index.css`), so the grids stand out clearly from the background.
 - JWT login; 8 staff roles, each with its own sidebar (see [Role-Based Access](#role-based-access))
 - The API checks the role on every route, so hiding a menu item is never the only protection
 - Clear messages when login fails: wrong email or password, too many failed attempts, or the server
@@ -202,7 +204,8 @@ again. On phones, the menu button in the top bar opens the sidebar, and its X bu
 #### Client 360° Profile
 **Where:** CRM → Customers → **View Profile**
 - One timeline of everything with the client: field visits, calls/emails/notes, meetings, quotations,
-  contracts, invoices and support tickets
+  contracts, invoices, support tickets (with their project), **office visits** registered at Reception, and
+  **where the client came from** (the lead and the marketing campaign)
 - Financial summary (invoiced, paid, outstanding, profit margin) from all of the client's invoices
 - Services used with status (Active/Expired/Pending) and contracts
 - **Documents:** the client's uploaded documents and signed contracts (**Download**), plus its
@@ -217,7 +220,10 @@ again. On phones, the menu button in the top bar opens the sidebar, and its X bu
 **Where:** CRM → Leads
 - Lead journey: New → Contacted → Qualified → Converted → Lost
 - Advance status button (one click to move forward)
-- **Convert to Deal** (Qualified leads): registers the client if new and adds a deal to the pipeline
+- **Convert to Deal** (Qualified leads): registers the client if new and adds a deal to the pipeline;
+  the lead stays linked to that client and deal
+- **Campaign:** each lead can name the marketing campaign that brought it (shown under its source);
+  the campaign then counts it in its results
 - Detail side panel; filters: status, category, product, search
 
 #### Field Visits
@@ -236,10 +242,21 @@ again. On phones, the menu button in the top bar opens the sidebar, and its X bu
 - 8 stages: New Lead → Contacted → Qualified → Requirements → Proposal → Negotiation → Won/Lost
 - Probability bars per deal; KPI cards: active deals, total value, weighted value, won value
 - Deal detail side panel with next action; move forward/back buttons on each card
+- **Linked records:** each card shows its quotations and contract; the panel lists the campaign it came
+  from, its quotations and its contract (click to open them) and has **Create quotation for this deal**
+  (opens a new quotation with the client and deal filled in)
+- **Won automatically:** when a quotation linked to the deal is accepted (by staff or by the client in the
+  portal) the deal moves to Won; converting the quotation links the new contract to the deal
+- **Lost needs a reason:** moving a deal to Lost asks why (price, competitor, no budget, postponed, no
+  reply, or your own words); the reason shows on the deal
 
 #### Quotations
 **Where:** Sales → Quotations
 - Multi-line quotation builder; subtotal, VAT and total calculated by the server
+- **Lines from the product catalogue:** *+ From product catalogue…* adds a product with its name and price
+  (converted when the quotation is in another currency); the line remembers which product it is
+- **Deal:** choose the client's deal from the Sales Pipeline (not typed text); the quotation panel links to
+  the deal and, once converted, to its contract
 - **Currency:** RWF, USD, EUR, GBP, KES, UGX or TZS. The rate of the day is saved with the quotation;
   totals on the page are in RWF.
 - **Version history:** editing the items, prices, discount, VAT, validity or terms keeps the earlier
@@ -267,6 +284,8 @@ again. On phones, the menu button in the top bar opens the sidebar, and its X bu
 #### Campaigns
 **Where:** Marketing → Campaigns
 - Campaign cards with ROI from the recorded results (leads, clients won, revenue)
+- **From the CRM:** each card also counts, from the leads linked to the campaign, how many leads it
+  brought, how many became clients, and the deals won with their value
 - Grid + list view; stats: total, active, total leads, best ROI
 - New Campaign form (name, type, budget, dates, channels, team); detail side panel
 - Types: Expo/Event, Field Visits, Social Media, Email, Referral, Cold Outreach
@@ -432,7 +451,9 @@ only ever see their own client's records and never the staff menus or API.
 **Where:** Support → Support Tickets
 - Lifecycle: New → Assigned → In Progress → Waiting Customer → Resolved → Closed
 - Priority badges: Low, Medium, High, Urgent
-- New Ticket form (client, subject, description, product, priority, assignee)
+- New Ticket form (client, subject, description, product, priority, assignee) and the **project / system**
+  it is about (only that client's projects, with their warranty); the panel shows the project and whether
+  it is still under warranty. Clients can choose the project too when they open a ticket in the portal.
 - Side panel with Mark Resolved and Close Ticket
 - **Response and resolution times:** the first response is recorded when work starts (In Progress,
   Waiting Customer, Resolved or Closed); the resolution time when it is resolved or closed. Both show
@@ -450,6 +471,8 @@ only ever see their own client's records and never the staff menus or API.
 ### Reception — Visitor Log
 **Where:** Reception → Visitor Log
 - Register visitors (name, phone, email, company, host, expected time, notes)
+- **From one of our clients?** picks the client (fills the company); the visit then shows on the client's
+  360° page and the company name in the list links to it
 - **Check in**, **Check out** or **No-show**; the host is notified on check-in
 - Today's visitors at a glance
 
@@ -556,11 +579,14 @@ only ever see their own client's records and never the staff menus or API.
 - Employment status badges: Active, On Leave, Suspended, Terminated
 - Stats: total, active, on leave, average performance
 - Add/Edit form with all fields; skills display
+- The department is chosen from **Team → Departments** (same list in Settings → User Management);
+  each employee is linked to the department record
 
 #### Departments
 **Where:** Team → Departments
 - Grid view (cards) and List view (table)
-- Department stats: live staff count, active projects, budget, average performance
+- Department stats: live staff count, active projects, budget, average performance (counted through
+  the employees linked to the department); renaming a department renames it on its employees
 - Color-coded department badges; view side panel; Add/Edit form with color picker
 
 #### Workload

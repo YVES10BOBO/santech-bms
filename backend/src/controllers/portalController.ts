@@ -11,6 +11,7 @@ import { nextDocumentNumber } from '../lib/numbering'
 import { openBalance, toRwf } from '../lib/currency'
 import { ADMINS } from '../lib/roles'
 import { CLIENT_CONTRACT_STATUSES, CLIENT_QUOTATION_STATUSES, portalUser } from '../lib/portal'
+import { checkProject, markDealWon } from '../lib/links'
 import type { AuthRequest } from '../middleware/auth'
 
 const fail = (res: Response, e: unknown, where: string) => {
@@ -136,6 +137,7 @@ export async function acceptQuotation(req: AuthRequest, res: Response): Promise<
       },
       select: quoteSelect,
     })
+    await markDealWon(q.opportunityId) // the deal behind it is won
     const n = { type: 'SYSTEM' as const, title: 'Quotation Accepted by Client', link: '/sales/quotations', key: `qt-${q.id}-acc`, description: `${me.name} accepted ${q.quotationNumber} in the customer portal${note ? `: “${note}”` : ''} — convert it to a contract` }
     await notifyRoles(SALES_MANAGERS, n)
     if (q.assignedToId) await notify(q.assignedToId, n)
@@ -259,6 +261,7 @@ const ticketSelect = {
   id: true, ticketNo: true, subject: true, description: true, product: true, priority: true, status: true,
   createdAt: true, updatedAt: true, firstResponseAt: true, resolvedAt: true, satisfaction: true, satisfactionNote: true,
   assignedTo: { select: { firstName: true, lastName: true } },
+  project: { select: { id: true, name: true, warrantyEndDate: true } },
 } satisfies Prisma.SupportTicketSelect
 const PRODUCTS = ['EVS', 'SANTRACK', 'REVIXSAN', 'Website', 'Other']
 
@@ -280,8 +283,10 @@ export async function createTicket(req: AuthRequest, res: Response): Promise<voi
     if (!subject || !description) { res.status(400).json({ success: false, message: 'Describe the problem: a short subject and the details' }); return }
     const priority = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'].includes(b.priority) ? b.priority : 'MEDIUM'
     const product = PRODUCTS.includes(b.product) ? b.product : 'Other'
+    const projectCheck = await checkProject(b.projectId, me.clientId!)
+    if (!projectCheck.ok) { res.status(400).json({ success: false, message: projectCheck.message }); return }
     const t = await prisma.supportTicket.create({
-      data: { ticketNo: await nextDocumentNumber('TKT'), clientId: me.clientId!, subject, description, product, priority, status: 'NEW', createdById: me.id },
+      data: { ticketNo: await nextDocumentNumber('TKT'), clientId: me.clientId!, projectId: b.projectId || null, subject, description, product, priority, status: 'NEW', createdById: me.id },
       select: ticketSelect,
     })
     await notifyRoles(SUPPORT_LEADS, {

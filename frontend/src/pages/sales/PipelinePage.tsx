@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Plus, X, Building2, User, DollarSign, Calendar, TrendingUp, Search } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Plus, X, Building2, User, DollarSign, Calendar, TrendingUp, Search, FileText, FileSignature, Megaphone } from 'lucide-react'
 import { cn, formatCurrency, formatDate } from '@/lib/utils'
 import { opportunityService } from '@/lib/services/opportunityService'
 import { useLookups, apiError } from '@/lib/services/lookupService'
@@ -36,6 +37,10 @@ interface Deal {
   nextAction: string
   followUpDate: string
   createdAt: string
+  lostReason: string
+  quotations: { id: string; quotationNumber: string; status: string }[]
+  contractNumber: string
+  campaign: string // the marketing campaign that brought the lead
 }
 
 // ─── Pipeline stages config ───────────────────────────────────────────────────
@@ -61,7 +66,7 @@ const PRODUCTS = ['EVS', 'SANTRACK', 'REVIXSAN', 'SANBOOK', 'SANHUB', 'Website',
 const emptyForm = {
   name: '', clientId: '', stage: 'NEW_LEAD' as Stage, estimatedValue: '',
   expectedCloseDate: '', assignedToId: '',
-  product: PRODUCTS[0], notes: '', nextAction: '', followUpDate: '',
+  product: PRODUCTS[0], notes: '', nextAction: '', followUpDate: '', lostReason: '',
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -87,12 +92,19 @@ function toDeal(o: any): Deal {
     nextAction: o.nextAction ?? '',
     followUpDate: o.followUpDate ? String(o.followUpDate).slice(0, 10) : '',
     createdAt: String(o.createdAt).slice(0, 10),
+    lostReason: o.lostReason ?? '',
+    quotations: o.quotations ?? [],
+    contractNumber: o.contract?.contractNumber ?? '',
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    campaign: (o.leads ?? []).map((l: any) => l.campaign?.name).find(Boolean) ?? '',
   }
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function PipelinePage() {
   const [deals, setDeals] = useState<Deal[]>([])
+  const navigate = useNavigate()
+  const [lostFor, setLostFor] = useState<{ id: string; reason: string } | null>(null)
   const [loading, setLoading] = useState(true)
   const [view, setView] = useState<'kanban' | 'list'>('kanban')
   const [search, setSearch] = useState('')
@@ -117,13 +129,14 @@ export default function PipelinePage() {
       .finally(() => setLoading(false))
   }, [])
 
-  /** Saves a stage change; the card moves at once and moves back if saving fails. */
-  const saveStage = async (id: string, stage: Stage) => {
+  /** Saves a stage change; the card moves at once and moves back if saving fails. A lost deal asks why first. */
+  const saveStage = async (id: string, stage: Stage, lostReason?: string) => {
     const previous = deals.find(d => d.id === id)
     if (!previous || previous.stage === stage) return
+    if (stage === 'LOST' && !lostReason) { setLostFor({ id, reason: '' }); return }
     setDeals(prev => prev.map(d => d.id === id ? { ...d, stage, probability: PROBABILITY[stage] } : d))
     try {
-      const updated = await opportunityService.update(id, { stage, probability: PROBABILITY[stage] })
+      const updated = await opportunityService.update(id, { stage, probability: PROBABILITY[stage], ...(lostReason && { lostReason }) })
       setDeals(prev => prev.map(d => d.id === id ? toDeal(updated) : d))
       toast.success(`Moved to ${STAGES.find(s => s.value === stage)?.label}`)
     } catch (err) {
@@ -158,7 +171,7 @@ export default function PipelinePage() {
   // ── Form ───────────────────────────────────────────────────────────────────
   const openAdd = () => { setForm({ ...emptyForm, assignedToId: salespeople[0]?.id ?? '' }); setEditId(null); setError(''); setShowModal(true) }
   const openEdit = (deal: Deal) => {
-    setForm({ name: deal.name, clientId: deal.clientId, stage: deal.stage, estimatedValue: String(deal.estimatedValue), expectedCloseDate: deal.expectedCloseDate, assignedToId: deal.assignedToId, product: deal.product, notes: deal.notes, nextAction: deal.nextAction, followUpDate: deal.followUpDate })
+    setForm({ name: deal.name, clientId: deal.clientId, stage: deal.stage, estimatedValue: String(deal.estimatedValue), expectedCloseDate: deal.expectedCloseDate, assignedToId: deal.assignedToId, product: deal.product, notes: deal.notes, nextAction: deal.nextAction, followUpDate: deal.followUpDate, lostReason: deal.lostReason })
     setEditId(deal.id); setError(''); setShowModal(true); setSelectedDeal(null)
   }
 
@@ -174,6 +187,7 @@ export default function PipelinePage() {
       name: form.name || `${form.product} — ${company}`,
       clientId: form.clientId,
       stage: form.stage,
+      ...(form.stage === 'LOST' && { lostReason: form.lostReason }),
       estimatedValue: parseFloat(form.estimatedValue),
       probability: PROBABILITY[form.stage],
       expectedCloseDate: form.expectedCloseDate || null,
@@ -305,13 +319,21 @@ export default function PipelinePage() {
                         draggable
                         onDragStart={() => onDragStart(deal.id)}
                         onClick={() => setSelectedDeal(deal)}
-                        className="bg-white rounded-lg border border-gray-200 p-3 cursor-pointer hover:shadow-md hover:border-santech-300 transition-all select-none"
+                        className="bg-white rounded-lg border-2 border-[#cfd8ea] p-3 cursor-pointer hover:shadow-md hover:border-santech-300 transition-all select-none"
                       >
                         <div className="flex items-start justify-between gap-1 mb-2">
                           <p className="text-xs font-semibold text-gray-800 leading-tight flex-1">{deal.company}</p>
                           <span className="text-xs bg-santech-50 text-santech-700 px-1.5 py-0.5 rounded font-medium flex-shrink-0">{deal.product}</span>
                         </div>
                         <p className="text-sm font-bold text-gray-700 mb-2">{formatCurrency(deal.estimatedValue)}</p>
+                        {(deal.quotations.length > 0 || deal.contractNumber) && (
+                          <div className="flex flex-wrap gap-1 mb-1">
+                            {deal.quotations.slice(0, 2).map(q => (
+                              <span key={q.id} className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded font-mono">{q.quotationNumber} · {q.status.replace(/_/g, ' ').toLowerCase()}</span>
+                            ))}
+                            {deal.contractNumber && <span className="text-[10px] bg-green-50 text-green-700 px-1.5 py-0.5 rounded font-mono">{deal.contractNumber}</span>}
+                          </div>
+                        )}
                         {deal.contactName && (
                           <div className="flex items-center gap-1 text-xs text-gray-400 mb-1">
                             <User className="w-3 h-3" />
@@ -407,6 +429,28 @@ export default function PipelinePage() {
       )}
 
       {/* ── Deal Detail Side Panel ── */}
+      {lostFor && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-5 space-y-3">
+            <h3 className="font-semibold text-gray-800">Why was this deal lost?</h3>
+            <p className="text-xs text-gray-500">{deals.find(d => d.id === lostFor.id)?.company} — the reason helps the team and the reports.</p>
+            <div className="flex flex-wrap gap-1.5">
+              {['Price too high', 'Chose a competitor', 'No budget', 'Project postponed', 'No reply'].map(r => (
+                <button key={r} type="button" onClick={() => setLostFor(l => l && { ...l, reason: r })}
+                  className={cn('text-xs px-2 py-1 rounded-full border', lostFor.reason === r ? 'bg-red-50 border-red-300 text-red-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50')}>{r}</button>
+              ))}
+            </div>
+            <textarea rows={2} value={lostFor.reason} onChange={e => setLostFor(l => l && { ...l, reason: e.target.value })} placeholder="Or write the reason"
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500 resize-none" />
+            <div className="flex gap-2">
+              <button onClick={() => setLostFor(null)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
+              <button disabled={!lostFor.reason.trim()} onClick={() => { const { id, reason } = lostFor; setLostFor(null); saveStage(id, 'LOST', reason.trim()) }}
+                className="flex-1 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-40">Mark as lost</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {selectedDeal && (
         <div className="fixed inset-0 z-50 flex justify-end bg-black/40" onClick={() => setSelectedDeal(null)}>
           <div className="bg-white w-full max-w-md h-full overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
@@ -457,6 +501,38 @@ export default function PipelinePage() {
                   </div>
                 ))}
               </div>
+
+              {/* Linked records: campaign → deal → quotations → contract */}
+              <div className="space-y-2">
+                <p className="text-xs text-gray-400">Linked records</p>
+                {selectedDeal.campaign && (
+                  <p className="text-xs text-gray-600 flex items-center gap-1.5"><Megaphone className="w-3.5 h-3.5 text-purple-500" /> Came from campaign <b>{selectedDeal.campaign}</b></p>
+                )}
+                {selectedDeal.quotations.map(q => (
+                  <button key={q.id} onClick={() => navigate(`/sales/quotations?search=${q.quotationNumber}`)} className="w-full flex items-center gap-2 text-xs text-left rounded-lg border border-gray-100 px-3 py-2 hover:bg-gray-50">
+                    <FileText className="w-3.5 h-3.5 text-santech-600" /> <span className="font-mono">{q.quotationNumber}</span>
+                    <span className="text-gray-400">{q.status.replace(/_/g, ' ').toLowerCase()}</span>
+                  </button>
+                ))}
+                {selectedDeal.contractNumber && (
+                  <button onClick={() => navigate(`/contracts?search=${selectedDeal.contractNumber}`)} className="w-full flex items-center gap-2 text-xs text-left rounded-lg border border-green-100 bg-green-50 px-3 py-2 hover:bg-green-100">
+                    <FileSignature className="w-3.5 h-3.5 text-green-700" /> Contract <span className="font-mono">{selectedDeal.contractNumber}</span>
+                  </button>
+                )}
+                {!selectedDeal.quotations.length && !selectedDeal.contractNumber && !selectedDeal.campaign && <p className="text-xs text-gray-400">No quotation yet.</p>}
+                {selectedDeal.stage !== 'LOST' && !selectedDeal.contractNumber && (
+                  <button onClick={() => navigate(`/sales/quotations?deal=${selectedDeal.id}`)} className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-santech-600 text-white hover:bg-santech-700">
+                    <Plus className="w-3.5 h-3.5" /> Create quotation for this deal
+                  </button>
+                )}
+              </div>
+
+              {selectedDeal.stage === 'LOST' && selectedDeal.lostReason && (
+                <div className="bg-red-50 border border-red-100 rounded-lg p-3">
+                  <p className="text-xs font-medium text-red-700 mb-1">Why it was lost</p>
+                  <p className="text-sm text-red-800">{selectedDeal.lostReason}</p>
+                </div>
+              )}
 
               {selectedDeal.nextAction && (
                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
@@ -514,6 +590,9 @@ export default function PipelinePage() {
                   <select name="stage" value={form.stage} onChange={handleChange} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500">
                     {STAGES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
                   </select>
+                  {form.stage === 'LOST' && (
+                    <input name="lostReason" value={form.lostReason} onChange={handleChange} placeholder="Why was it lost? *" className="mt-2 w-full px-3 py-2 border border-red-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-400" />
+                  )}
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">

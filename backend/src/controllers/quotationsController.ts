@@ -8,6 +8,7 @@ import { ADMINS, SALES, hasRole } from '../lib/roles'
 import { isCurrency, rateFor } from '../lib/currency'
 import { QUOTATION_FIELDS, keepVersion } from '../lib/versions'
 import { notifyClientPortal } from '../lib/portal'
+import { checkDeal, markDealWon } from '../lib/links'
 import type { AuthRequest } from '../middleware/auth'
 
 const fail = (res: Response, error: unknown, where: string) => {
@@ -18,9 +19,12 @@ const fail = (res: Response, error: unknown, where: string) => {
 const include = {
   client: { select: { id: true, companyName: true, contactPersonName: true, phone: true, email: true } },
   assignedTo: { select: { id: true, firstName: true, lastName: true } },
+  opportunity: { select: { id: true, name: true, stage: true } },
+  contract: { select: { id: true, contractNumber: true, status: true } },
 }
 
-interface Item { id?: string; description: string; quantity: number; unitPrice: number; total?: number }
+/** A line can come from the product catalogue (productId) or be typed in */
+interface Item { id?: string; productId?: string; description: string; quantity: number; unitPrice: number; total?: number }
 interface HistoryEvent { status: QuotationStatus; action: 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'SENT' | 'UPDATED'; actor: string; createdAt: string; note?: string }
 
 const FLOW: QuotationStatus[] = ['DRAFT', 'INTERNAL_REVIEW', 'MANAGER_APPROVAL', 'CEO_APPROVAL', 'APPROVED', 'SENT', 'VIEWED', 'NEGOTIATION', 'ACCEPTED']
@@ -45,7 +49,7 @@ function computeTotals(items: Item[], vatRate: number, discountRate = 0) {
     .map((i, idx) => {
       const quantity = Number(i.quantity) || 0
       const unitPrice = Number(i.unitPrice) || 0
-      return { id: i.id || `i${idx + 1}`, description: String(i.description).trim(), quantity, unitPrice, total: quantity * unitPrice }
+      return { id: i.id || `i${idx + 1}`, ...(i.productId && { productId: String(i.productId) }), description: String(i.description).trim(), quantity, unitPrice, total: quantity * unitPrice }
     })
   const subtotal = clean.reduce((s, i) => s + i.total, 0)
   const rate = Math.min(100, Math.max(0, discountRate || 0))
@@ -79,6 +83,9 @@ export async function createQuotation(req: AuthRequest, res: Response): Promise<
     const b = req.body
     if (!b.clientId) { res.status(400).json({ success: false, message: 'Client is required' }); return }
     if (b.currency && !isCurrency(b.currency)) { res.status(400).json({ success: false, message: 'Pick a currency from the list' }); return }
+    const dealCheck = await checkDeal(b.opportunityId, b.clientId)
+    if (!dealCheck.ok) { res.status(400).json({ success: false, message: dealCheck.message }); return }
+    const deal = b.opportunityId ? await prisma.opportunity.findUnique({ where: { id: b.opportunityId }, select: { name: true } }) : null
     const discount = parseFloat(b.discountRate) || 0
     if (discount < 0 || discount > 100) { res.status(400).json({ success: false, message: 'Discount must be between 0 and 100%' }); return }
     const totals = computeTotals(Array.isArray(b.items) ? b.items : [], parseFloat(b.vatRate) || 0, discount)
@@ -92,7 +99,8 @@ export async function createQuotation(req: AuthRequest, res: Response): Promise<
         currency: b.currency || 'RWF', exchangeRate: await rateFor(b.currency || 'RWF'),
         validUntil: b.validUntil ? new Date(b.validUntil) : null,
         paymentTerms: b.paymentTerms || null, notes: b.notes || null,
-        assignedToId: b.assignedToId || req.user!.id, linkedDeal: b.linkedDeal || null,
+        assignedToId: b.assignedToId || req.user!.id,
+        opportunityId: b.opportunityId || null, linkedDeal: deal?.name ?? (b.linkedDeal || null),
         approvalHistory: [] as unknown as Prisma.InputJsonValue,
       },
       include,
@@ -120,6 +128,11 @@ export async function updateQuotation(req: AuthRequest, res: Response): Promise<
     const totals = items ? computeTotals(items, parseFloat(b.vatRate ?? before.vatRate) || 0, discount) : null
     if (totals && !totals.items.length) { res.status(400).json({ success: false, message: 'Add at least one line item' }); return }
     if (b.currency !== undefined && !isCurrency(b.currency)) { res.status(400).json({ success: false, message: 'Pick a currency from the list' }); return }
+    if (b.opportunityId !== undefined) {
+      const dealCheck = await checkDeal(b.opportunityId, b.clientId ?? before.clientId)
+      if (!dealCheck.ok) { res.status(400).json({ success: false, message: dealCheck.message }); return }
+    }
+    const deal = b.opportunityId ? await prisma.opportunity.findUnique({ where: { id: b.opportunityId }, select: { name: true } }) : null
     const history = (before.approvalHistory as unknown as HistoryEvent[] | null) ?? []
     // Changed content keeps the earlier version (items, prices, discount, VAT, validity, terms)
     const newVersion = await keepVersion(req, 'Quotation', before as unknown as Record<string, unknown> & { id: string; version: number }, {
@@ -141,7 +154,8 @@ export async function updateQuotation(req: AuthRequest, res: Response): Promise<
         ...(b.paymentTerms !== undefined && { paymentTerms: b.paymentTerms || null }),
         ...(b.notes !== undefined && { notes: b.notes || null }),
         ...(b.assignedToId !== undefined && { assignedToId: b.assignedToId || null }),
-        ...(b.linkedDeal !== undefined && { linkedDeal: b.linkedDeal || null }),
+        ...(b.opportunityId !== undefined && { opportunityId: b.opportunityId || null, linkedDeal: deal?.name ?? null }),
+        ...(b.opportunityId === undefined && b.linkedDeal !== undefined && { linkedDeal: b.linkedDeal || null }),
         ...(totals && { ...totals, items: totals.items as unknown as Prisma.InputJsonValue }),
         approvalHistory: [...history, { status: before.status, action: 'UPDATED', actor: await actorName(req), createdAt: new Date().toISOString().slice(0, 10) }] as unknown as Prisma.InputJsonValue,
       },
@@ -192,6 +206,8 @@ export async function advanceQuotation(req: AuthRequest, res: Response): Promise
     if (next === 'MANAGER_APPROVAL') await notifyRoles(MANAGERS, { type: 'SYSTEM', title: 'Quotation Needs Approval', link: '/sales/quotations', key: `qt-${q.id}-mgr`, description: `${label} is waiting for manager approval` }, req.user!.id)
     if (next === 'CEO_APPROVAL') await notifyRoles(['SUPER_ADMIN'], { type: 'SYSTEM', title: 'Quotation Needs CEO Approval', link: '/sales/quotations', key: `qt-${q.id}-ceo`, description: `${label} is waiting for CEO approval` }, req.user!.id)
     if (next === 'APPROVED' && q.assignedToId) await notify(q.assignedToId, { type: 'SYSTEM', title: 'Quotation Approved', link: '/sales/quotations', key: `qt-${q.id}-ok`, description: `${label} was approved — you can send it to the client` })
+    // Accepted quotation → its deal is won
+    const wonDeal = next === 'ACCEPTED' ? await markDealWon(q.opportunityId) : null
     if (next === 'ACCEPTED') await notifyRoles(MANAGERS, { type: 'SYSTEM', title: 'Quotation Accepted', link: '/sales/quotations', key: `qt-${q.id}-acc`, description: `${q.client.companyName} accepted ${q.quotationNumber} — convert it to a contract` }, req.user!.id)
 
     await logAudit(req, {
@@ -200,7 +216,7 @@ export async function advanceQuotation(req: AuthRequest, res: Response): Promise
       description: `Moved quotation ${q.quotationNumber} from ${before.status} to ${next}`,
       oldValue: { status: before.status }, newValue: { status: next },
     })
-    res.json({ success: true, data: q, message: `Quotation is now ${next.replace(/_/g, ' ').toLowerCase()}` })
+    res.json({ success: true, data: q, message: wonDeal ? `${`Quotation is now ${next.replace(/_/g, ' ').toLowerCase()}`} — deal “${wonDeal}” marked won` : `Quotation is now ${next.replace(/_/g, ' ').toLowerCase()}` })
   } catch (e) { fail(res, e, 'advanceQuotation') }
 }
 
@@ -263,6 +279,8 @@ export async function convertQuotation(req: AuthRequest, res: Response): Promise
           ] as unknown as Prisma.InputJsonValue,
         },
       })
+      // the deal this quotation belongs to now has its contract
+      if (q.opportunityId) await tx.opportunity.update({ where: { id: q.opportunityId }, data: { contractId: c.id, stage: 'WON', probability: 100 } })
       const history = (q.approvalHistory as unknown as HistoryEvent[] | null) ?? []
       const updated = await tx.quotation.update({
         where: { id: q.id },

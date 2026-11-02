@@ -432,6 +432,9 @@ export async function getPL(req: AuthRequest, res: Response): Promise<void> {
 const oppInclude = {
   client: { select: { id: true, companyName: true, phone: true, category: true, contactPersonName: true, contactPersonPhone: true } },
   assignedTo: userName,
+  quotations: { select: { id: true, quotationNumber: true, status: true, totalAmount: true, currency: true }, orderBy: { createdAt: 'desc' as const } },
+  contract: { select: { id: true, contractNumber: true, status: true } },
+  leads: { select: { id: true, companyName: true, campaign: { select: { id: true, name: true } } } },
 }
 
 export async function getOpportunities(req: AuthRequest, res: Response): Promise<void> {
@@ -501,6 +504,9 @@ export async function updateOpportunity(req: AuthRequest, res: Response): Promis
 
     const before = await prisma.opportunity.findUnique({ where: { id: req.params.id } })
     if (!before) { res.status(404).json({ success: false, message: 'Deal not found' }); return }
+    if (stage === 'LOST' && before.stage !== 'LOST' && !String(lostReason ?? '').trim()) {
+      res.status(400).json({ success: false, message: 'Say why the deal was lost (price, competitor, no budget…)' }); return
+    }
 
     const opp = await prisma.opportunity.update({
       where: { id: req.params.id },

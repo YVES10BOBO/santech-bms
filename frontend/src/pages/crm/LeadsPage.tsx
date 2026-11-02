@@ -29,6 +29,8 @@ interface Lead {
   estimatedValue: number
   notes: string
   createdAt: string
+  campaignId: string
+  campaignName: string
 }
 
 // ─── API → page shape ─────────────────────────────────────────────────────────
@@ -50,6 +52,8 @@ function toLead(l: any): Lead {
     estimatedValue: Number(l.estimatedValue ?? 0),
     notes: l.notes ?? '',
     createdAt: String(l.createdAt).slice(0, 10),
+    campaignId: l.campaignId ?? '',
+    campaignName: l.campaign?.name ?? '',
   }
 }
 
@@ -77,7 +81,7 @@ const emptyForm = {
   source: 'FIELD_VISIT' as LeadSource,
   interestedIn: 'EVS', status: 'NEW' as LeadStatus,
   assignedToId: '', followUpDate: '',
-  estimatedValue: '', notes: '',
+  estimatedValue: '', notes: '', campaignId: '',
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -137,7 +141,7 @@ export default function LeadsPage() {
 
   const openAdd = () => { setForm({ ...emptyForm, assignedToId: salespeople[0]?.id ?? '' }); setEditId(null); setError(''); setShowModal(true) }
   const openEdit = (l: Lead) => {
-    setForm({ companyName: l.companyName, contactName: l.contactName, contactPhone: l.contactPhone, contactEmail: l.contactEmail, category: l.category, source: l.source, interestedIn: l.interestedIn, status: l.status, assignedToId: l.assignedToId, followUpDate: l.followUpDate, estimatedValue: String(l.estimatedValue), notes: l.notes })
+    setForm({ companyName: l.companyName, contactName: l.contactName, contactPhone: l.contactPhone, contactEmail: l.contactEmail, category: l.category, source: l.source, interestedIn: l.interestedIn, status: l.status, assignedToId: l.assignedToId, followUpDate: l.followUpDate, estimatedValue: String(l.estimatedValue), notes: l.notes, campaignId: l.campaignId })
     setEditId(l.id); setError(''); setShowModal(true); setViewLead(null)
   }
 
@@ -149,7 +153,7 @@ export default function LeadsPage() {
       contactPhone: form.contactPhone, contactEmail: form.contactEmail,
       category: form.category, source: form.source, interestedIn: form.interestedIn,
       assignedToId: form.assignedToId || undefined, followUpDate: form.followUpDate || null,
-      estimatedValue: parseFloat(form.estimatedValue) || 0, notes: form.notes,
+      estimatedValue: parseFloat(form.estimatedValue) || 0, notes: form.notes, campaignId: form.campaignId || null,
       ...(editId && form.status !== 'CONVERTED' ? { status: form.status } : {}),
     }
     setSaving(true)
@@ -323,7 +327,10 @@ export default function LeadsPage() {
                       {lead.contactName && <p className="text-gray-700 font-medium">{lead.contactName}</p>}
                       <p className="text-gray-400 font-mono">{lead.contactPhone || lead.contactEmail || '—'}</p>
                     </td>
-                    <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{SOURCE_LABELS[lead.source]}</td>
+                    <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
+                      {SOURCE_LABELS[lead.source]}
+                      {lead.campaignName && <p className="text-[10px] text-purple-600 truncate max-w-[160px]" title={lead.campaignName}>{lead.campaignName}</p>}
+                    </td>
                     <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
                       {lead.followUpDate ? formatDate(lead.followUpDate) : '—'}
                     </td>
@@ -513,6 +520,14 @@ export default function LeadsPage() {
                   <select name="source" value={form.source} onChange={handleChange} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500">
                     {Object.entries(SOURCE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                   </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Campaign</label>
+                  <select name="campaignId" value={form.campaignId} onChange={handleChange} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500">
+                    <option value="">No campaign</option>
+                    {lookups.campaigns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                  <p className="text-[11px] text-gray-400 mt-0.5">Counts in that campaign's results</p>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Status</label>

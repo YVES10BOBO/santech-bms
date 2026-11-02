@@ -7,6 +7,7 @@ import type { UserRole } from '@prisma/client'
 import prisma from '../lib/prisma'
 import { logAudit } from '../lib/audit'
 import { generateReminders } from '../lib/notifications'
+import { findDepartment } from '../lib/links'
 import type { AuthRequest } from '../middleware/auth'
 
 const fail = (res: Response, error: unknown, where: string) => {
@@ -51,6 +52,8 @@ export async function createUser(req: AuthRequest, res: Response): Promise<void>
     if (!firstName || !lastName || !email || !role) { res.status(400).json({ success: false, message: 'Name, email and role are required' }); return }
     if (!password || String(password).length < 8) { res.status(400).json({ success: false, message: 'Password must be at least 8 characters' }); return }
     if (!guardRole(req, res, role)) return
+    const dept = department ? await findDepartment(department) : null
+    if (department && !dept) { res.status(400).json({ success: false, message: 'Choose a department from the list (Team → Departments)' }); return }
     const user = await prisma.$transaction(async tx => {
       const u = await tx.user.create({
         data: { firstName, lastName, email: String(email).toLowerCase().trim(), phone: phone || null, role, password: await bcrypt.hash(password, 12) },
@@ -58,7 +61,7 @@ export async function createUser(req: AuthRequest, res: Response): Promise<void>
       // Staff with a department get an employee record (HR, payroll, workload)
       if (department) {
         await tx.employee.create({
-          data: { userId: u.id, employeeCode: await nextEmployeeCode(), department, position: position || 'Staff', hireDate: new Date(), baseSalary: 0 },
+          data: { userId: u.id, employeeCode: await nextEmployeeCode(), department: dept!.name, departmentId: dept!.id, position: position || 'Staff', hireDate: new Date(), baseSalary: 0 },
         })
       }
       return tx.user.findUnique({ where: { id: u.id }, select })
@@ -80,6 +83,8 @@ export async function updateUser(req: AuthRequest, res: Response): Promise<void>
     const before = await prisma.user.findUnique({ where: { id: req.params.id }, select })
     if (!before) { res.status(404).json({ success: false, message: 'User not found' }); return }
     const { firstName, lastName, phone, role, isActive, department, position, password } = req.body
+    const dept = department ? await findDepartment(department) : null
+    if (department && !dept) { res.status(400).json({ success: false, message: 'Choose a department from the list (Team → Departments)' }); return }
     if (!guardRole(req, res, before.role) || !guardRole(req, res, role)) return
     if (before.id === req.user!.id && (isActive === false || (role && role !== before.role))) {
       res.status(400).json({ success: false, message: 'You cannot deactivate yourself or change your own role' }); return
@@ -103,11 +108,11 @@ export async function updateUser(req: AuthRequest, res: Response): Promise<void>
         if (before.employee) {
           await tx.employee.update({
             where: { id: before.employee.id },
-            data: { ...(department && { department }), ...(position && { position }) },
+            data: { ...(dept && { department: dept.name, departmentId: dept.id }), ...(position && { position }) },
           })
         } else if (department) {
           await tx.employee.create({
-            data: { userId: before.id, employeeCode: await nextEmployeeCode(), department, position: position || 'Staff', hireDate: new Date(), baseSalary: 0 },
+            data: { userId: before.id, employeeCode: await nextEmployeeCode(), department: dept!.name, departmentId: dept!.id, position: position || 'Staff', hireDate: new Date(), baseSalary: 0 },
           })
         }
       }

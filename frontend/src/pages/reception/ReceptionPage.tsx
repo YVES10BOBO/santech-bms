@@ -4,6 +4,7 @@ import PhoneInput from '@/components/shared/PhoneInput'
 import { cn, formatDate, formatDateTime } from '@/lib/utils'
 import { visitorService } from '@/lib/services/operationsService'
 import { useLookups, apiError } from '@/lib/services/lookupService'
+import { Link } from 'react-router-dom'
 import PageLoader from '@/components/shared/PageLoader'
 import toast from 'react-hot-toast'
 
@@ -15,6 +16,7 @@ interface Visitor {
   id: string
   visitorName: string
   company: string
+  clientId: string // when the visitor comes from one of our clients
   phone: string
   email: string
   idNumber: string
@@ -70,6 +72,7 @@ const toVisitor = (v: any): Visitor => ({
   id: v.id,
   visitorName: v.visitorName,
   company: v.company ?? '',
+  clientId: v.clientId ?? '',
   phone: v.phone ?? '',
   email: v.email ?? '',
   idNumber: v.idNumber ?? '',
@@ -88,6 +91,7 @@ const toVisitor = (v: any): Visitor => ({
 const emptyForm = {
   visitorName: '',
   company: '',
+  clientId: '',
   phone: '',
   email: '',
   idNumber: '',
@@ -189,7 +193,7 @@ export default function ReceptionPage() {
     setSaving(true)
     try {
       const res = await visitorService.create({
-        ...form, hostId: form.host || undefined, walkIn: walkIn && form.expectedDate === TODAY,
+        ...form, clientId: form.clientId || undefined, hostId: form.host || undefined, walkIn: walkIn && form.expectedDate === TODAY,
       })
       setVisitors(prev => [toVisitor(res.data), ...prev])
       toast.success(res.message)
@@ -379,7 +383,11 @@ export default function ReceptionPage() {
                           <p className="font-medium text-gray-800 text-xs whitespace-nowrap">{v.visitorName}</p>
                         </div>
                       </td>
-                      <td className="px-3 py-3 text-xs text-gray-600 whitespace-nowrap">{v.company}</td>
+                      <td className="px-3 py-3 text-xs text-gray-600 whitespace-nowrap">
+                        {v.clientId
+                          ? <Link to={`/crm/clients/${v.clientId}`} className="text-santech-700 hover:underline" title="Open the client's 360° page">{v.company}</Link>
+                          : v.company}
+                      </td>
                       <td className="px-3 py-3">
                         <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap', PURPOSE_COLORS[v.purpose])}>
                           {v.purpose.replace(/_/g, ' ')}
@@ -544,6 +552,22 @@ export default function ReceptionPage() {
                   placeholder="e.g. Michael Johnson"
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500"
                 />
+              </div>
+
+              {/* One of our clients? (links the visit to the client's 360° page) */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">From one of our clients?</label>
+                <select
+                  value={form.clientId}
+                  onChange={e => {
+                    const c = lookups.clients.find(x => x.id === e.target.value)
+                    setForm(prev => ({ ...prev, clientId: e.target.value, company: c ? c.name : prev.company }))
+                  }}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500"
+                >
+                  <option value="">No — not a client (type the company below)</option>
+                  {lookups.clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
               </div>
 
               {/* Company */}

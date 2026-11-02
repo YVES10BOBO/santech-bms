@@ -376,6 +376,8 @@ export default function ClientProfilePage() {
         const meetings = (c.meetings as Record<string, unknown>[] | undefined) ?? []
         const quotations = (c.quotations as Record<string, unknown>[] | undefined) ?? []
         const tickets = (c.tickets as Record<string, unknown>[] | undefined) ?? []
+        const visits = (c.visitors as Record<string, unknown>[] | undefined) ?? []
+        const fromLeads = (c.convertedLeads as Record<string, unknown>[] | undefined) ?? []
 
         // in RWF, each invoice at its own rate; cancelled and draft invoices are not billed yet
         const billed = invoices.filter(i => i.status !== 'CANCELLED' && i.status !== 'DRAFT')
@@ -489,9 +491,33 @@ export default function ClientProfilePage() {
               type: 'NOTE',
               date: t.createdAt ? String(t.createdAt).slice(0, 10) : '',
               title: `Support ticket ${String(t.ticketNo)}: ${String(t.subject)}`,
-              description: `Status: ${String(t.status ?? '').replace(/_/g, ' ').toLowerCase()}`,
+              description: `Status: ${String(t.status ?? '').replace(/_/g, ' ').toLowerCase()}${(t.project as { name?: string } | null)?.name ? ` · project ${(t.project as { name: string }).name}` : ''}`,
               addedBy: '',
             })),
+            // visits to the office registered at Reception
+            ...visits.map((v): TimelineEvent => {
+              const host = v.host as { firstName: string; lastName: string } | null
+              return {
+                id: `visit-${String(v.id)}`,
+                type: 'MEETING',
+                date: String(v.checkInTime ?? v.expectedDate ?? '').slice(0, 10),
+                title: `Office visit: ${String(v.visitorName)}`,
+                description: `${String(v.purpose ?? '').replace(/_/g, ' ').toLowerCase()}${host ? ` · met ${host.firstName} ${host.lastName}` : ''} · ${String(v.status ?? '').replace(/_/g, ' ').toLowerCase()}`,
+                addedBy: 'Reception',
+              }
+            }),
+            // where the client came from (lead and marketing campaign)
+            ...fromLeads.map((l): TimelineEvent => {
+              const campaign = (l.campaign as { name?: string } | null)?.name
+              return {
+                id: `lead-${String(l.id)}`,
+                type: 'NOTE',
+                date: String(l.createdAt ?? '').slice(0, 10),
+                title: campaign ? `Became a lead through the campaign “${campaign}”` : 'Became a lead',
+                description: `Source: ${String(l.source ?? '').replace(/_/g, ' ').toLowerCase()}`,
+                addedBy: '',
+              }
+            }),
           ],
           // A service is active while the client has an active contract
           services: ((c.services as string[] | undefined) ?? []).map((s) => ({

@@ -4,6 +4,7 @@ import { Plus, Search, X, User, LayoutGrid, List, Loader2 } from 'lucide-react'
 import PhoneInput from '@/components/shared/PhoneInput'
 import { cn, formatDate, formatCurrency, getInitials } from '@/lib/utils'
 import { employeeService } from '@/lib/services/employeeService'
+import { useLookups } from '@/lib/services/lookupService'
 import toast from 'react-hot-toast'
 import PageLoader from '@/components/shared/PageLoader'
 
@@ -25,7 +26,6 @@ interface Employee {
   skills: string[]
 }
 
-const DEPARTMENTS = ['All', 'Sales & Marketing', 'IT', 'HR', 'Finance']
 const STATUS_OPTIONS: { value: EmploymentStatus | 'All'; label: string }[] = [
   { value: 'All', label: 'All Status' },
   { value: 'ACTIVE', label: 'Active' },
@@ -46,13 +46,16 @@ const scoreColor = (score: number) =>
 
 const emptyForm = {
   employeeCode: '', firstName: '', lastName: '', email: '', phone: '',
-  department: 'Sales & Marketing', position: '', hireDate: '',
+  department: '', position: '', hireDate: '',
   baseSalary: '', performanceScore: '0', employmentStatus: 'ACTIVE' as EmploymentStatus,
   skills: '',
 }
 
 export default function EmployeesPage() {
   const [employees, setEmployees] = useState<Employee[]>([])
+  // departments come from Team → Departments (the same records the employees are linked to)
+  const lookups = useLookups()
+  const DEPARTMENTS = ['All', ...lookups.departments.map(d => d.name)]
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -346,6 +349,7 @@ export default function EmployeesPage() {
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Department *</label>
                   <select name="department" value={form.department} onChange={handleChange} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500">
+                    <option value="">Choose a department…</option>
                     {DEPARTMENTS.filter(d => d !== 'All').map(d => <option key={d}>{d}</option>)}
                   </select>
                 </div>

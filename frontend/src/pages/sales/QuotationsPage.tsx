@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useSearchFromUrl } from '@/lib/useSearchFromUrl'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Search, X, FileText, CheckCircle2, Clock, ArrowRight, Trash2, Download } from 'lucide-react'
 import { cn, formatDate, formatCurrency } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
@@ -24,6 +24,7 @@ interface ApprovalEvent {
 
 interface QuotationItem {
   id: string
+  productId?: string // picked from the product catalogue
   description: string
   quantity: number
   unitPrice: number
@@ -55,6 +56,10 @@ interface Quotation {
   notes: string
   assignedTo: string
   linkedDeal: string
+  opportunityId: string
+  dealStage: string
+  contractId: string
+  contractNumber: string
   createdAt: string
   sentAt: string
   acceptedAt: string
@@ -88,7 +93,11 @@ function toQuotation(q: any): Quotation {
     notes: q.notes ?? '',
     assignedTo: q.assignedTo ? `${q.assignedTo.firstName} ${q.assignedTo.lastName}` : '',
     assignedToId: q.assignedToId ?? '',
-    linkedDeal: q.linkedDeal ?? '',
+    linkedDeal: q.opportunity?.name ?? q.linkedDeal ?? '',
+    opportunityId: q.opportunityId ?? '',
+    dealStage: q.opportunity?.stage ?? '',
+    contractId: q.contract?.id ?? q.contractId ?? '',
+    contractNumber: q.contract?.contractNumber ?? '',
     createdAt: String(q.createdAt).slice(0, 10),
     sentAt: q.sentAt ? String(q.sentAt).slice(0, 10) : '',
     acceptedAt: q.acceptedAt ? String(q.acceptedAt).slice(0, 10) : '',
@@ -132,7 +141,7 @@ const newItem = (): QuotationItem => ({ id: String(Date.now()), description: '',
 const emptyForm = {
   clientId: '', contactName: '', contactEmail: '', contactPhone: '',
   vatRate: '0', discountRate: '0', currency: 'RWF', validUntil: '', paymentTerms: '', notes: '',
-  assignedToId: '', linkedDeal: '',
+  assignedToId: '', opportunityId: '',
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -165,6 +174,7 @@ export default function QuotationsPage() {
   const [form, setForm] = useState(emptyForm)
   const rates = useRates()
   const [items, setItems] = useState<QuotationItem[]>([newItem()])
+  const [params, setParams] = useSearchParams()
   const [editId, setEditId] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [rowsPerPage, setRowsPerPage] = useState(5)
@@ -192,6 +202,28 @@ export default function QuotationsPage() {
     return { subtotal, discount, vat, total: subtotal - discount + vat }
   }
 
+  /** Deals of the chosen client, to link the quotation to */
+  const clientDeals = lookups.deals.filter(d => d.clientId === form.clientId)
+
+  /** A line from the product catalogue (price converted when the quotation is in another currency) */
+  const addProduct = (productId: string) => {
+    const p = lookups.products.find(x => x.id === productId)
+    if (!p) return
+    const unitPrice = Math.round(p.price * (rates[p.currency] || 1) / (rates[form.currency] || 1) * 100) / 100
+    setItems(prev => [...prev.filter(i => i.description || i.unitPrice), { id: String(Date.now()), productId: p.id, description: p.name, quantity: 1, unitPrice, total: unitPrice }])
+  }
+
+  // "Create quotation" from a deal in the pipeline: /sales/quotations?deal=<id>
+  useEffect(() => {
+    const dealId = params.get('deal')
+    const deal = dealId ? lookups.deals.find(d => d.id === dealId) : null
+    if (!deal) return
+    setForm({ ...emptyForm, assignedToId: user?.id ?? '', clientId: deal.clientId, opportunityId: deal.id })
+    setItems([newItem()]); setEditId(null); setError(''); setShowModal(true)
+    params.delete('deal'); setParams(params, { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lookups.deals, params])
+
   const updateItem = (id: string, field: keyof QuotationItem, value: string | number) => {
     setItems(prev => prev.map(item => {
       if (item.id !== id) return item
@@ -218,7 +250,7 @@ export default function QuotationsPage() {
   }
 
   const openEdit = (q: Quotation) => {
-    setForm({ clientId: q.clientId, contactName: q.contactName, contactEmail: q.contactEmail, contactPhone: q.contactPhone, vatRate: String(q.vatRate), discountRate: String(q.discountRate), currency: q.currency, validUntil: q.validUntil, paymentTerms: q.paymentTerms, notes: q.notes, assignedToId: q.assignedToId, linkedDeal: q.linkedDeal })
+    setForm({ clientId: q.clientId, contactName: q.contactName, contactEmail: q.contactEmail, contactPhone: q.contactPhone, vatRate: String(q.vatRate), discountRate: String(q.discountRate), currency: q.currency, validUntil: q.validUntil, paymentTerms: q.paymentTerms, notes: q.notes, assignedToId: q.assignedToId, opportunityId: q.opportunityId })
     setItems(q.items.map(i => ({ ...i })))
     setEditId(q.id); setError(''); setShowModal(true); setViewQuotation(null)
   }
@@ -226,7 +258,11 @@ export default function QuotationsPage() {
   /** Choosing a client fills the contact fields from the client record */
   const pickClient = (clientId: string) => {
     const c = lookups.clients.find(x => x.id === clientId)
-    setForm(p => ({ ...p, clientId, contactName: p.contactName || c?.contactName || '', contactPhone: p.contactPhone || c?.phone || '' }))
+    setForm(p => ({
+      ...p, clientId, contactName: p.contactName || c?.contactName || '', contactPhone: p.contactPhone || c?.phone || '',
+      // a deal of another client no longer fits
+      opportunityId: lookups.deals.some(d => d.id === p.opportunityId && d.clientId === clientId) ? p.opportunityId : '',
+    }))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -237,8 +273,8 @@ export default function QuotationsPage() {
       clientId: form.clientId, contactName: form.contactName, contactEmail: form.contactEmail, contactPhone: form.contactPhone,
       vatRate: parseFloat(form.vatRate) || 0, discountRate: parseFloat(form.discountRate) || 0, currency: form.currency, validUntil: form.validUntil || null,
       paymentTerms: form.paymentTerms, notes: form.notes,
-      assignedToId: form.assignedToId || undefined, linkedDeal: form.linkedDeal,
-      items: items.filter(i => i.description).map(i => ({ id: i.id, description: i.description, quantity: Number(i.quantity), unitPrice: Number(i.unitPrice) })),
+      assignedToId: form.assignedToId || undefined, opportunityId: form.opportunityId || null,
+      items: items.filter(i => i.description).map(i => ({ id: i.id, productId: i.productId, description: i.description, quantity: Number(i.quantity), unitPrice: Number(i.unitPrice) })),
     }
     setSaving(true)
     try {
@@ -485,7 +521,16 @@ export default function QuotationsPage() {
                   {STATUS_CONFIG[viewQuotation.status].label}
                 </span>
                 {viewQuotation.linkedDeal && (
-                  <span className="text-xs bg-santech-50 text-santech-700 px-2 py-1 rounded-full">{viewQuotation.linkedDeal}</span>
+                  <button onClick={() => viewQuotation.opportunityId && navigate('/sales/pipeline')} disabled={!viewQuotation.opportunityId}
+                    title={viewQuotation.opportunityId ? 'Open the Sales Pipeline' : 'Not linked to a deal in the pipeline'}
+                    className="text-xs bg-santech-50 text-santech-700 px-2 py-1 rounded-full enabled:hover:bg-santech-100">
+                    Deal: {viewQuotation.linkedDeal}{viewQuotation.dealStage && ` · ${viewQuotation.dealStage.replace(/_/g, ' ').toLowerCase()}`}
+                  </button>
+                )}
+                {viewQuotation.contractNumber && (
+                  <button onClick={() => navigate(`/contracts?search=${viewQuotation.contractNumber}`)} className="text-xs bg-green-50 text-green-700 px-2 py-1 rounded-full hover:bg-green-100">
+                    Contract {viewQuotation.contractNumber}
+                  </button>
                 )}
               </div>
 
@@ -659,9 +704,18 @@ export default function QuotationsPage() {
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Line Items *</p>
-                  <button type="button" onClick={() => setItems(prev => [...prev, newItem()])} className="text-xs text-santech-600 hover:underline font-medium flex items-center gap-1">
-                    <Plus className="w-3 h-3" /> Add Item
-                  </button>
+                  <div className="flex items-center gap-3">
+                    {lookups.products.length > 0 && (
+                      <select value="" onChange={e => addProduct(e.target.value)} aria-label="Add from the product catalogue"
+                        className="text-xs px-2 py-1 border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-santech-500">
+                        <option value="">+ From product catalogue…</option>
+                        {lookups.products.map(p => <option key={p.id} value={p.id}>{p.name} — {formatCurrency(p.price, p.currency)}</option>)}
+                      </select>
+                    )}
+                    <button type="button" onClick={() => setItems(prev => [...prev, newItem()])} className="text-xs text-santech-600 hover:underline font-medium flex items-center gap-1">
+                      <Plus className="w-3 h-3" /> Add Item
+                    </button>
+                  </div>
                 </div>
                 <div className="border border-gray-200 rounded-xl overflow-hidden">
                   <table className="w-full text-xs">
@@ -679,6 +733,7 @@ export default function QuotationsPage() {
                         <tr key={item.id}>
                           <td className="px-2 py-1.5">
                             <input value={item.description} onChange={e => updateItem(item.id, 'description', e.target.value)} placeholder="e.g. EVS System License" className="w-full px-2 py-1 border border-gray-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-santech-500" />
+                            {item.productId && <span className="text-[10px] text-santech-600">from the catalogue</span>}
                           </td>
                           <td className="px-2 py-1.5">
                             <input type="number" min="1" value={item.quantity} onChange={e => updateItem(item.id, 'quantity', parseFloat(e.target.value) || 1)} className="w-full px-2 py-1 border border-gray-200 rounded text-xs text-right focus:outline-none focus:ring-1 focus:ring-santech-500" />
@@ -752,8 +807,13 @@ export default function QuotationsPage() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Linked Deal</label>
-                    <input name="linkedDeal" value={form.linkedDeal} onChange={handleChange} placeholder="e.g. EVS — ECOBANK" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500" />
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Deal (Sales Pipeline)</label>
+                    <select name="opportunityId" value={form.opportunityId} onChange={handleChange} disabled={!form.clientId}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500 disabled:bg-gray-50">
+                      <option value="">{!form.clientId ? 'Choose the client first' : clientDeals.length ? 'No deal' : 'This client has no deal yet'}</option>
+                      {clientDeals.map(d => <option key={d.id} value={d.id}>{d.name} · {d.stage.replace(/_/g, ' ').toLowerCase()}</option>)}
+                    </select>
+                    <p className="text-[11px] text-gray-400 mt-0.5">When the client accepts, this deal is marked Won.</p>
                   </div>
                   <div className="col-span-2">
                     <label className="block text-xs font-medium text-gray-700 mb-1">Payment Terms</label>

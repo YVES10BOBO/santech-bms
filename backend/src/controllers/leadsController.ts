@@ -10,7 +10,7 @@ const fail = (res: Response, error: unknown, where: string) => {
   console.error(`${where} error:`, error)
   res.status(500).json({ success: false, message: 'Internal server error' })
 }
-const include = { assignedTo: { select: { id: true, firstName: true, lastName: true } } }
+const include = { assignedTo: { select: { id: true, firstName: true, lastName: true } }, campaign: { select: { id: true, name: true } } }
 const ORDER: LeadStatus[] = ['NEW', 'CONTACTED', 'QUALIFIED', 'CONVERTED']
 const date = (v: unknown) => (v ? new Date(String(v)) : null)
 
@@ -37,6 +37,7 @@ function leadData(b: Record<string, unknown>) {
     ...(b.followUpDate !== undefined && { followUpDate: date(b.followUpDate) }),
     ...(b.estimatedValue !== undefined && { estimatedValue: parseFloat(String(b.estimatedValue)) || 0 }),
     ...(b.notes !== undefined && { notes: (b.notes as string) || null }),
+    ...(b.campaignId !== undefined && { campaignId: (b.campaignId as string) || null }),
   }
 }
 

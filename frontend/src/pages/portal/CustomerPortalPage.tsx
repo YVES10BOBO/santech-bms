@@ -406,7 +406,9 @@ function Documents({ rows }: { rows?: Any[] }) {
 
 function Support({ rows, reload }: { rows?: Any[]; reload: () => void }) {
   const [showNew, setShowNew] = useState(false)
-  const [form, setForm] = useState({ subject: '', product: 'EVS', priority: 'MEDIUM', description: '' })
+  const [form, setForm] = useState({ subject: '', product: 'EVS', priority: 'MEDIUM', description: '', projectId: '' })
+  const [projects, setProjects] = useState<Any[]>([])
+  useEffect(() => { portalService.projects().then((r: Any) => setProjects(r.data ?? [])).catch(() => undefined) }, [])
   const [rating, setRating] = useState<{ t: Any; stars: number; note: string } | null>(null)
   const [reopen, setReopen] = useState<{ t: Any; note: string } | null>(null)
   const [busy, setBusy] = useState(false)
@@ -434,7 +436,7 @@ function Support({ rows, reload }: { rows?: Any[]; reload: () => void }) {
           {rows.map(t => (
             <section key={t.id} className="bms-card p-4 space-y-2">
               <div className="flex flex-wrap items-center gap-2 justify-between">
-                <div className="min-w-0"><p className="font-mono text-xs text-santech-700 font-semibold">{t.ticketNo} · {t.product}</p><p className="font-medium text-gray-800">{t.subject}</p></div>
+                <div className="min-w-0"><p className="font-mono text-xs text-santech-700 font-semibold">{t.ticketNo} · {t.project?.name ?? t.product}</p><p className="font-medium text-gray-800">{t.subject}</p></div>
                 <Badge s={t.status} />
               </div>
               <p className="text-sm text-gray-600 whitespace-pre-line line-clamp-4">{t.description}</p>
@@ -468,8 +470,14 @@ function Support({ rows, reload }: { rows?: Any[]; reload: () => void }) {
               <option value="LOW">Low — when you can</option><option value="MEDIUM">Normal</option><option value="HIGH">High — work is slowed</option><option value="URGENT">Urgent — work is stopped</option>
             </select>
           </div>
+          {projects.length > 0 && (
+            <select className={input} value={form.projectId} onChange={e => setForm(f => ({ ...f, projectId: e.target.value }))} aria-label="Project">
+              <option value="">Which project / system? (optional)</option>
+              {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          )}
           <textarea rows={5} className={input} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="What happened? Steps, error messages, who is affected…" aria-label="Description" />
-          <button disabled={busy || !form.subject.trim() || !form.description.trim()} onClick={() => run(() => portalService.createTicket(form), () => { setShowNew(false); setForm({ subject: '', product: 'EVS', priority: 'MEDIUM', description: '' }) })}
+          <button disabled={busy || !form.subject.trim() || !form.description.trim()} onClick={() => run(() => portalService.createTicket(form), () => { setShowNew(false); setForm({ subject: '', product: 'EVS', priority: 'MEDIUM', description: '', projectId: '' }) })}
             className="w-full py-2.5 bg-santech-600 text-white rounded-lg text-sm font-medium hover:bg-santech-700 disabled:opacity-50">Send to Santech support</button>
         </Modal>
       )}

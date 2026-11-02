@@ -26,6 +26,8 @@ interface Campaign {
   channel: ChannelType
   assignedTeam: string
   notes: string
+  /** counted from the leads linked to the campaign */
+  tracked: { leads: number; clients: number; wonDeals: number; wonValue: number }
 }
 
 interface NewCampaignForm {
@@ -51,6 +53,7 @@ const toCampaign = (c: any): Campaign => ({
   startDate: String(c.startDate).slice(0, 10), endDate: String(c.endDate).slice(0, 10), budget: Number(c.budget),
   leadsGenerated: c.leadsGenerated ?? 0, clientsAcquired: c.clientsAcquired ?? 0, revenueGenerated: Number(c.revenueGenerated ?? 0),
   channel: c.channel, assignedTeam: c.assignedTeam ?? '', notes: c.notes ?? '',
+  tracked: c.tracked ?? { leads: 0, clients: 0, wonDeals: 0, wonValue: 0 },
 })
 
 const statusStyle: Record<CampaignStatus, string> = {
@@ -345,6 +348,16 @@ export default function CampaignsPage() {
                       </p>
                     </div>
                   </div>
+                </div>
+
+                {/* Counted from the leads linked to this campaign */}
+                <div className="rounded-lg border border-purple-100 bg-purple-50/60 px-2.5 py-2 text-xs">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-purple-700">From the CRM</p>
+                  <p className="text-gray-700">
+                    <b>{campaign.tracked.leads}</b> lead{campaign.tracked.leads === 1 ? '' : 's'} · <b>{campaign.tracked.clients}</b> became client{campaign.tracked.clients === 1 ? '' : 's'}
+                    {campaign.tracked.wonDeals > 0 && <> · <b>{campaign.tracked.wonDeals}</b> won ({formatCurrency(campaign.tracked.wonValue)})</>}
+                  </p>
+                  {campaign.tracked.leads === 0 && <p className="text-[10px] text-gray-400">Choose this campaign on a lead (CRM → Leads) to count it here.</p>}
                 </div>
 
                 {/* Actions */}

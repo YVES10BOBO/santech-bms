@@ -3,11 +3,13 @@
  */
 import { Response } from 'express'
 import type { Prisma, TicketStatus, ProductCategory } from '@prisma/client'
+import { VisitPurpose } from '@prisma/client'
 import prisma from '../lib/prisma'
 import { logAudit } from '../lib/audit'
 import { notify } from '../lib/notifications'
 import { nextDocumentNumber } from '../lib/numbering'
 import { notifyClientPortal } from '../lib/portal'
+import { checkProject } from '../lib/links'
 import type { AuthRequest } from '../middleware/auth'
 
 const fail = (res: Response, error: unknown, where: string) => {
@@ -18,7 +20,10 @@ const userName = { select: { id: true, firstName: true, lastName: true } }
 
 // ── SUPPORT TICKETS ───────────────────────────────────────────────────────────
 
-const ticketInclude = { client: { select: { id: true, companyName: true, fullName: true, teamName: true, delegationName: true } }, assignedTo: userName, createdBy: userName }
+const ticketInclude = {
+  client: { select: { id: true, companyName: true, fullName: true, teamName: true, delegationName: true } }, assignedTo: userName, createdBy: userName,
+  project: { select: { id: true, name: true, warrantyEndDate: true } },
+}
 
 export async function getTickets(_req: AuthRequest, res: Response): Promise<void> {
   try {
@@ -29,13 +34,15 @@ export async function getTickets(_req: AuthRequest, res: Response): Promise<void
 
 export async function createTicket(req: AuthRequest, res: Response): Promise<void> {
   try {
-    const { clientId, subject, description, product, priority, assignedToId } = req.body
+    const { clientId, subject, description, product, priority, assignedToId, projectId } = req.body
     if (!clientId || !subject || !description) {
       res.status(400).json({ success: false, message: 'Client, subject and description are required' }); return
     }
+    const projectCheck = await checkProject(projectId, clientId)
+    if (!projectCheck.ok) { res.status(400).json({ success: false, message: projectCheck.message }); return }
     const t = await prisma.supportTicket.create({
       data: {
-        ticketNo: await nextDocumentNumber('TKT'), clientId, subject, description,
+        ticketNo: await nextDocumentNumber('TKT'), clientId, projectId: projectId || null, subject, description,
         product: product || 'Other', priority: priority || 'MEDIUM',
         status: assignedToId ? 'ASSIGNED' : 'NEW', assignedToId: assignedToId || null, createdById: req.user!.id,
       },
@@ -60,11 +67,15 @@ export async function updateTicket(req: AuthRequest, res: Response): Promise<voi
   try {
     const before = await prisma.supportTicket.findUnique({ where: { id: req.params.id } })
     if (!before) { res.status(404).json({ success: false, message: 'Ticket not found' }); return }
-    const { status, assignedToId, priority, satisfaction, satisfactionNote } = req.body as {
-      status?: TicketStatus; assignedToId?: string | null; priority?: string; satisfaction?: number; satisfactionNote?: string
+    const { status, assignedToId, priority, satisfaction, satisfactionNote, projectId } = req.body as {
+      status?: TicketStatus; assignedToId?: string | null; priority?: string; satisfaction?: number; satisfactionNote?: string; projectId?: string | null
     }
     if (before.status === 'CLOSED' && status && status !== 'CLOSED') {
       res.status(400).json({ success: false, message: 'Closed tickets cannot be reopened — create a new ticket' }); return
+    }
+    if (projectId !== undefined) {
+      const projectCheck = await checkProject(projectId, before.clientId)
+      if (!projectCheck.ok) { res.status(400).json({ success: false, message: projectCheck.message }); return }
     }
     const nextStatus = status ?? (assignedToId && before.status === 'NEW' ? 'ASSIGNED' : undefined)
     // Customer satisfaction (1–5) can only be given once the ticket is resolved
@@ -80,6 +91,7 @@ export async function updateTicket(req: AuthRequest, res: Response): Promise<voi
       data: {
         ...(nextStatus && { status: nextStatus }),
         ...(assignedToId !== undefined && { assignedToId: assignedToId || null }),
+        ...(projectId !== undefined && { projectId: projectId || null }),
         ...(priority && { priority: priority as Prisma.SupportTicketUpdateInput['priority'] }),
         ...(nextStatus === 'RESOLVED' && !before.resolvedAt && { resolvedAt: new Date() }),
         ...(nextStatus === 'CLOSED' && !before.resolvedAt && { resolvedAt: new Date() }),
@@ -169,12 +181,12 @@ export async function getDepartments(_req: AuthRequest, res: Response): Promise<
   try {
     const [departments, employees, projects] = await Promise.all([
       prisma.department.findMany({ include: { head: { select: { id: true, firstName: true, lastName: true, email: true } } }, orderBy: { name: 'asc' } }),
-      prisma.employee.findMany({ where: { employmentStatus: { not: 'TERMINATED' } }, select: { userId: true, department: true, performanceScore: true } }),
+      prisma.employee.findMany({ where: { employmentStatus: { not: 'TERMINATED' } }, select: { userId: true, department: true, departmentId: true, performanceScore: true } }),
       prisma.project.findMany({ where: { status: ACTIVE_PROJECT }, select: { projectManagerId: true } }),
     ])
     // Live figures come from the employees in each department
     const data = departments.map(d => {
-      const staff = employees.filter(e => e.department.toLowerCase() === d.name.toLowerCase())
+      const staff = employees.filter(e => (e.departmentId ? e.departmentId === d.id : e.department.toLowerCase() === d.name.toLowerCase()))
       const staffIds = new Set(staff.map(s => s.userId))
       return {
         ...d,
@@ -206,7 +218,7 @@ export async function saveDepartment(req: AuthRequest, res: Response): Promise<v
       : await prisma.department.create({ data: { name: String(name).trim(), ...data } })
     // Renaming a department moves its employees along with it
     if (before && data.name && data.name !== before.name) {
-      await prisma.employee.updateMany({ where: { department: before.name }, data: { department: data.name } })
+      await prisma.employee.updateMany({ where: { OR: [{ departmentId: before.id }, { department: before.name }] }, data: { department: data.name, departmentId: before.id } })
     }
     await logAudit(req, {
       action: id ? 'UPDATE' : 'CREATE', entity: 'Department', entityId: d.id, entityName: d.name,
@@ -222,7 +234,7 @@ export async function saveDepartment(req: AuthRequest, res: Response): Promise<v
 
 // ── RECEPTION / VISITORS ──────────────────────────────────────────────────────
 
-const visitorInclude = { host: userName }
+const visitorInclude = { host: userName, client: { select: { id: true, companyName: true, fullName: true, teamName: true, delegationName: true } } }
 
 export async function getVisitors(_req: AuthRequest, res: Response): Promise<void> {
   try {
@@ -242,11 +254,18 @@ export async function createVisitor(req: AuthRequest, res: Response): Promise<vo
     if (!b.visitorName || !b.purpose || !b.expectedDate) {
       res.status(400).json({ success: false, message: 'Visitor name, purpose and date are required' }); return
     }
+    if (!Object.values(VisitPurpose).includes(b.purpose)) {
+      res.status(400).json({ success: false, message: 'Pick a purpose from the list' }); return
+    }
+    // A visitor from a known client is linked to it (and shows on its 360° page)
+    const client = b.clientId ? await prisma.client.findUnique({ where: { id: String(b.clientId) }, select: { id: true, companyName: true, fullName: true, teamName: true, delegationName: true } }) : null
+    if (b.clientId && !client) { res.status(400).json({ success: false, message: 'Client not found' }); return }
+    const clientName = client ? client.companyName || client.fullName || client.teamName || client.delegationName : null
     // A visitor registered for today who is already here is a walk-in (checked in now)
     const walkIn = !!b.walkIn
     const v = await prisma.visitor.create({
       data: {
-        visitorName: b.visitorName, company: b.company || null, phone: b.phone || null, email: b.email || null,
+        visitorName: b.visitorName, company: b.company || clientName || null, clientId: client?.id ?? null, phone: b.phone || null, email: b.email || null,
         idNumber: b.idNumber || null, purpose: b.purpose, hostId: b.hostId || null,
         expectedDate: new Date(b.expectedDate), expectedTime: b.expectedTime || null,
         expectedDuration: parseInt(b.expectedDuration) || 60, notes: b.notes || null,

@@ -11,6 +11,7 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 
 | Version | Date (2026) | Highlights |
 |---|---|---|
+| **1.6.0** | 2 Nov | Features linked together (deal ↔ quotation ↔ contract, leads ↔ campaigns, employees ↔ departments, tickets ↔ projects, visitors ↔ clients, catalogue lines), lost-deal reasons, 2px card borders |
 | **1.5.0** | 30 Oct | Customer portal and supplier portal, suppliers and purchase orders |
 | **1.4.0** | 30 Oct | Proforma invoices, credit notes, recurring service invoices, multiple currencies with exchange rates, contract and quotation version history |
 | **1.3.0** | 30 Oct | Expense claims with approvals, quotation discounts, support response times and ratings, document expiry and versions, project warranties, contract → project automation |
@@ -22,6 +23,64 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 | **0.1.0** | 11–13 Oct | Foundation: first pages, backend skeleton, hosting on Vercel, Render and Neon |
 
 ---
+
+## 1.6.0 — 2 November 2026
+
+### Thicker card borders on every page (2 Nov)
+- **What:** every card and grid tile now has a 2px border in a slightly stronger blue-grey (`#cfd8ea`).
+  Before, it was 1.5px `#dde3f0`. This applies to every page through the shared card styles
+  (`.bms-card`, used 154 times, and `.kpi-card`, used 48 times).
+- **Also changed:** the deal cards on the Sales Pipeline and the loading placeholders.
+- **Technical:** one setting, `--card-border` in `frontend/src/index.css`.
+
+### Features linked together (2 Nov)
+Records that belong together are now linked in the database, instead of matched by typed names. This
+follows the requirement to "build a shared data model so every department works from the same records".
+- **Deal ↔ quotation ↔ contract:**
+  - A quotation picks its deal from the pipeline (not typed text).
+  - Accepting the quotation (staff or client portal) marks the deal Won.
+  - Converting it links the contract to the deal.
+  - Deal cards and the deal panel show their quotations and contract.
+  - The deal panel has **Create quotation for this deal**.
+- **Lost deals need a reason** (quick choices or your own words); the reason shows on the deal.
+- **Quotation lines from the product catalogue** (price converted to the quotation's currency); each line
+  remembers its product.
+- **Leads ↔ campaigns:**
+  - A lead names the campaign that brought it.
+  - Each campaign counts its leads, the clients they became and the deals won ("From the CRM").
+  - A converted lead stays linked to its client and deal.
+- **Employees ↔ departments:**
+  - The department is picked from Team → Departments (Employees and Settings → Users no longer have
+    their own fixed list, which was missing Projects and Executive).
+  - Department counts come through the link, and renaming a department follows on its employees.
+- **Support tickets ↔ projects:**
+  - A ticket can name the client's project / system (staff and customer portal), with its warranty shown.
+  - Another client's project is refused.
+- **Visitors ↔ clients:** Reception can pick the visitor's client. The visit shows on the client's 360° page,
+  which now also shows where the client came from (lead and campaign).
+- **Finance links enforced:**
+  - The expenses booked from expense claims and purchases, and the income from training fees, are real
+    links.
+  - So are the deal's contract and the lead's client and deal.
+- **Fix:** registering a visitor with an unknown purpose now gives a clear message instead of a server error.
+- **Technical:**
+  - Migration `20261030400000_link_features`:
+    - new links `quotations.opportunityId`, `leads.campaignId`, `employees.departmentId`,
+      `support_tickets.projectId`, `visitors.clientId`;
+    - existing IDs turned into enforced links;
+    - IDs pointing to deleted records are cleared first;
+    - exact matches are filled in (a quotation's deal by name, a deal's contract through its quotation,
+      an employee's department by name).
+  - Every link uses "set empty on delete", so deleting a record never deletes other data.
+  - `prisma/seeds/relationships.ts` fills the links that need a judgement call (lead → campaign of the same
+    kind running at the time, visitor → client by name, ticket → the client's only project or the one
+    named after the product) and reports what stays unlinked. It is safe to run again.
+  - New `backend/src/lib/links.ts`.
+  - The lookups API adds deals (sales, finance and admins only), departments, campaigns and products.
+- **Tested** on a local copy of the database:
+  - 36 API checks: links saved and refused across clients, deal won on acceptance, contract linked on
+    conversion, campaign counts, departments, tickets, visitors;
+  - 15 checks in a real (headless) Edge browser, including the 2px borders.
 
 ## 1.5.0 — 30 October 2026
 

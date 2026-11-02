@@ -296,7 +296,9 @@ model Employee {
   userId           String           @unique
   user             User             @relation(fields: [userId], references: [id])
   employeeCode     String           @unique
-  department       String
+  department       String           // department name, kept in step with departmentId
+  departmentId     String?
+  departmentRef    Department?      @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   position         String
   hireDate         DateTime
   employmentStatus EmploymentStatus @default(ACTIVE)
@@ -403,6 +405,9 @@ model Client {
   portalUsers   User[]         @relation("ClientPortalUsers")
   documents    Document[]
 
+  convertedLeads Lead[]      @relation("LeadClient")
+  visitors       Visitor[]   @relation("VisitorClient")
+
   @@map("clients")
 }
 
@@ -494,9 +499,13 @@ model Opportunity {
   followUpDate       DateTime?
   lostReason         String?
   products           OpportunityProduct[]
-  contractId         String?
+  contractId         String?   // the contract this deal became
+  contract           Contract? @relation(fields: [contractId], references: [id], onDelete: SetNull)
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
+
+  quotations         Quotation[]
+  leads              Lead[]
 
   @@map("opportunities")
 }
@@ -545,6 +554,9 @@ model Contract {
 
   projects Project[]
   invoices Invoice[]
+
+  quotations    Quotation[]
+  opportunities Opportunity[]
 
   @@map("contracts")
 }
@@ -646,6 +658,8 @@ model Project {
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 
+  tickets          SupportTicket[]
+
   @@map("projects")
 }
 
@@ -745,6 +759,8 @@ model IncomeEntry {
   recordedBy   User     @relation("IncomeRecordedBy", fields: [recordedById], references: [id])
   createdAt    DateTime @default(now())
 
+  trainingAttendee TrainingAttendee?
+
   @@map("income_entries")
 }
 
@@ -764,6 +780,9 @@ model ExpenseEntry {
   recordedById   String
   recordedBy     User          @relation("ExpenseRecordedBy", fields: [recordedById], references: [id])
   createdAt      DateTime      @default(now())
+
+  expenseClaim   ExpenseClaim?    @relation("ClaimExpense")
+  purchase       PurchaseRequest? @relation("PurchaseExpense")
 
   @@map("expense_entries")
 }
@@ -788,7 +807,11 @@ model Lead {
   estimatedValue Float          @default(0)
   notes          String?        @db.Text
   clientId       String?        // set when converted
+  client         Client?        @relation("LeadClient", fields: [clientId], references: [id], onDelete: SetNull)
   opportunityId  String?        // set when converted
+  opportunity    Opportunity?   @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+  campaignId     String?        // the marketing campaign that brought the lead
+  campaign       Campaign?      @relation(fields: [campaignId], references: [id], onDelete: SetNull)
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
@@ -823,11 +846,14 @@ model Quotation {
   notes           String?         @db.Text
   assignedToId    String?
   assignedTo      User?           @relation("QuotationAssignedTo", fields: [assignedToId], references: [id])
-  linkedDeal      String?
+  linkedDeal      String?         // name of the deal (kept for display; the link is opportunityId)
+  opportunityId   String?
+  opportunity     Opportunity?    @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
   approvalHistory Json?           // [{ status, action, actor, createdAt }]
   sentAt          DateTime?
   acceptedAt      DateTime?
   contractId      String?         // set when converted to a contract
+  contract        Contract?       @relation(fields: [contractId], references: [id], onDelete: SetNull)
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 
@@ -863,6 +889,8 @@ model SupportTicket {
   ticketNo     String       @unique
   clientId     String
   client       Client       @relation(fields: [clientId], references: [id])
+  projectId    String?      // the project / system the ticket is about
+  project      Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
   subject      String
   description  String       @db.Text
   product      String
@@ -897,6 +925,8 @@ model Department {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  employees   Employee[]
+
   @@map("departments")
 }
 
@@ -908,6 +938,8 @@ model Visitor {
   id               String        @id @default(cuid())
   visitorName      String
   company          String?
+  clientId         String?       // when the visitor comes from a client
+  client           Client?       @relation("VisitorClient", fields: [clientId], references: [id], onDelete: SetNull)
   phone            String?
   email            String?
   idNumber         String?
@@ -1041,6 +1073,8 @@ model Campaign {
   createdBy        User     @relation("CampaignCreatedBy", fields: [createdById], references: [id])
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+
+  leads            Lead[]
 
   @@map("campaigns")
 }
@@ -1199,6 +1233,7 @@ model PurchaseRequest {
   requestDate   DateTime  @default(now())
   deliveredAt   DateTime?
   expenseId     String?   @unique // expense booked on delivery
+  expense       ExpenseEntry? @relation("PurchaseExpense", fields: [expenseId], references: [id], onDelete: SetNull)
   // Supplier and purchase order (supplier portal)
   supplierId            String?
   vendor                Supplier? @relation(fields: [supplierId], references: [id])
@@ -1259,6 +1294,7 @@ model TrainingAttendee {
   feePaid           Boolean         @default(false)
   feeAmount         Float           @default(0)
   incomeId          String?         @unique // income booked when the fee is paid
+  income            IncomeEntry?    @relation(fields: [incomeId], references: [id], onDelete: SetNull)
   createdAt         DateTime        @default(now())
 
   @@map("training_attendees")
@@ -1353,6 +1389,7 @@ model ExpenseClaim {
   rejectedByName  String?
   rejectionReason String?
   expenseId       String?   @unique // the Finance expense booked on final approval
+  expense         ExpenseEntry? @relation("ClaimExpense", fields: [expenseId], references: [id], onDelete: SetNull)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 

@@ -78,11 +78,16 @@
   }
 }
 
-/* ── Card styles — clearly visible against the background ── */
+/* ── Card styles — clearly visible against the background ──
+   Every card and grid tile on every page has the same 2px border (--card-border),
+   so the grids stand out from the page background. */
+:root {
+  --card-border: #cfd8ea;
+}
 @layer components {
   .bms-card {
     @apply bg-white rounded-xl shadow-sm;
-    border: 1.5px solid #dde3f0;
+    border: 2px solid var(--card-border);
   }
 
   .bms-card-hover {
@@ -92,7 +97,7 @@
   /* Stronger card shadow for dashboard KPI cards */
   .kpi-card {
     @apply bg-white rounded-xl;
-    border: 1.5px solid #dde3f0;
+    border: 2px solid var(--card-border);
     box-shadow: 0 2px 8px rgba(26, 42, 108, 0.08);
   }
 
