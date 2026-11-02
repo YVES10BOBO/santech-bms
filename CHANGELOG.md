@@ -11,6 +11,7 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 
 | Version | Date (2026) | Highlights |
 |---|---|---|
+| **1.7.0** | 2 Nov | Email, SMS and WhatsApp ready to switch on (Brevo or Gmail, Twilio): notification emails, portal login emails, payment reminders, "send it now" in the communication log, test mode, message log |
 | **1.6.0** | 2 Nov | Features linked together (deal ↔ quotation ↔ contract, leads ↔ campaigns, employees ↔ departments, tickets ↔ projects, visitors ↔ clients, catalogue lines), lost-deal reasons, 2px card borders, Santech logo, full-width Roles & Permissions page |
 | **1.5.0** | 30 Oct | Customer portal and supplier portal, suppliers and purchase orders |
 | **1.4.0** | 30 Oct | Proforma invoices, credit notes, recurring service invoices, multiple currencies with exchange rates, contract and quotation version history |
@@ -23,6 +24,65 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 | **0.1.0** | 11–13 Oct | Foundation: first pages, backend skeleton, hosting on Vercel, Render and Neon |
 
 ---
+
+## 1.7.0 — 2 November 2026
+
+### Email, SMS and WhatsApp — ready to switch on (2 Nov)
+- **What:** the system can now send email, SMS and WhatsApp. It needs only the provider keys in the
+  backend settings; nothing else changes. Without keys it works exactly as before, and each message it
+  would have sent is recorded in the message log as "Not set up".
+- **Where to see it:** Settings → **Email & SMS** (admins). It shows:
+  - which channels are connected (provider and sender address, never the keys);
+  - who receives messages: test mode or live, the test list, and the two email switches;
+  - "Send a test";
+  - "How to connect", step by step;
+  - the **message log**: every message, sent or not, with filters and the reason when one failed.
+- **Test mode, on by default:**
+  - Only the emails and phone numbers on the test list receive anything. Every other message is
+    **held**: listed in the log, not sent.
+  - This stops demo data (staff `@santech.rw` addresses, client company emails) from reaching real
+    people.
+  - Switching to Live asks for confirmation first.
+- **What gets sent:**
+  - **Staff notifications by email.** Every new in-app notification is also emailed to the person:
+    ticket assigned, approvals, expense claims, leave, quotation accepted, and so on. The email has a
+    button to the page. It can be switched off.
+  - **Daily reminders stay in-app only.** These are due invoices, deadlines and renewals; they are
+    made when the bell is opened, so emailing them would mean odd timing and repeats.
+  - **Portal updates by email to customers and suppliers:** new quotation, invoice, proforma or credit
+    note, contract active, document shared, ticket reply, purchase order. This can also be switched off.
+  - **Portal logins:** when a customer or supplier login is created, or its password is reset, the
+    sign-in details are emailed to them. A tick box allows turning this off for one login.
+  - **Payment reminders:** a new **Remind client** button on unpaid invoices (Finance → Invoices) sends
+    by email, SMS or WhatsApp to the client's contact. It is filled in from the client's details and
+    can be edited. When it is sent, it is also added to the client's communication history.
+  - **Communication log:** an outgoing Email, SMS or WhatsApp entry has a **"Send it now"** box, with the
+    client's email or phone filled in. The message really goes out and is only logged if it was sent.
+    Email replies go to the staff member who wrote it.
+- **Providers:**
+  - Email through **Brevo** (recommended; free for 300 a day; works on Render) or any **SMTP** server
+    such as Gmail with an app password. Render's free plan blocks SMTP, so SMTP is for local use.
+  - SMS and WhatsApp through **Twilio**.
+  - Rwandan numbers written as `07…` become `+2507…`.
+- **Technical:**
+  - New table `message_logs` (migration `20261102100000_message_log`).
+  - New `backend/src/lib/messaging.ts` holds the providers, test mode, the email layout and `deliver()`,
+    which never throws.
+  - New `messagingController.ts` serves the settings, test and log endpoints and the invoice reminder.
+  - `notify()` emails new notifications in the background, so requests never wait for it. The reminder
+    engine passes `email: false`.
+  - New endpoints:
+    - `GET/PUT /api/settings/messaging`
+    - `POST /api/settings/messaging/test`
+    - `GET /api/settings/messaging/log`
+    - `POST /api/finance/invoices/:id/remind`
+  - `POST /api/communications` accepts `send` and `to`.
+  - Portal login endpoints accept `sendEmail`.
+  - The client dropdown data now includes the contact email and phone.
+  - The settings are stored in the `settings` table under the key `messaging`.
+  - `.env.example` lists every key with where to get it.
+- **Tested** with local stand-ins for Brevo, Twilio and an SMTP server: 51 API checks (sent, held,
+  failed, not set up, test mode, live mode, permissions, no keys in any response) and 18 browser checks.
 
 ## 1.6.0 — 2 November 2026
 

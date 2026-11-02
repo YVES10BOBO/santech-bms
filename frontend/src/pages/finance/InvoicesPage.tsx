@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useSearchFromUrl } from '@/lib/useSearchFromUrl'
-import { Plus, Search, X, AlertCircle, CheckCircle2, Clock, DollarSign, Download, Repeat, FileMinus, ArrowRightLeft, Send, Ban, RefreshCw } from 'lucide-react'
+import { Plus, Search, X, AlertCircle, CheckCircle2, Clock, DollarSign, Download, Repeat, FileMinus, ArrowRightLeft, Send, Ban, RefreshCw, BellRing } from 'lucide-react'
 import { cn, formatDate, formatCurrency } from '@/lib/utils'
 import { financeService } from '@/lib/services/financeService'
 import { useLookups, apiError } from '@/lib/services/lookupService'
@@ -17,6 +17,7 @@ interface Invoice {
   id: string
   type: InvoiceType
   invoiceNumber: string
+  clientId: string
   clientName: string
   contractNumber: string
   projectName: string
@@ -74,6 +75,7 @@ const toInvoice = (inv: any): Invoice => ({
   id: inv.id,
   type: inv.type ?? 'INVOICE',
   invoiceNumber: inv.invoiceNumber,
+  clientId: inv.clientId ?? inv.client?.id ?? '',
   clientName: inv.client ? inv.client.companyName || inv.client.fullName || inv.client.teamName || inv.client.delegationName || '' : '',
   contractNumber: inv.contract?.contractNumber ?? '',
   projectName: inv.project?.name ?? inv.contract?.projectName ?? '',
@@ -132,6 +134,9 @@ export default function InvoicesPage() {
   const [creditFor, setCreditFor] = useState<Invoice | null>(null)
   const [creditForm, setCreditForm] = useState({ amount: '', reason: '' })
   const [convertFor, setConvertFor] = useState<Invoice | null>(null)
+  // payment reminder to the client (email / SMS / WhatsApp)
+  const [remindFor, setRemindFor] = useState<Invoice | null>(null)
+  const [remind, setRemind] = useState<{ channel: 'EMAIL' | 'SMS' | 'WHATSAPP'; to: string }>({ channel: 'EMAIL', to: '' })
   const [convertDue, setConvertDue] = useState(inDays(14))
   const [viewId, setViewId] = useState<string | null>(null)
   const [error, setError] = useState('')
@@ -254,6 +259,22 @@ export default function InvoicesPage() {
   }
 
   const raiseRecurring = () => act(() => financeService.raiseRecurring(), 'Failed to raise service invoices')
+
+  // the client's contact email or phone for the chosen channel
+  const remindTo = (inv: Invoice, channel: 'EMAIL' | 'SMS' | 'WHATSAPP') => {
+    const c = lookups.clients.find(x => x.id === inv.clientId)
+    return !c ? '' : channel === 'EMAIL' ? c.email : c.contactPhone
+  }
+  const openRemind = (inv: Invoice) => { setRemindFor(inv); setRemind({ channel: 'EMAIL', to: remindTo(inv, 'EMAIL') }) }
+  const sendRemind = async () => {
+    if (!remindFor) return
+    setSaving(true)
+    try {
+      const r = await financeService.remind(remindFor.id, remind.channel, remind.to.trim() || undefined)
+      toast.success(r.message, { duration: 6000 })
+      setRemindFor(null)
+    } catch (err) { toast.error(apiError(err, 'Failed to send the reminder'), { duration: 7000 }) } finally { setSaving(false) }
+  }
 
   const pdf = (inv: Invoice) => printDocument({
     kind: inv.type === 'INVOICE' ? 'INVOICE' : inv.type,
@@ -500,6 +521,9 @@ export default function InvoicesPage() {
               {canPay(viewInvoice) && (
                 <button onClick={() => { setPayFor(viewInvoice); setPayForm(p => ({ ...p, amount: String(Math.round(balanceOf(viewInvoice) * 100) / 100) })) }} className="flex items-center gap-1.5 px-3 py-2 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700"><DollarSign className="w-3.5 h-3.5" /> Record payment</button>
               )}
+              {canPay(viewInvoice) && (
+                <button onClick={() => openRemind(viewInvoice)} className="flex items-center gap-1.5 px-3 py-2 border border-amber-200 text-amber-700 rounded-lg text-xs font-medium hover:bg-amber-50"><BellRing className="w-3.5 h-3.5" /> Remind client</button>
+              )}
               {canCredit(viewInvoice) && (
                 <button onClick={() => { setCreditFor(viewInvoice); setCreditForm({ amount: '', reason: '' }) }} className="flex items-center gap-1.5 px-3 py-2 border border-teal-200 text-teal-700 rounded-lg text-xs font-medium hover:bg-teal-50"><FileMinus className="w-3.5 h-3.5" /> Issue credit note</button>
               )}
@@ -509,6 +533,42 @@ export default function InvoicesPage() {
               {canCancel(viewInvoice) && (
                 <button onClick={() => setStatus(viewInvoice, 'CANCELLED', 'cancelled')} disabled={saving} className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-50 disabled:opacity-50"><Ban className="w-3.5 h-3.5" /> Cancel</button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payment reminder */}
+      {remindFor && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+            <div className="flex items-center justify-between px-5 py-4 border-b">
+              <h2 className="font-semibold text-gray-800 flex items-center gap-2"><BellRing className="w-4 h-4 text-amber-600" /> Remind {remindFor.clientName}</h2>
+              <button onClick={() => setRemindFor(null)} aria-label="Close"><X className="w-5 h-5 text-gray-400" /></button>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <p className="text-sm text-gray-600">
+                {remindFor.invoiceNumber}: {money(balanceOf(remindFor), remindFor.currency)} still to pay, due {formatDate(remindFor.dueDate)}.
+              </p>
+              <div className="flex gap-1.5" role="radiogroup" aria-label="Send by">
+                {(['EMAIL', 'SMS', 'WHATSAPP'] as const).map(ch => (
+                  <button key={ch} type="button" role="radio" aria-checked={remind.channel === ch}
+                    onClick={() => setRemind({ channel: ch, to: remindTo(remindFor, ch) })}
+                    className={cn('flex-1 py-1.5 rounded-lg text-xs font-medium border', remind.channel === ch ? 'bg-santech-600 text-white border-santech-600' : 'border-gray-200 text-gray-600 hover:bg-gray-50')}>
+                    {ch === 'EMAIL' ? 'Email' : ch === 'SMS' ? 'SMS' : 'WhatsApp'}
+                  </button>
+                ))}
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Send to</label>
+                <input value={remind.to} onChange={e => setRemind(r => ({ ...r, to: e.target.value }))} className={inputCls}
+                  placeholder={remind.channel === 'EMAIL' ? 'Client email' : 'Client phone (+250…)'} aria-label="Send to" />
+                <p className="text-[11px] text-gray-400 mt-1">From the client's contact details. When it is sent, it is also added to the client's communication history.</p>
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button type="button" onClick={() => setRemindFor(null)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600">Cancel</button>
+                <button type="button" onClick={sendRemind} disabled={saving || !remind.to.trim()} className="flex-1 py-2 bg-santech-600 text-white rounded-lg text-sm font-medium hover:bg-santech-700 disabled:opacity-50">{saving ? 'Sending…' : 'Send reminder'}</button>
+              </div>
             </div>
           </div>
         </div>

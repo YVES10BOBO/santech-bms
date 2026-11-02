@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import api from '../api'
 
 export interface Lookups {
-  clients: { id: string; name: string; category: string; contactName: string; phone: string }[]
+  /** email / contactPhone: where messages go (contact person first, else the company's own) */
+  clients: { id: string; name: string; category: string; contactName: string; phone: string; email: string; contactPhone: string }[]
   users: { id: string; name: string; role: string }[]
   contracts: { id: string; contractNumber: string; clientId: string; projectName: string | null; value: number; status: string }[]
   projects: { id: string; name: string; clientId: string; contractId: string | null; contractValue: number; budget: number; warrantyEndDate: string | null }[]

@@ -7,6 +7,7 @@ import { logAudit } from '../lib/audit'
 import { notify } from '../lib/notifications'
 import { ADMINS, hasRole } from '../lib/roles'
 import type { AuthRequest } from '../middleware/auth'
+import { deliver, deliveryMessage, type Delivery, type Channel } from '../lib/messaging'
 
 const fail = (res: Response, error: unknown, where: string) => {
   console.error(`${where} error:`, error)
@@ -16,6 +17,8 @@ const userName = { select: { id: true, firstName: true, lastName: true } }
 const clientName = { select: { id: true, companyName: true } }
 
 const COMM_TYPES = ['CALL', 'EMAIL', 'WHATSAPP', 'SMS', 'MEETING', 'NOTE', 'STATUS_CHANGE']
+/** types that can really be sent from the log */
+const SENDABLE: Channel[] = ['EMAIL', 'SMS', 'WHATSAPP']
 const MEETING_TYPES = ['CLIENT_MEETING', 'PROJECT_MEETING', 'INTERNAL', 'SALES_MEETING', 'CONTRACT_MEETING', 'TRAINING']
 const MEETING_STATUSES = ['SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'POSTPONED']
 
@@ -40,12 +43,26 @@ export async function createCommunication(req: AuthRequest, res: Response): Prom
     if (!COMM_TYPES.includes(b.type) || !b.subject || !b.dateTime) {
       res.status(400).json({ success: false, message: 'Type, subject and date are required' }); return
     }
+    // "Send it now": an outgoing email / SMS / WhatsApp is really sent first, and only logged if it went
+    let delivery: Delivery | null = null
+    if (b.send && SENDABLE.includes(b.type) && b.direction !== 'INBOUND') {
+      if (!String(b.to ?? '').trim()) { res.status(400).json({ success: false, message: b.type === 'EMAIL' ? 'Enter the email address to send to' : 'Enter the phone number to send to' }); return }
+      if (b.type !== 'EMAIL' && !String(b.summary ?? '').trim()) { res.status(400).json({ success: false, message: 'Write the message to send' }); return }
+      const me = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { email: true } })
+      delivery = await deliver({
+        channel: b.type, to: String(b.to), subject: b.subject, text: String(b.summary ?? '').trim() || b.subject,
+        event: 'communication', createdById: req.user!.id, replyTo: me?.email,
+      })
+      if (delivery.status !== 'SENT') {
+        res.status(delivery.status === 'FAILED' ? 502 : 409).json({ success: false, message: `${deliveryMessage(delivery)}. Untick "Send it now" to only log it.` }); return
+      }
+    }
     const c = await prisma.communication.create({
       data: {
         type: b.type, direction: ['INBOUND', 'OUTBOUND'].includes(b.direction) ? b.direction : null,
         clientId: b.clientId || null, company: b.company || null, contactName: b.contactName || null,
         dateTime: new Date(b.dateTime), duration: b.duration ? parseInt(b.duration) : null,
-        subject: b.subject, summary: b.summary || '', linkedTo: b.linkedTo || null,
+        subject: b.subject, summary: delivery ? `Sent to ${delivery.to}.\n\n${b.summary || ''}`.trim() : b.summary || '', linkedTo: b.linkedTo || null,
         followUpNeeded: !!b.followUpNeeded && !!b.followUpDate, followUpDate: b.followUpNeeded && b.followUpDate ? new Date(b.followUpDate) : null,
         loggedById: req.user!.id,
       },
@@ -56,7 +73,7 @@ export async function createCommunication(req: AuthRequest, res: Response): Prom
       description: `Logged ${c.type.toLowerCase()} with ${c.client?.companyName ?? c.company ?? 'contact'}: ${c.subject}`,
       newValue: { type: c.type, followUpDate: c.followUpDate?.toISOString().slice(0, 10) ?? null },
     })
-    res.status(201).json({ success: true, data: c, message: 'Interaction logged' })
+    res.status(201).json({ success: true, data: c, message: delivery ? `${deliveryMessage(delivery)} and logged` : 'Interaction logged' })
   } catch (e) { fail(res, e, 'createCommunication') }
 }
 

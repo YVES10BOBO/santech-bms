@@ -9,6 +9,7 @@ import prisma from '../lib/prisma'
 import { logAudit } from '../lib/audit'
 import { ADMINS, FINANCE, hasRole } from '../lib/roles'
 import { tempPassword } from '../lib/portal'
+import { deliver, deliveryMessage, appUrl, type Delivery } from '../lib/messaging'
 import type { AuthRequest } from '../middleware/auth'
 
 const fail = (res: Response, e: unknown, where: string) => {
@@ -20,6 +21,26 @@ export const SUPPLIER_MANAGERS: UserRole[] = FINANCE
 const SUPPLIER_CATEGORIES = ['IT_EQUIPMENT', 'OFFICE_SUPPLIES', 'HARDWARE', 'SOFTWARE', 'SERVICES', 'OTHER']
 const userSelect = { id: true, firstName: true, lastName: true, email: true, phone: true, isActive: true, lastLoginAt: true, createdAt: true, role: true }
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+/** Emails a portal login its sign-in details (new login or new temporary password) */
+async function emailLoginDetails(req: AuthRequest, u: { id: string; firstName: string; email: string }, role: 'CUSTOMER' | 'SUPPLIER', ownerName: string, password: string, isReset: boolean): Promise<Delivery> {
+  const portal = role === 'CUSTOMER' ? 'Customer Portal' : 'Supplier Portal'
+  const what = role === 'CUSTOMER'
+    ? 'your quotations (and accept them), invoices, contracts, projects, support tickets and shared documents'
+    : 'the purchase orders we place with you: confirm them, mark them dispatched and send your invoices'
+  const text = [
+    `Hello ${u.firstName},`,
+    isReset
+      ? `A new temporary password was created for your Santech ${portal} login (${ownerName}).`
+      : `You now have a login to the Santech ${portal} for ${ownerName}. There you can see ${what}.`,
+    `Sign in at: ${appUrl('/login')}\nEmail: ${u.email}\nTemporary password: ${password}`,
+    'Please change the password after you sign in (Account tab).',
+  ].join('\n\n')
+  return deliver({
+    channel: 'EMAIL', to: u.email, subject: isReset ? `Your new Santech ${portal} password` : `Your Santech ${portal} login`,
+    text, link: '/login', event: 'portal-login', userId: u.id, createdById: req.user!.id,
+  })
+}
 
 /** Creates a portal login and returns it with a temporary password (shown once) */
 async function createLogin(req: AuthRequest, res: Response, role: 'CUSTOMER' | 'SUPPLIER', link: { clientId?: string; supplierId?: string }, ownerName: string) {
@@ -39,9 +60,13 @@ async function createLogin(req: AuthRequest, res: Response, role: 'CUSTOMER' | '
     description: `Created ${role === 'CUSTOMER' ? 'customer' : 'supplier'} portal login for ${firstName} ${lastName} (${email}) — ${ownerName}`,
     newValue: { email, role, [role === 'CUSTOMER' ? 'client' : 'supplier']: ownerName },
   })
+  // the sign-in details go by email unless the staff member unticked it
+  const emailed = b.sendEmail === false ? null : await emailLoginDetails(req, user, role, ownerName, password, false)
   res.status(201).json({
-    success: true, data: { user, tempPassword: password },
-    message: `Portal login created for ${firstName}. Share the email and temporary password with them; they can change it under Account.`,
+    success: true, data: { user, tempPassword: password, emailStatus: emailed?.status ?? null },
+    message: emailed?.status === 'SENT'
+      ? `Portal login created for ${firstName}. ${deliveryMessage(emailed)}.`
+      : `Portal login created for ${firstName}. Share the email and temporary password with them; they can change it under Account.${emailed ? ` (${deliveryMessage(emailed)})` : ''}`,
   })
 }
 
@@ -133,9 +158,19 @@ export async function updatePortalUser(req: AuthRequest, res: Response): Promise
     const updated = await prisma.user.update({ where: { id: u.id }, data, select: userSelect })
     const what = password ? 'Reset the password of' : data.isActive ? 'Re-enabled' : 'Disabled'
     await logAudit(req, { action: 'UPDATE', entity: 'User', entityId: u.id, entityName: `${u.firstName} ${u.lastName}`, description: `${what} portal login ${u.email}` })
+    let emailed: Delivery | null = null
+    if (password && b.sendEmail !== false) {
+      const owner = u.clientId
+        ? await prisma.client.findUnique({ where: { id: u.clientId }, select: { companyName: true, fullName: true, teamName: true, delegationName: true } })
+        : u.supplierId ? await prisma.supplier.findUnique({ where: { id: u.supplierId }, select: { name: true } }) : null
+      const ownerName = owner ? ('name' in owner ? owner.name : owner.companyName || owner.fullName || owner.teamName || owner.delegationName) ?? '' : ''
+      emailed = await emailLoginDetails(req, u, u.role as 'CUSTOMER' | 'SUPPLIER', ownerName, password, true)
+    }
     res.json({
-      success: true, data: { user: updated, ...(password && { tempPassword: password }) },
-      message: password ? 'New temporary password created — share it with them' : data.isActive ? 'Portal login enabled' : 'Portal login disabled — they can no longer sign in',
+      success: true, data: { user: updated, ...(password && { tempPassword: password, emailStatus: emailed?.status ?? null }) },
+      message: password
+        ? emailed?.status === 'SENT' ? `New temporary password created. ${deliveryMessage(emailed)}.` : `New temporary password created — share it with them${emailed ? ` (${deliveryMessage(emailed)})` : ''}`
+        : data.isActive ? 'Portal login enabled' : 'Portal login disabled — they can no longer sign in',
     })
   } catch (e) { fail(res, e, 'updatePortalUser') }
 }

@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { getExpenseClaims, createExpenseClaim, approveExpenseClaim, rejectExpenseClaim } from '../controllers/expenseClaimsController'
 import { authenticate, authorize } from '../middleware/auth'
 import { getExchangeRates, saveExchangeRates, getVersions } from '../controllers/billingController'
+import { getMessaging, saveMessaging, sendTestMessage, getMessageLog } from '../controllers/messagingController'
 import { ADMINS, SALES } from '../lib/roles'
 import { getLeads, createLead, updateLead, advanceLead, convertLead, deleteLead } from '../controllers/leadsController'
 import { getQuotations, createQuotation, updateQuotation, advanceQuotation, rejectQuotation, convertQuotation } from '../controllers/quotationsController'
@@ -146,6 +147,12 @@ router.put('/settings/company', authorize(...ADMINS), saveCompany)
 router.get('/settings/exchange-rates', getExchangeRates)
 router.put('/settings/exchange-rates', authorize(...FINANCE), saveExchangeRates)
 router.get('/versions/:entity/:id', getVersions)
+
+// Email & SMS (admins): what is set up, test mode, test message, log of every message
+router.get('/settings/messaging', authorize(...ADMINS), getMessaging)
+router.put('/settings/messaging', authorize(...ADMINS), saveMessaging)
+router.post('/settings/messaging/test', authorize(...ADMINS), sendTestMessage)
+router.get('/settings/messaging/log', authorize(...ADMINS), getMessageLog)
 
 // Notifications for the logged-in user
 router.get('/notifications', getNotifications)

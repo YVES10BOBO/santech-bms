@@ -18,7 +18,9 @@ export default function PortalLogins({ kind, ownerId, ownerName, initial, compac
   const [logins, setLogins] = useState<Login[] | null>(initial ?? null)
   const [adding, setAdding] = useState(false)
   const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '' })
-  const [secret, setSecret] = useState<{ email: string; password: string } | null>(null)
+  const [secret, setSecret] = useState<{ email: string; password: string; emailed: boolean } | null>(null)
+  // email the sign-in details to the new login (Settings → Email & SMS decides if it really goes out)
+  const [sendEmail, setSendEmail] = useState(true)
   const [busy, setBusy] = useState(false)
   const portalUrl = `${window.location.origin}/login`
 
@@ -33,9 +35,10 @@ export default function PortalLogins({ kind, ownerId, ownerName, initial, compac
     e.preventDefault()
     setBusy(true)
     try {
-      const r: any = kind === 'client' ? await portalAdminService.createClientUser(ownerId, form) : await portalAdminService.createSupplierUser(ownerId, form)
+      const body = { ...form, sendEmail }
+      const r: any = kind === 'client' ? await portalAdminService.createClientUser(ownerId, body) : await portalAdminService.createSupplierUser(ownerId, body)
       setLogins(l => [...(l ?? []), r.data.user])
-      setSecret({ email: r.data.user.email, password: r.data.tempPassword })
+      setSecret({ email: r.data.user.email, password: r.data.tempPassword, emailed: r.data.emailStatus === 'SENT' })
       setAdding(false)
       setForm({ firstName: '', lastName: '', email: '', phone: '' })
       toast.success(r.message, { duration: 6000 })
@@ -48,8 +51,8 @@ export default function PortalLogins({ kind, ownerId, ownerName, initial, compac
     try {
       const r: any = await portalAdminService.updateUser(u.id, body)
       setLogins(l => l?.map(x => (x.id === u.id ? { ...x, ...r.data.user } : x)) ?? null)
-      if (r.data.tempPassword) setSecret({ email: u.email, password: r.data.tempPassword })
-      toast.success(r.message)
+      if (r.data.tempPassword) setSecret({ email: u.email, password: r.data.tempPassword, emailed: r.data.emailStatus === 'SENT' })
+      toast.success(r.message, { duration: 6000 })
     } catch (err) { toast.error(apiError(err, 'Failed')) } finally { setBusy(false) }
   }
 
@@ -92,6 +95,10 @@ export default function PortalLogins({ kind, ownerId, ownerName, initial, compac
           </div>
           <input className={input} type="email" placeholder="Email (their sign-in)" aria-label="Email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
           <input className={input} placeholder="Phone (optional)" aria-label="Phone" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} />
+          <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
+            <input type="checkbox" className="accent-santech-600" checked={sendEmail} onChange={e => setSendEmail(e.target.checked)} />
+            Email the sign-in details to them
+          </label>
           <div className="flex gap-2">
             <button type="button" onClick={() => setAdding(false)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600">Cancel</button>
             <button disabled={busy} className="flex-1 py-2 bg-santech-600 text-white rounded-lg text-sm font-medium hover:bg-santech-700 disabled:opacity-50">Create login</button>
@@ -101,7 +108,7 @@ export default function PortalLogins({ kind, ownerId, ownerName, initial, compac
       {secret && (
         <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 space-y-1.5">
           <div className="flex items-start justify-between gap-2">
-            <p className="font-semibold">Share these sign-in details (shown only now)</p>
+            <p className="font-semibold">{secret.emailed ? 'Emailed to them. The details, shown only now:' : 'Share these sign-in details (shown only now)'}</p>
             <button onClick={() => setSecret(null)} aria-label="Hide"><X className="w-4 h-4" /></button>
           </div>
           <p>Address: <b>{portalUrl}</b></p>

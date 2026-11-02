@@ -90,7 +90,13 @@ const emptyForm = {
   linkedTo: '',
   followUpNeeded: false,
   followUpDate: '',
+  /** really send it (email / SMS / WhatsApp, outbound) before logging */
+  send: false,
+  to: '',
 }
+
+/** types that can really be sent from here */
+const SENDABLE: CommType[] = ['EMAIL', 'SMS', 'WHATSAPP']
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -148,11 +154,24 @@ export default function CommunicationPage() {
   const paginated  = rowsPerPage === 'All' ? filtered : filtered.slice((page - 1) * rowsPerPage, page * rowsPerPage)
 
   // ── Form handlers ──
+  // where a sent message goes: the client's contact email / phone, until the user types another
+  const [toTouched, setToTouched] = useState(false)
+  const defaultTo = (type: CommType, clientId: string) => {
+    const c = lookups.clients.find(x => x.id === clientId)
+    return !c ? '' : type === 'EMAIL' ? c.email : c.contactPhone
+  }
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target
     const checked = type === 'checkbox' ? (e.target as HTMLInputElement).checked : undefined
-    setForm(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }))
+    if (name === 'to') setToTouched(true)
+    setForm(prev => {
+      const next = { ...prev, [name]: type === 'checkbox' ? checked : value }
+      if ((name === 'type' || name === 'clientId' || name === 'send') && !toTouched) next.to = defaultTo(next.type, next.clientId)
+      return next
+    })
   }
+  const canSend = SENDABLE.includes(form.type) && form.direction !== 'INBOUND'
+  const sending = canSend && form.send
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -168,13 +187,14 @@ export default function CommunicationPage() {
         duration: form.type === 'CALL' && form.duration ? Number(form.duration) : undefined,
         subject: form.subject, summary: form.summary, linkedTo: form.linkedTo || undefined,
         followUpNeeded: form.followUpNeeded, followUpDate: form.followUpNeeded ? form.followUpDate : undefined,
+        ...(sending && { send: true, to: form.to }),
       })
       setLogs(prev => [toLog(res.data), ...prev])
-      toast.success(res.message)
+      toast.success(res.message, { duration: sending ? 6000 : 4000 })
       setShowModal(false)
       setForm(emptyForm)
     } catch (err) {
-      toast.error(apiError(err, 'Failed to save'))
+      toast.error(apiError(err, 'Failed to save'), { duration: 7000 })
     } finally {
       setSaving(false)
     }
@@ -203,7 +223,7 @@ export default function CommunicationPage() {
           <p className="text-gray-500 text-sm mt-0.5">Track all client interactions — calls, emails, meetings and notes</p>
         </div>
         <button
-          onClick={() => { setShowModal(true); setForm(emptyForm) }}
+          onClick={() => { setShowModal(true); setForm(emptyForm); setToTouched(false) }}
           className="flex items-center gap-2 px-4 py-2 bg-santech-600 text-white rounded-lg text-sm font-medium hover:bg-santech-700 transition-colors"
         >
           <Plus className="w-4 h-4" /> Log Communication
@@ -424,11 +444,32 @@ export default function CommunicationPage() {
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500" />
               </div>
 
+              {/* Send it now — outgoing email / SMS / WhatsApp */}
+              {canSend && (
+                <div className="rounded-lg border border-santech-100 bg-santech-50/50 p-3 space-y-2">
+                  <label className="flex items-center gap-2 text-sm font-medium text-gray-800 cursor-pointer">
+                    <input name="send" type="checkbox" checked={form.send} onChange={handleChange} className="w-4 h-4 accent-santech-600" />
+                    Send it now by {TYPE_CONFIG[form.type].label}
+                  </label>
+                  {form.send && (
+                    <>
+                      <input name="to" value={form.to} onChange={handleChange} aria-label="Send to"
+                        placeholder={form.type === 'EMAIL' ? 'Email address' : 'Phone number (+250…)'}
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500" />
+                      <p className="text-[11px] text-gray-500">
+                        {form.type === 'EMAIL' ? 'The subject is the email subject and the message below is its text. Replies come to your own email.' : 'The message below is what they receive.'}
+                        {' '}It is only logged if it was really sent.
+                      </p>
+                    </>
+                  )}
+                </div>
+              )}
+
               {/* Summary / Notes */}
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Summary / Notes</label>
-                <textarea name="summary" value={form.summary} onChange={handleChange} rows={3}
-                  placeholder="Describe what was discussed..."
+                <label className="block text-xs font-medium text-gray-700 mb-1">{sending ? 'Message *' : 'Summary / Notes'}</label>
+                <textarea name="summary" value={form.summary} onChange={handleChange} rows={sending ? 5 : 3}
+                  placeholder={sending ? 'Write the message to send…' : 'Describe what was discussed...'}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500 resize-none" />
               </div>
 
@@ -463,7 +504,7 @@ export default function CommunicationPage() {
                 </button>
                 <button type="submit" disabled={saving}
                   className="flex-1 py-2.5 bg-santech-600 text-white rounded-lg text-sm hover:bg-santech-700 font-medium disabled:opacity-50">
-                  {saving ? 'Saving…' : 'Save'}
+                  {saving ? (sending ? 'Sending…' : 'Saving…') : sending ? 'Send & log' : 'Save'}
                 </button>
               </div>
             </form>

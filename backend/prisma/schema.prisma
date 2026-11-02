@@ -1322,6 +1322,32 @@ model KnowledgeArticle {
 }
 
 // ===========================
+// OUTGOING EMAIL / SMS / WHATSAPP (every attempt, sent or not)
+// ===========================
+
+/// One row per message the system tried to send. status: SENT, FAILED, HELD (test mode),
+/// NOT_CONFIGURED (no provider keys yet). channel: EMAIL, SMS, WHATSAPP.
+model MessageLog {
+  id          String   @id @default(cuid())
+  channel     String
+  to          String
+  subject     String?
+  body        String
+  status      String
+  provider    String?
+  error       String?
+  /// what caused it: notification, portal-login, invoice-reminder, communication, test
+  event       String?
+  link        String?
+  userId      String?
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+  @@map("message_logs")
+}
+
+// ===========================
 // COMPANY SETTINGS (single record per key)
 // ===========================
 

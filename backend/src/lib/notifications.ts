@@ -2,6 +2,7 @@ import type { UserRole } from '@prisma/client'
 import prisma from './prisma'
 import { FINANCE, ADMINS, SALES, PROJECT_LEADS, hasRole } from './roles'
 import { toRwf } from './currency'
+import { emailNotification } from './messaging'
 
 export type NotificationType = 'PAYMENT_DUE' | 'OVERDUE' | 'CONTRACT_EXPIRY' | 'FOLLOW_UP' | 'TASK_DEADLINE' | 'SYSTEM'
 
@@ -12,20 +13,32 @@ interface NewNotification {
   link?: string
   /** Same key for the same user is only stored once */
   key?: string
+  /**
+   * Also email it (default). Only when it is new, and only if emailing is switched on for staff or
+   * portal logins in Settings → Email & SMS. The reminder engine below passes false: in-app only.
+   */
+  email?: boolean
 }
 
-/** Sends an in-app notification to one user. Never throws. */
+/** Sends an in-app notification to one user (and emails it, see `email`). Never throws. */
 export async function notify(userId: string, n: NewNotification): Promise<void> {
   try {
-    if (n.key) {
-      await prisma.notification.upsert({
-        where: { userId_key: { userId, key: n.key } },
-        update: {},
-        create: { userId, ...n },
-      })
+    const { email = true, ...data } = n
+    let isNew = true
+    if (data.key) {
+      const exists = await prisma.notification.findUnique({ where: { userId_key: { userId, key: data.key } }, select: { id: true } })
+      if (exists) isNew = false
+      else {
+        await prisma.notification.create({ data: { userId, ...data } }).catch((e: { code?: string }) => {
+          if (e?.code === 'P2002') isNew = false // created at the same moment by another request
+          else throw e
+        })
+      }
     } else {
-      await prisma.notification.create({ data: { userId, ...n } })
+      await prisma.notification.create({ data: { userId, ...data } })
     }
+    // not awaited: sending must never slow down or break the request that caused it
+    if (isNew && email) void emailNotification(userId, data)
   } catch (err) {
     console.error('Notification failed:', err)
   }
@@ -50,6 +63,8 @@ export async function generateReminders(userId: string, role: UserRole): Promise
   const now = new Date()
   const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
   const jobs: Promise<void>[] = []
+  // reminders are made when the user opens notifications, so they stay in-app (no email)
+  const remind = (uid: string, n: NewNotification) => notify(uid, { ...n, email: false })
 
   // Finance: overdue and soon-due invoices
   if (hasRole(role, FINANCE)) {
@@ -64,7 +79,7 @@ export async function generateReminders(userId: string, role: UserRole): Promise
         // One reminder per overdue stage (1, 7, 14, 30 days) as in the spec
         const stage = [30, 14, 7, 1].find(s => -days >= s)
         if (stage) {
-          jobs.push(notify(userId, {
+          jobs.push(remind(userId, {
             type: 'OVERDUE', title: 'Invoice Overdue', link: '/finance/invoices', key: `inv-overdue-${inv.id}-${stage}`,
             description: `${inv.client.companyName ?? 'Client'} invoice ${inv.invoiceNumber} is overdue by ${-days} day${-days === 1 ? '' : 's'} — ${rwf(balance)} outstanding`,
           }))
@@ -72,7 +87,7 @@ export async function generateReminders(userId: string, role: UserRole): Promise
         if (inv.status !== 'OVERDUE') jobs.push(prisma.invoice.update({ where: { id: inv.id }, data: { status: 'OVERDUE' } }).then(() => undefined))
       } else if (days <= 7) {
         const stage = days <= 1 ? 1 : days <= 3 ? 3 : 7
-        jobs.push(notify(userId, {
+        jobs.push(remind(userId, {
           type: 'PAYMENT_DUE', title: 'Payment Due Soon', link: '/finance/invoices', key: `inv-due-${inv.id}-${stage}`,
           description: `Invoice ${inv.invoiceNumber} of ${rwf(balance)} (${inv.client.companyName ?? 'client'}) is due in ${days} day${days === 1 ? '' : 's'} (${fmtDate(inv.dueDate)})`,
         }))
@@ -91,18 +106,18 @@ export async function generateReminders(userId: string, role: UserRole): Promise
         const days = Math.round((c.endDate.getTime() - today.getTime()) / DAY)
         const stage = [7, 30, 90].find(s => days >= 0 && days <= s)
         if (stage) {
-          jobs.push(notify(userId, {
+          jobs.push(remind(userId, {
             type: 'CONTRACT_EXPIRY', title: 'Contract Expiring', link: '/contracts', key: `ct-exp-${c.id}-${stage}`,
             description: `Contract ${c.contractNumber} (${c.client.companyName ?? 'client'}) ends in ${days} days — plan renewal`,
           }))
         }
       } else if (c.status === 'SIGNING') {
-        jobs.push(notify(userId, {
+        jobs.push(remind(userId, {
           type: 'CONTRACT_EXPIRY', title: 'Contract Awaiting Signature', link: '/contracts', key: `ct-sign-${c.id}`,
           description: `${c.client.companyName ?? 'Client'} contract ${c.contractNumber} is waiting for signatures`,
         }))
       } else if (hasRole(role, ADMINS)) {
-        jobs.push(notify(userId, {
+        jobs.push(remind(userId, {
           type: 'CONTRACT_EXPIRY', title: 'Contract Needs Approval', link: '/contracts', key: `ct-appr-${c.id}`,
           description: `Contract ${c.contractNumber} for ${c.client.companyName ?? 'client'} is waiting for your approval`,
         }))
@@ -120,7 +135,7 @@ export async function generateReminders(userId: string, role: UserRole): Promise
     for (const s of subs) {
       const days = Math.round((s.renewalDate.getTime() - today.getTime()) / DAY)
       const stage = days < 0 ? 'expired' : [7, 15, 30].find(x => days <= x)
-      jobs.push(notify(userId, {
+      jobs.push(remind(userId, {
         type: days < 0 ? 'OVERDUE' : 'CONTRACT_EXPIRY', link: '/contracts/services', key: `sub-${s.id}-${s.renewalDate.getTime()}-${stage}`,
         title: days < 0 ? 'Service Expired' : 'Service Renewal Due',
         description: days < 0
@@ -134,7 +149,7 @@ export async function generateReminders(userId: string, role: UserRole): Promise
   const tenders = await prisma.tender.findMany({ where: { assignedToId: userId, status: 'OPEN', deadline: { gte: today, lte: new Date(today.getTime() + 7 * DAY) } } })
   for (const t of tenders) {
     const days = Math.round((t.deadline.getTime() - today.getTime()) / DAY)
-    jobs.push(notify(userId, {
+    jobs.push(remind(userId, {
       type: 'FOLLOW_UP', title: 'Tender Deadline', link: '/sales/tenders', key: `tender-${t.id}-${days <= 2 ? 2 : 7}`,
       description: `${t.title} (${t.issuer}) must be submitted ${days === 0 ? 'today' : `in ${days} day${days === 1 ? '' : 's'}`}`,
     }))
@@ -147,7 +162,7 @@ export async function generateReminders(userId: string, role: UserRole): Promise
   for (const t of tasks) {
     const days = Math.round((t.deadline.getTime() - today.getTime()) / DAY)
     const overdue = days < 0
-    jobs.push(notify(userId, {
+    jobs.push(remind(userId, {
       type: 'TASK_DEADLINE', link: '/team/my-tasks', key: `task-${t.id}-${overdue ? 'late' : 'soon'}`,
       title: overdue ? 'Task Overdue' : days === 0 ? 'Task Due Today' : 'Task Deadline Soon',
       description: overdue ? `"${t.title}" was due on ${fmtDate(t.deadline)}` : `"${t.title}" is due on ${fmtDate(t.deadline)}`,
@@ -161,7 +176,7 @@ export async function generateReminders(userId: string, role: UserRole): Promise
       include: { assignedTo: { select: { firstName: true, lastName: true } } },
     })
     for (const t of waiting) {
-      jobs.push(notify(userId, {
+      jobs.push(remind(userId, {
         type: 'TASK_DEADLINE', title: 'Task Waiting for Approval', link: '/projects/tasks', key: `task-approve-${t.id}-${t.completedAt?.getTime() ?? 0}`,
         description: `${t.assignedTo.firstName} ${t.assignedTo.lastName} completed "${t.title}" — please approve or reject`,
       }))
@@ -180,7 +195,7 @@ export async function generateReminders(userId: string, role: UserRole): Promise
     for (const m of milestones) {
       const days = Math.round((m.deadline.getTime() - today.getTime()) / DAY)
       const overdue = days < 0
-      jobs.push(notify(userId, {
+      jobs.push(remind(userId, {
         type: 'TASK_DEADLINE', link: '/projects/milestones', key: `milestone-${m.id}-${overdue ? 'late' : 'soon'}`,
         title: overdue ? 'Milestone Overdue' : 'Milestone Due Soon',
         description: overdue
@@ -196,7 +211,7 @@ export async function generateReminders(userId: string, role: UserRole): Promise
     for (const d of docs) {
       const days = Math.round((d.expiryDate!.getTime() - today.getTime()) / DAY)
       const stage = days < 0 ? 'expired' : days <= 7 ? '7' : '30'
-      jobs.push(notify(userId, {
+      jobs.push(remind(userId, {
         type: 'CONTRACT_EXPIRY', title: days < 0 ? 'Document Expired' : 'Document Expiring', link: '/documents?f=expiring', key: `doc-expiry-${d.id}-${stage}`,
         description: days < 0 ? `"${d.name}" expired on ${fmtDate(d.expiryDate!)} — upload the renewed one` : `"${d.name}" expires ${days === 0 ? 'today' : `in ${days} day${days === 1 ? '' : 's'}`} (${fmtDate(d.expiryDate!)})`,
       }))
@@ -211,7 +226,7 @@ export async function generateReminders(userId: string, role: UserRole): Promise
     })
     for (const p of projects) {
       const days = Math.round((p.warrantyEndDate!.getTime() - today.getTime()) / DAY)
-      jobs.push(notify(userId, {
+      jobs.push(remind(userId, {
         type: 'CONTRACT_EXPIRY', title: days < 0 ? 'Warranty Ended' : 'Warranty Ending', link: '/projects', key: `warranty-${p.id}-${days < 0 ? 'ended' : days <= 7 ? '7' : '30'}`,
         description: `${p.name} (${p.client.companyName ?? 'client'}): warranty ${days < 0 ? 'ended' : 'ends'} on ${fmtDate(p.warrantyEndDate!)}${days >= 0 ? ' — offer a maintenance contract' : ''}`,
       }))
@@ -229,7 +244,7 @@ export async function generateReminders(userId: string, role: UserRole): Promise
     })
     for (const q of quotes) {
       const days = Math.round((q.validUntil!.getTime() - today.getTime()) / DAY)
-      jobs.push(notify(userId, {
+      jobs.push(remind(userId, {
         type: 'FOLLOW_UP', title: 'Quotation Expiring', link: '/sales/quotations', key: `quote-expiry-${q.id}`,
         description: `${q.quotationNumber} for ${q.client.companyName ?? 'the client'} expires ${days === 0 ? 'today' : `in ${days} day${days === 1 ? '' : 's'}`} — follow up for an answer`,
       }))
@@ -244,13 +259,13 @@ export async function generateReminders(userId: string, role: UserRole): Promise
       prisma.opportunity.findMany({ where: { assignedToId: userId, stage: { notIn: ['WON', 'LOST'] }, followUpDate: { lte: soon } }, include: { client: { select: { companyName: true } } } }),
     ])
     for (const l of leads) {
-      jobs.push(notify(userId, {
+      jobs.push(remind(userId, {
         type: 'FOLLOW_UP', title: 'Follow-up Due', link: '/crm/leads', key: `lead-fu-${l.id}-${l.followUpDate!.getTime()}`,
         description: `Follow up with ${l.companyName}${l.contactName ? ` — contact: ${l.contactName}` : ''} (${fmtDate(l.followUpDate!)})`,
       }))
     }
     for (const d of deals) {
-      jobs.push(notify(userId, {
+      jobs.push(remind(userId, {
         type: 'FOLLOW_UP', title: 'Deal Follow-up', link: '/sales/pipeline', key: `deal-fu-${d.id}-${d.followUpDate!.getTime()}`,
         description: `${d.name}${d.nextAction ? ` — next: ${d.nextAction}` : ''} (${fmtDate(d.followUpDate!)})`,
       }))
@@ -266,13 +281,13 @@ export async function generateReminders(userId: string, role: UserRole): Promise
     prisma.meeting.findMany({ where: { createdById: userId, status: 'SCHEDULED', date: { gte: today, lt: new Date(today.getTime() + DAY) } } }),
   ])
   for (const c of followUps) {
-    jobs.push(notify(userId, {
+    jobs.push(remind(userId, {
       type: 'FOLLOW_UP', title: 'Follow-up Due', link: '/communication/log', key: `comm-fu-${c.id}-${c.followUpDate!.getTime()}`,
       description: `${c.client?.companyName ?? c.company ?? 'Contact'}: ${c.subject} (${fmtDate(c.followUpDate!)})`,
     }))
   }
   for (const m of meetings) {
-    jobs.push(notify(userId, {
+    jobs.push(remind(userId, {
       type: 'SYSTEM', title: 'Meeting Today', link: '/communication/meetings', key: `meeting-today-${m.id}`,
       description: `${m.title} at ${m.startTime}${m.location ? ` — ${m.location}` : ''}`,
     }))

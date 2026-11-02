@@ -32,7 +32,18 @@ Then edit `backend/.env`:
 | `CLIENT_URL` | `http://localhost:3000` |
 | `PORT` | `5000` |
 
-The `SMTP_*` keys are not used yet (email delivery is planned). `.env` is gitignored — never commit it.
+Optional — email, SMS and WhatsApp (leave empty and nothing is sent; messages are only listed in
+Settings → Email & SMS):
+
+| Key | Value |
+|---|---|
+| `BREVO_API_KEY`, `MAIL_FROM`, `MAIL_FROM_NAME` | Email through Brevo (recommended, also works on Render) |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` | Or email through SMTP, e.g. Gmail with an app password (used only when `BREVO_API_KEY` is empty) |
+| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_SMS_FROM`, `TWILIO_WHATSAPP_FROM` | SMS and WhatsApp through Twilio |
+
+`.env.example` says where to get each one. Restart the backend after changing them. New setups start in
+test mode: add your own email or phone to the test list in Settings → Email & SMS to receive messages.
+`.env` is gitignored — never commit it.
 
 The frontend needs no configuration for local work: it sends `/api` calls to `http://localhost:5000`.
 

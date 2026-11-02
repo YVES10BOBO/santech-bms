@@ -32,6 +32,8 @@ export const financeService = {
   convertProforma: async (id: string, dueDate?: string) => (await api.post(`/finance/invoices/${id}/convert`, { dueDate })).data,
   /** Raise the client-service invoices due within 14 days */
   raiseRecurring: async () => (await api.post('/finance/invoices/raise-recurring')).data,
+  /** payment reminder to the client by EMAIL, SMS or WHATSAPP (to: optional, defaults to the client contact) */
+  remind: async (id: string, channel: string, to?: string) => (await api.post(`/finance/invoices/${id}/remind`, { channel, to })).data,
 
   recordPayment: async (invoiceId: string, payment: Record<string, unknown>) => {
     const { data } = await api.post(`/finance/invoices/${invoiceId}/payment`, payment)

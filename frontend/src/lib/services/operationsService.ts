@@ -172,6 +172,15 @@ export const companyService = {
   save: (b: Body) => put('/settings/company', b),
 }
 
+/** Settings → Email & SMS (admins): what is set up, test mode, test message, message log */
+export const messagingService = {
+  get: () => get('/settings/messaging'),
+  save: (b: Body) => put('/settings/messaging', b),
+  test: (channel: string, to: string) => post('/settings/messaging/test', { channel, to }),
+  log: (q: { channel?: string; status?: string; search?: string } = {}) =>
+    get(`/settings/messaging/log?${new URLSearchParams(Object.entries(q).filter(([, v]) => v) as [string, string][]).toString()}`),
+}
+
 /** Exchange rates: RWF for 1 unit of each currency (finance edits) */
 export const exchangeRateService = {
   get: () => get('/settings/exchange-rates'),

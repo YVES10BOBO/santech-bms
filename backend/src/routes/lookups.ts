@@ -13,7 +13,7 @@ router.get('/', async (req: AuthRequest, res) => {
     const [clients, users, contracts, projects, deals, departments, campaigns, products] = await Promise.all([
       prisma.client.findMany({
         where: { active: true },
-        select: { id: true, companyName: true, fullName: true, teamName: true, delegationName: true, category: true, contactPersonName: true, phone: true },
+        select: { id: true, companyName: true, fullName: true, teamName: true, delegationName: true, category: true, contactPersonName: true, phone: true, email: true, contactPersonEmail: true, contactPersonPhone: true },
         orderBy: { companyName: 'asc' },
       }),
       prisma.user.findMany({
@@ -46,6 +46,9 @@ router.get('/', async (req: AuthRequest, res) => {
           category: c.category,
           contactName: c.contactPersonName ?? '',
           phone: c.phone ?? '',
+          // where messages go: the contact person first, else the company's own
+          email: c.contactPersonEmail || c.email || '',
+          contactPhone: c.contactPersonPhone || c.phone || '',
         })),
         users: users.map(u => ({ id: u.id, name: `${u.firstName} ${u.lastName}`, role: u.role })),
         contracts,

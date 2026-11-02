@@ -111,6 +111,7 @@ santech-bms-current/
 │   │   │   ├── roles.ts              ← role groups used by every route guard
 │   │   │   ├── audit.ts              ← writes the audit trail for every important action
 │   │   │   ├── notifications.ts      ← reminder engine (invoices, contracts, tasks, renewals, …)
+│   │   │   ├── messaging.ts          ← email (Brevo / SMTP), SMS and WhatsApp (Twilio), test mode, message log
 │   │   │   └── numbering.ts          ← INV-/CT-/QT-/TKT- document numbers
 │   │   └── middleware/auth.ts        ← JWT check + role authorisation
 │   └── prisma/
@@ -660,6 +661,22 @@ only ever see their own client's records and never the staff menus or API.
   role. Click a role to highlight its column. The table fits the screen on laptops and desktops; on phones
   it scrolls sideways inside its card.
 
+#### Email & SMS
+**Where:** Settings → Email & SMS (admins)
+- Which channels are connected: email (Brevo or SMTP such as Gmail), SMS and WhatsApp (Twilio). It shows
+  the provider and sender, never the keys. Keys go in `backend/.env` and in Render → Environment.
+- **Test mode (default):** only the emails and phone numbers on the test list receive anything; other
+  messages are held and listed. Switch to **Live** once real contacts replace the demo data.
+- Switches: email staff their notifications; email customers and suppliers their portal updates.
+- **Send a test** (email, SMS or WhatsApp), and **How to connect**, step by step.
+- **Message log:** every message, with its result: sent, held (test mode), not set up (no keys yet) or
+  failed (with the provider's reason). Filters by channel and result, and a search.
+- What is sent:
+  - new in-app notifications by email (daily reminders stay in the bell);
+  - portal login details;
+  - payment reminders (Finance → Invoices → Remind client);
+  - "Send it now" from the communication log.
+
 #### Product Catalog
 **Where:** Settings → Product Catalog
 - 8 Santech products (EVS, SANTRACK, REVIXSAN, SANBOOK, SANHUB, Website, Mobile App, Training)
@@ -683,6 +700,8 @@ only ever see their own client's records and never the staff menus or API.
   service invoices ready to send
 - Filter tabs: All, Unread, Payment, Follow-up, Tasks
 - Mark one or all as read
+- New notifications (ticket assigned, approvals, portal updates, …) can also be sent by email; see
+  Settings → Email & SMS. Daily reminders stay in-app.
 
 ---
 
@@ -808,9 +827,20 @@ JWT_SECRET=<strong random string>
 JWT_EXPIRES_IN=7d
 CLIENT_URL=https://santech-bms.vercel.app
 PORT=5000
+
+# Optional: email, SMS and WhatsApp (see backend/.env.example for where to get each one)
+BREVO_API_KEY=...
+MAIL_FROM=you@yourdomain.com
+MAIL_FROM_NAME=Santech Innovate
+TWILIO_ACCOUNT_SID=...
+TWILIO_AUTH_TOKEN=...
+TWILIO_SMS_FROM=+1...
+TWILIO_WHATSAPP_FROM=whatsapp:+14155238886
 ```
 
 Uploaded files are kept in the database, so no extra storage service or variable is needed.
+Without the optional keys, nothing is sent; Settings → Email & SMS shows each message as "Not set up".
+Use Brevo rather than SMTP on Render: the free plan blocks SMTP ports.
 
 ### Seeding the database
 
@@ -902,11 +932,11 @@ PostgreSQL on Neon, managed with Prisma (see `backend/prisma/schema.prisma`; 10 
 
 ### 📋 Possible next steps
 
-- [ ] Email / SMS / WhatsApp delivery of notifications (in-app only today). Render's free plan blocks
-      email (SMTP) ports, so email needs an HTTP email service such as Brevo; SMS and WhatsApp via Twilio.
-- [ ] Customer portal (client self-service login)
-- [ ] Supplier portal
-- [ ] Multi-currency
+- [x] Email / SMS / WhatsApp: built, switched on by adding Brevo (or SMTP) and Twilio keys; test mode first
+- [x] Customer portal (client self-service login)
+- [x] Supplier portal
+- [x] Multi-currency
+- [ ] Move uploaded files to object storage (e.g. Cloudflare R2) when they outgrow the database
 
 ---
 

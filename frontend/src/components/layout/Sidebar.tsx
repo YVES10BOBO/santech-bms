@@ -175,6 +175,7 @@ const navItems: NavItem[] = [
       { label: 'User Management', path: '/settings/users', module: 'settings' },
       { label: 'Company Profile', path: '/settings/company', module: 'settings' },
       { label: 'Roles & Permissions', path: '/settings/roles', module: 'settings' },
+      { label: 'Email & SMS', path: '/settings/messaging', module: 'settings' },
       { label: 'Product Catalog', path: '/settings/products', module: 'settings' },
       { label: 'Audit Trail', path: '/settings/audit', module: 'settings' },
     ],
