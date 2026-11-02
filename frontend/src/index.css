@@ -79,10 +79,10 @@
 }
 
 /* ── Card styles — clearly visible against the background ──
-   Every card and grid tile on every page has the same 2px border (--card-border),
-   so the grids stand out from the page background. */
+   Every card and grid tile on every page has the same 2px border (--card-border) in the
+   sidebar's navy blue (#0b1f44), so the grids stand out from the page background. */
 :root {
-  --card-border: #cfd8ea;
+  --card-border: #0b1f44;
 }
 @layer components {
   .bms-card {

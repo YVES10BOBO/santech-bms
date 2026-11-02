@@ -26,6 +26,12 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 
 ## 1.6.0 — 2 November 2026
 
+### Card borders in the sidebar's navy (2 Nov)
+- **What:** the 2px card border is now the sidebar's navy blue (`#0b1f44`) instead of light blue-grey, on every
+  card and grid tile, the pipeline deal cards and the loading placeholders.
+- **Technical:** all of them use the one setting `--card-border` in `frontend/src/index.css`.
+- **Small change:** hovering a deal card no longer changes its border colour; its shadow still grows.
+
 ### Thicker card borders on every page (2 Nov)
 - **What:** every card and grid tile now has a 2px border in a slightly stronger blue-grey (`#cfd8ea`).
   Before, it was 1.5px `#dde3f0`. This applies to every page through the shared card styles

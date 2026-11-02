@@ -26,7 +26,7 @@ export default function PageLoader({ rows = 8 }: { rows?: number }) {
       </div>
 
       {/* Table/card skeleton rows */}
-      <div className="bg-white rounded-xl border-2 border-[#cfd8ea] overflow-hidden">
+      <div className="bg-white rounded-xl border-2 border-[color:var(--card-border)] overflow-hidden">
         {/* Table header */}
         <div className="flex gap-4 px-4 py-3 border-b border-[#eef1f8] bg-[#f0f3fb]">
           {[1, 2, 3, 4, 5].map(i => (

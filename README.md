@@ -162,8 +162,9 @@ again. On phones, the menu button in the top bar opens the sidebar, and its X bu
   grey-blue layer (`#f4f6fa`, the portals' colour, at 85%) in front of the Imigongo pattern and behind
   the white cards, so the colour leads and the pattern shows faintly. It is one setting, `--page-layer`
   in `frontend/src/index.css` (higher = fainter pattern, solid `#f4f6fa` = hidden).
-- **Card borders:** every card and grid tile on every page has a 2px border (`--card-border` in
-  `frontend/src/index.css`), so the grids stand out clearly from the background.
+- **Card borders:** every card and grid tile on every page has a 2px border in the sidebar's navy blue
+  (`#0b1f44`, setting `--card-border` in `frontend/src/index.css`), so the grids stand out clearly from the
+  background.
 - JWT login; 8 staff roles, each with its own sidebar (see [Role-Based Access](#role-based-access))
 - The API checks the role on every route, so hiding a menu item is never the only protection
 - Clear messages when login fails: wrong email or password, too many failed attempts, or the server
