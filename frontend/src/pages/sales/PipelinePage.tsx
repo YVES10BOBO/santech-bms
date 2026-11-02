@@ -319,7 +319,7 @@ export default function PipelinePage() {
                         draggable
                         onDragStart={() => onDragStart(deal.id)}
                         onClick={() => setSelectedDeal(deal)}
-                        className="bg-white rounded-lg border-2 border-[color:var(--card-border)] p-3 cursor-pointer hover:shadow-md transition-all select-none"
+                        className="bg-white rounded-lg border-2 border-[color:var(--card-border)] p-3 cursor-pointer hover:shadow-md hover:border-santech-300 transition-all select-none"
                       >
                         <div className="flex items-start justify-between gap-1 mb-2">
                           <p className="text-xs font-semibold text-gray-800 leading-tight flex-1">{deal.company}</p>

@@ -79,15 +79,17 @@
 }
 
 /* ── Card styles — clearly visible against the background ──
-   Every card and grid tile on every page has the same 2px border (--card-border) in the
-   sidebar's navy blue (#0b1f44), so the grids stand out from the page background. */
+   Every card and grid tile on every page has the same 2px light-blue border (--card-border)
+   and a soft shadow (--card-shadow), so the grids stand out from the page background. */
 :root {
-  --card-border: #0b1f44;
+  --card-border: #b8c6e0;
+  --card-shadow: 0 2px 6px rgba(11, 31, 68, 0.08);
 }
 @layer components {
   .bms-card {
-    @apply bg-white rounded-xl shadow-sm;
+    @apply bg-white rounded-xl;
     border: 2px solid var(--card-border);
+    box-shadow: var(--card-shadow);
   }
 
   .bms-card-hover {
@@ -98,7 +100,7 @@
   .kpi-card {
     @apply bg-white rounded-xl;
     border: 2px solid var(--card-border);
-    box-shadow: 0 2px 8px rgba(26, 42, 108, 0.08);
+    box-shadow: var(--card-shadow);
   }
 
   .kpi-card:hover {

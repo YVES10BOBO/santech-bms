@@ -168,9 +168,9 @@ again. On phones, the menu button in the top bar opens the sidebar, and its X bu
   - `santech_mark.png` is the blue "S" alone, on a white tile. It is used on navy backgrounds: the sidebar,
     the login panel, the customer and supplier portal header, and the top bar on phones.
   - `favicon.png` and `apple-touch-icon.png` are the browser-tab and phone home-screen icons.
-- **Card borders:** every card and grid tile on every page has a 2px border in the sidebar's navy blue
-  (`#0b1f44`, setting `--card-border` in `frontend/src/index.css`), so the grids stand out clearly from the
-  background.
+- **Card borders:** every card and grid tile on every page has a 2px light-blue border (`#b8c6e0`) and a soft
+  shadow, so the grids stand out clearly from the background. These are two settings, `--card-border` and
+  `--card-shadow`, in `frontend/src/index.css`.
 - JWT login; 8 staff roles, each with its own sidebar (see [Role-Based Access](#role-based-access))
 - The API checks the role on every route, so hiding a menu item is never the only protection
 - Clear messages when login fails: wrong email or password, too many failed attempts, or the server

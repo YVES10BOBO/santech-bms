@@ -26,6 +26,13 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 
 ## 1.6.0 — 2 November 2026
 
+### Card borders back to light blue, a little stronger (2 Nov)
+- **What:** the navy border was too heavy. Cards are back to a light-blue 2px border, slightly deeper than
+  the first version (`#b8c6e0` instead of `#cfd8ea`), with a soft shadow on every card and tile, so the
+  grids still stand out.
+- **Also:** hovering a pipeline deal card highlights its border again.
+- **Technical:** `--card-border` and `--card-shadow` in `frontend/src/index.css`.
+
 ### Santech logo everywhere (2 Nov)
 - **What:** the Santech logo replaces the placeholder icons and letters:
   - the sidebar (was a building icon) and the login page (was "ST");
