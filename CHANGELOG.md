@@ -11,7 +11,7 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 
 | Version | Date (2026) | Highlights |
 |---|---|---|
-| **1.6.0** | 2 Nov | Features linked together (deal ↔ quotation ↔ contract, leads ↔ campaigns, employees ↔ departments, tickets ↔ projects, visitors ↔ clients, catalogue lines), lost-deal reasons, 2px card borders, Santech logo, full-width Roles / Company / Profile pages |
+| **1.6.0** | 2 Nov | Features linked together (deal ↔ quotation ↔ contract, leads ↔ campaigns, employees ↔ departments, tickets ↔ projects, visitors ↔ clients, catalogue lines), lost-deal reasons, 2px card borders, Santech logo, full-width Roles & Permissions page |
 | **1.5.0** | 30 Oct | Customer portal and supplier portal, suppliers and purchase orders |
 | **1.4.0** | 30 Oct | Proforma invoices, credit notes, recurring service invoices, multiple currencies with exchange rates, contract and quotation version history |
 | **1.3.0** | 30 Oct | Expense claims with approvals, quotation discounts, support response times and ratings, document expiry and versions, project warranties, contract → project automation |
@@ -25,6 +25,16 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 ---
 
 ## 1.6.0 — 2 November 2026
+
+### Roles table fits the screen; Company Profile and My Profile back as before (2 Nov)
+- **Roles & Permissions:** the "Who can open what" table no longer needs a sideways scroll on laptop
+  screens. The role columns share the width evenly, and long role names wrap onto two lines when space is
+  short. The whole table is visible on screens 1024px wide and up (checked at 1024, 1280, 1366, 1440,
+  1536 and 1920). Only on phones does it still scroll sideways, inside its own card.
+- **Company Profile and My Profile:** returned to their earlier layout. Only the Roles & Permissions page
+  was meant to change, so the two-column versions in the entry below are undone.
+- **Technical:** the table uses a fixed layout (`table-fixed`, module column 170–220px) instead of a minimum
+  width per column.
 
 ### Roles & Permissions, Company Profile and My Profile use the full width (2 Nov)
 - **Why:** these three pages were held to a narrow column, leaving a large empty space on the right.

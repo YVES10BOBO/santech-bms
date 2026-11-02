@@ -77,14 +77,14 @@ export default function RolesPage() {
 
   const row = (m: (typeof MODULES)[number]) => (
     <tr key={m.key} className="group border-t border-gray-100">
-      <th scope="row" className="sticky left-0 z-10 bg-white group-hover:bg-[#f5f7fd] text-left font-normal px-4 py-2 min-w-[210px]">
+      <th scope="row" className="sticky left-0 z-10 bg-white group-hover:bg-[#f5f7fd] text-left font-normal px-3 py-2">
         <span className="block text-sm font-medium text-gray-800">{m.label}</span>
         <span className="block text-[11px] text-gray-400">{m.hint}</span>
       </th>
       {ROLES.map(r => {
         const yes = roleCanOpen(r.role, m.key)
         return (
-          <td key={r.role} className={cn('text-center px-2 py-2', colCls(r.role))}>
+          <td key={r.role} className={cn('text-center px-0.5 py-2', colCls(r.role))}>
             {yes
               ? <span className="inline-flex w-6 h-6 items-center justify-center rounded-full bg-green-100 text-green-700" title={`${r.label} can open ${m.label}`}><Check className="w-3.5 h-3.5" strokeWidth={3} /></span>
               : <span className="text-gray-300" title={`${r.label} cannot open ${m.label}`} aria-label="No">—</span>}
@@ -140,13 +140,19 @@ export default function RolesPage() {
           </p>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          {/* Fixed layout: the role columns share the width, so the table fits a laptop screen with no sideways
+              scroll. Only on phones (narrower than the min width) does it scroll inside this card. */}
+          <table className="w-full table-fixed min-w-[680px] text-sm">
+            <colgroup>
+              <col className="w-[170px] xl:w-[220px]" />
+              {ROLES.map(r => <col key={r.role} />)}
+            </colgroup>
             <thead>
               <tr>
-                <th scope="col" className="sticky left-0 z-10 bg-[#f0f3fb] text-left align-top text-xs font-semibold px-4 py-2.5">Module</th>
+                <th scope="col" className="sticky left-0 z-10 bg-[#f0f3fb] text-left align-top text-xs font-semibold px-3 py-2.5">Module</th>
                 {ROLES.map(r => (
-                  <th key={r.role} scope="col" className={cn('px-2 py-2.5 text-center align-top min-w-[84px]', colCls(r.role))}>
-                    <button type="button" onClick={() => pick(r.role)} className="text-xs font-semibold leading-tight hover:underline">{r.short}</button>
+                  <th key={r.role} scope="col" className={cn('px-0.5 py-2.5 text-center align-top break-words', colCls(r.role))}>
+                    <button type="button" onClick={() => pick(r.role)} className="text-[11px] xl:text-xs font-semibold leading-tight hover:underline">{r.short}</button>
                     {usersLabel(r.role) && <span className="block text-[10px] font-normal text-gray-400">{usersLabel(r.role)}</span>}
                     {user?.role === r.role && <span className="block text-[10px] font-semibold uppercase text-santech-700">You</span>}
                   </th>
@@ -156,13 +162,13 @@ export default function RolesPage() {
             <tbody>
               {STAFF_MODULES.map(row)}
               <tr className="border-t border-gray-200">
-                <td colSpan={ROLES.length + 1} className="px-4 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Portals (for logins outside Santech)</td>
+                <td colSpan={ROLES.length + 1} className="px-3 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Portals (for logins outside Santech)</td>
               </tr>
               {PORTAL_MODULES.map(row)}
               <tr className="border-t border-gray-200 bg-gray-50">
-                <th scope="row" className="sticky left-0 z-10 bg-gray-50 text-left text-xs font-semibold text-gray-600 px-4 py-2">Modules open</th>
+                <th scope="row" className="sticky left-0 z-10 bg-gray-50 text-left text-xs font-semibold text-gray-600 px-3 py-2">Modules open</th>
                 {ROLES.map(r => (
-                  <td key={r.role} className={cn('text-center px-2 py-2 text-xs font-semibold text-gray-700', colCls(r.role))}>{modulesFor(r.role).length}</td>
+                  <td key={r.role} className={cn('text-center px-0.5 py-2 text-xs font-semibold text-gray-700', colCls(r.role))}>{modulesFor(r.role).length}</td>
                 ))}
               </tr>
             </tbody>
