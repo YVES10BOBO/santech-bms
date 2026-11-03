@@ -36,8 +36,11 @@ export function emailProvider(): 'brevo' | 'smtp' | null {
   return null
 }
 const twilioKeys = () => !!(env('TWILIO_ACCOUNT_SID') && env('TWILIO_AUTH_TOKEN'))
+const callMeBotReady = () => !!(env('CALLMEBOT_APIKEY') && env('CALLMEBOT_PHONE'))
 const channelReady = (c: Channel) =>
-  c === 'EMAIL' ? !!emailProvider() : twilioKeys() && !!env(c === 'SMS' ? 'TWILIO_SMS_FROM' : 'TWILIO_WHATSAPP_FROM')
+  c === 'EMAIL' ? !!emailProvider() :
+  c === 'WHATSAPP' ? (twilioKeys() && !!env('TWILIO_WHATSAPP_FROM')) || callMeBotReady() :
+  twilioKeys() && !!env('TWILIO_SMS_FROM')
 
 export const mailFrom = () => ({ email: env('MAIL_FROM') || env('SMTP_USER'), name: env('MAIL_FROM_NAME') || 'Santech Innovate' })
 const whatsappFrom = () => { const f = env('TWILIO_WHATSAPP_FROM'); return f.startsWith('whatsapp:') ? f : `whatsapp:${f}` }
@@ -52,7 +55,11 @@ export function messagingStatus() {
       warning: provider === 'brevo' && !env('MAIL_FROM') ? 'Set MAIL_FROM to the sender address you verified in Brevo' : null,
     },
     sms: { ready: channelReady('SMS'), provider: channelReady('SMS') ? 'twilio' : null, from: channelReady('SMS') ? env('TWILIO_SMS_FROM') : null },
-    whatsapp: { ready: channelReady('WHATSAPP'), provider: channelReady('WHATSAPP') ? 'twilio' : null, from: channelReady('WHATSAPP') ? whatsappFrom().slice(9) : null },
+    whatsapp: {
+      ready: channelReady('WHATSAPP'),
+      provider: twilioKeys() && !!env('TWILIO_WHATSAPP_FROM') ? 'twilio' : callMeBotReady() ? 'callmebot' : null,
+      from: twilioKeys() && !!env('TWILIO_WHATSAPP_FROM') ? whatsappFrom().slice(9) : callMeBotReady() ? env('CALLMEBOT_PHONE') : null,
+    },
   }
 }
 
@@ -174,6 +181,19 @@ async function sendTwilioNow(channel: 'SMS' | 'WHATSAPP', to: string, text: stri
   }
 }
 
+/** CallMeBot — free WhatsApp API, no Twilio needed.
+ *  Setup (2 min): add +34 644 65 21 47 as a contact, send it "I allow callmebot to send me messages",
+ *  copy the apikey it replies with, add CALLMEBOT_APIKEY and CALLMEBOT_PHONE to backend/.env.
+ *  Only sends to the one phone number that registered (CALLMEBOT_PHONE). */
+async function sendCallMeBotNow(text: string): Promise<void> {
+  const phone = normalizePhone(env('CALLMEBOT_PHONE'))
+  const key = env('CALLMEBOT_APIKEY')
+  if (!phone || !key) throw new Error('CallMeBot not configured: set CALLMEBOT_PHONE and CALLMEBOT_APIKEY')
+  const url = `https://api.callmebot.com/whatsapp.php?phone=${encodeURIComponent(phone)}&text=${encodeURIComponent(text.slice(0, 1500))}&apikey=${encodeURIComponent(key)}`
+  const r = await fetch(url, { signal: AbortSignal.timeout(15000) })
+  if (!r.ok) throw new Error(`CallMeBot failed (${r.status})`)
+}
+
 // ── Sending ───────────────────────────────────────────────────────────────────
 
 export interface Outgoing {
@@ -219,7 +239,13 @@ export async function deliver(m: Outgoing): Promise<Delivery> {
         await sendEmailNow(provider as 'brevo' | 'smtp', to, subject, m.text, m.html ?? emailHtml({ title: subject, text: m.text, link: m.link }), m.replyTo && EMAIL_RE.test(m.replyTo) ? m.replyTo : undefined)
         status = 'SENT'
       } else {
-        await sendTwilioNow(m.channel, to, m.text)
+        // WhatsApp: prefer Twilio if configured, fall back to CallMeBot (free, sends to registered number only)
+        if (m.channel === 'WHATSAPP' && !twilioKeys() && callMeBotReady()) {
+          await sendCallMeBotNow(m.text)
+          provider = 'callmebot'
+        } else {
+          await sendTwilioNow(m.channel, to, m.text)
+        }
         status = 'SENT'
       }
     }
