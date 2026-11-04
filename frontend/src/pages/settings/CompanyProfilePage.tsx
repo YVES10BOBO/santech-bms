@@ -69,7 +69,7 @@ export default function CompanyProfilePage() {
   const labelCls = 'block text-xs font-medium text-gray-700 mb-1'
 
   return (
-    <div className="space-y-5 max-w-3xl">
+    <div className="space-y-5">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
