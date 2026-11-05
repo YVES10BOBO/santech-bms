@@ -28,6 +28,8 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 ## 1.7.0 — 2 November 2026
 
 ### Email & SMS page ready for production (5 Nov)
+- **"Send a test" card removed** from Settings → Email & SMS. Connection checks are no longer part of the page;
+  the message log shows every real message and its result. The test endpoint is still there but unused.
 - **Delivery switch:** the Test / Live radio buttons are now one switch, **Send to all recipients**. When it is off
   (restricted delivery), only the addresses in **Allowed recipients** receive messages and the rest are held;
   that box is only shown while it is off. The badge at the top says "Live delivery" or "Restricted delivery".

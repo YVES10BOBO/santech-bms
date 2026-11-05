@@ -669,7 +669,7 @@ only ever see their own client's records and never the staff menus or API.
   Allowed recipients receive anything; other messages are held and listed. Turn it on once real contacts are in.
 - A "Who can do what" table shows which roles use email.
 - Switches: email staff their notifications; email customers and suppliers their portal updates.
-- **Send a test** (email, SMS or WhatsApp). How to get the keys is in `backend/.env.example` and SETUP.md.
+- How to get the keys is in `backend/.env.example` and SETUP.md.
 - **Message log:** every message, with its result: sent, held (test mode), not set up (no keys yet) or
   failed (with the provider's reason). Filters by channel and result, and a search.
 - What is sent:

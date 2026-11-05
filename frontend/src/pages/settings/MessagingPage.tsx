@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import { Mail, MessageSquare, MessageCircle, Send, Save, RefreshCw, CheckCircle2, CircleDashed } from 'lucide-react'
+import { Mail, MessageSquare, MessageCircle, Save, RefreshCw, CheckCircle2, CircleDashed } from 'lucide-react'
 import { cn, formatDateTime } from '@/lib/utils'
 import { messagingService } from '@/lib/services/operationsService'
 import { apiError } from '@/lib/services/lookupService'
@@ -19,7 +19,7 @@ const CHANNEL_INFO: Record<Channel, { label: string; icon: typeof Mail }> = {
 }
 /** Who can use messaging, matching the server's rules */
 const ACCESS = [
-  { who: 'Super Admin, Admin (HR)', what: 'This page: connections, delivery, tests and the message log. Customer and supplier portal logins. Payment reminders. Sending from the communication log.' },
+  { who: 'Super Admin, Admin (HR)', what: 'This page: connections, delivery and the message log. Customer and supplier portal logins. Payment reminders. Sending from the communication log.' },
   { who: 'Finance Manager', what: 'Payment reminders on invoices. Supplier portal logins.' },
   { who: 'Sales Manager', what: 'Customer portal logins.' },
   { who: 'All staff', what: 'Receive their own notifications by email (when switched on).' },
@@ -40,9 +40,6 @@ export default function MessagingPage() {
   const [data, setData] = useState<{ status: Record<'email' | 'sms' | 'whatsapp', ChannelStatus>; settings: Settings; last30Days: Record<string, number> } | null>(null)
   const [form, setForm] = useState<Settings & { testText: string } | null>(null)
   const [saving, setSaving] = useState(false)
-  const [test, setTest] = useState<{ channel: Channel; to: string }>({ channel: 'EMAIL', to: '' })
-  const [testing, setTesting] = useState(false)
-  const [testResult, setTestResult] = useState<{ status: string; message: string } | null>(null)
   const [log, setLog] = useState<LogRow[] | null>(null)
   const [filter, setFilter] = useState({ channel: '', status: '', search: '' })
 
@@ -68,17 +65,6 @@ export default function MessagingPage() {
       setForm({ ...r.data, testText: r.data.testRecipients.join('\n') })
       toast.success(r.message)
     } catch (err) { toast.error(apiError(err, 'Failed to save')) } finally { setSaving(false) }
-  }
-
-  const sendTest = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setTesting(true)
-    try {
-      const r: any = await messagingService.test(test.channel, test.to)
-      setTestResult({ status: r.data.status, message: r.message })
-      ;(r.data.status === 'SENT' ? toast.success : toast.error)(r.message, { duration: 6000 })
-      loadLog()
-    } catch (err) { toast.error(apiError(err, 'Failed to send the test')) } finally { setTesting(false) }
   }
 
   const input = 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500'
@@ -149,24 +135,7 @@ export default function MessagingPage() {
           </button>
         </form>
 
-        {/* Test + how to connect */}
         <div className="space-y-3">
-          <form onSubmit={sendTest} className="bms-card px-5 py-4 space-y-3">
-            <h2 className="text-sm font-semibold text-gray-800">Send a test</h2>
-            <div className="flex gap-2 flex-wrap">
-              <select className={cn(input, 'w-auto bg-white')} value={test.channel} aria-label="Channel"
-                onChange={e => { setTest(t => ({ ...t, channel: e.target.value as Channel })); setTestResult(null) }}>
-                <option value="EMAIL">Email</option><option value="SMS">SMS</option><option value="WHATSAPP">WhatsApp</option>
-              </select>
-              <input className={cn(input, 'flex-1 min-w-[180px]')} value={test.to} onChange={e => setTest(t => ({ ...t, to: e.target.value }))}
-                placeholder={test.channel === 'EMAIL' ? 'your@email.com' : '+250 7xx xxx xxx'} aria-label="Send the test to" />
-              <button disabled={testing || !test.to.trim()} className="flex items-center gap-2 px-4 py-2 bg-santech-600 text-white rounded-lg text-sm font-medium hover:bg-santech-700 disabled:opacity-50">
-                <Send className="w-4 h-4" /> {testing ? 'Sending…' : 'Send'}
-              </button>
-            </div>
-            {testResult && <p className={cn('text-xs', testResult.status === 'SENT' ? 'text-green-700' : 'text-red-600')}>{testResult.message}</p>}
-          </form>
-
           <div className="bms-card px-5 py-4">
             <h2 className="text-sm font-semibold text-gray-800 mb-2">Who can do what</h2>
             <ul className="divide-y divide-gray-100 text-xs">
@@ -217,7 +186,7 @@ export default function MessagingPage() {
               {log === null ? (
                 <tr><td colSpan={6} className="px-4 py-6 text-center text-gray-400">Loading…</td></tr>
               ) : log.length === 0 ? (
-                <tr><td colSpan={6} className="px-4 py-6 text-center text-gray-400">No messages yet. They appear here as soon as the system sends (or would send) one — try “Send a test”.</td></tr>
+                <tr><td colSpan={6} className="px-4 py-6 text-center text-gray-400">No messages yet. They appear here as soon as the system sends one.</td></tr>
               ) : log.map(m => (
                 <tr key={m.id} className="border-t border-gray-100 align-top">
                   <td className="px-4 py-2 text-xs text-gray-500">{formatDateTime(m.createdAt)}{m.sentBy && <span className="block text-gray-400">by {m.sentBy}</span>}</td>
