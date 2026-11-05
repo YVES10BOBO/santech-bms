@@ -27,6 +27,12 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 
 ## 1.7.0 — 2 November 2026
 
+### Fix: assigning a task now notifies the person (5 Nov)
+- **What was wrong:** creating a task in Projects → Tasks sent no notification at all. The person only
+  got a reminder when the deadline was within 2 days. No bell, no email.
+- **Now:** the person gets a **Task Assigned** notification in the bell straight away, and by email when
+  email is switched on (and their address is allowed). You are not notified of tasks you give yourself.
+
 ### A user's email can be changed (5 Nov)
 - **What:** in Settings → User Management, the email box is no longer locked when editing a user. Admins can
   correct a wrong address. The email is also the login name, so the person signs in with the new address

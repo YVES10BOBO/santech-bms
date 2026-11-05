@@ -2,6 +2,7 @@ import { Response } from 'express'
 import prisma from '../lib/prisma'
 import { logAudit } from '../lib/audit'
 import { PROJECT_LEADS, hasRole } from '../lib/roles'
+import { notify } from '../lib/notifications'
 import type { AuthRequest } from '../middleware/auth'
 
 const taskInclude = {
@@ -109,6 +110,13 @@ export async function createTask(req: AuthRequest, res: Response): Promise<void>
       description: `Assigned task "${task.title}" to ${fullName(task.assignedTo)}`,
       newValue: { assignedTo: fullName(task.assignedTo), priority: task.priority, deadline: String(deadline).slice(0, 10) },
     })
+    // tell the person (bell, and email when switched on in Settings → Email & SMS)
+    if (task.assignedToId !== req.user!.id) {
+      await notify(task.assignedToId, {
+        type: 'TASK_DEADLINE', title: 'Task Assigned', link: '/team/my-tasks',
+        description: `${fullName(task.assignedBy)} assigned you "${task.title}" — deadline ${String(deadline).slice(0, 10)}${task.project ? ` (${task.project.name})` : ''}`,
+      })
+    }
     res.status(201).json({ success: true, data: task, message: 'Task created successfully' })
   } catch (error) {
     res.status(500).json({ success: false, message: 'Internal server error' })
