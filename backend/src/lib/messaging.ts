@@ -138,7 +138,8 @@ const smtpTransport = () => {
     const port = Number(env('SMTP_PORT') || 587)
     smtp = nodemailer.createTransport({
       host: env('SMTP_HOST'), port, secure: port === 465,
-      auth: { user: env('SMTP_USER'), pass: env('SMTP_PASS') },
+      // Google shows app passwords as "abcd efgh ijkl mnop"; the spaces are not part of the password
+      auth: { user: env('SMTP_USER'), pass: /gmail|google/i.test(env('SMTP_HOST')) ? env('SMTP_PASS').replace(/\s+/g, '') : env('SMTP_PASS') },
       connectionTimeout: 15000, greetingTimeout: 15000, socketTimeout: 20000,
     })
   }

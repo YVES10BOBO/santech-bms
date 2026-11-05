@@ -668,7 +668,7 @@ only ever see their own client's records and never the staff menus or API.
 - **Test mode (default):** only the emails and phone numbers on the test list receive anything; other
   messages are held and listed. Switch to **Live** once real contacts replace the demo data.
 - Switches: email staff their notifications; email customers and suppliers their portal updates.
-- **Send a test** (email, SMS or WhatsApp), and **How to connect**, step by step.
+- **Send a test** (email, SMS or WhatsApp). How to get the keys is in `backend/.env.example` and SETUP.md.
 - **Message log:** every message, with its result: sent, held (test mode), not set up (no keys yet) or
   failed (with the provider's reason). Filters by channel and result, and a search.
 - What is sent:

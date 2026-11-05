@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import { Mail, MessageSquare, MessageCircle, Send, Save, RefreshCw, ShieldAlert, CheckCircle2, CircleDashed, ChevronDown, ChevronRight } from 'lucide-react'
+import { Mail, MessageSquare, MessageCircle, Send, Save, RefreshCw, CheckCircle2, CircleDashed } from 'lucide-react'
 import { cn, formatDateTime } from '@/lib/utils'
 import { messagingService } from '@/lib/services/operationsService'
 import { apiError } from '@/lib/services/lookupService'
@@ -12,10 +12,10 @@ interface ChannelStatus { ready: boolean; provider: string | null; from: string 
 interface Settings { mode: 'TEST' | 'LIVE'; testRecipients: string[]; emailStaff: boolean; emailPortal: boolean }
 interface LogRow { id: string; channel: Channel; to: string; subject: string | null; body: string; status: string; provider: string | null; error: string | null; event: string | null; createdAt: string; sentBy: string | null }
 
-const CHANNEL_INFO: Record<Channel, { label: string; icon: typeof Mail; keys: string }> = {
-  EMAIL: { label: 'Email', icon: Mail, keys: 'BREVO_API_KEY and MAIL_FROM (or SMTP_USER and SMTP_PASS)' },
-  SMS: { label: 'SMS', icon: MessageSquare, keys: 'TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and TWILIO_SMS_FROM' },
-  WHATSAPP: { label: 'WhatsApp', icon: MessageCircle, keys: 'TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and TWILIO_WHATSAPP_FROM' },
+const CHANNEL_INFO: Record<Channel, { label: string; icon: typeof Mail }> = {
+  EMAIL: { label: 'Email', icon: Mail },
+  SMS: { label: 'SMS', icon: MessageSquare },
+  WHATSAPP: { label: 'WhatsApp', icon: MessageCircle },
 }
 const PROVIDER_NAME: Record<string, string> = { brevo: 'Brevo', smtp: 'SMTP (e.g. Gmail)', twilio: 'Twilio' }
 const STATUS_INFO: Record<string, { label: string; cls: string; hint: string }> = {
@@ -37,7 +37,6 @@ export default function MessagingPage() {
   const [testResult, setTestResult] = useState<{ status: string; message: string } | null>(null)
   const [log, setLog] = useState<LogRow[] | null>(null)
   const [filter, setFilter] = useState({ channel: '', status: '', search: '' })
-  const [help, setHelp] = useState(false)
 
   const load = () => messagingService.get()
     .then((r: any) => { setData(r.data); setForm({ ...r.data.settings, testText: r.data.settings.testRecipients.join('\n') }) })
@@ -76,7 +75,6 @@ export default function MessagingPage() {
 
   const input = 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500'
   const statuses: [Channel, ChannelStatus][] = [['EMAIL', data.status.email], ['SMS', data.status.sms], ['WHATSAPP', data.status.whatsapp]]
-  const anyReady = statuses.some(([, s]) => s.ready)
   const counts = data.last30Days
 
   return (
@@ -84,7 +82,6 @@ export default function MessagingPage() {
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Email & SMS</h1>
-          <p className="text-gray-500 text-sm mt-0.5">Notifications, payment reminders and messages to clients by email, SMS and WhatsApp</p>
         </div>
         <span className={cn('text-xs font-semibold px-3 py-1.5 rounded-full', form.mode === 'LIVE' && data.settings.mode === 'LIVE' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700')}>
           {data.settings.mode === 'LIVE' ? 'Live: messages go to everyone' : 'Test mode: only the test list receives messages'}
@@ -105,24 +102,12 @@ export default function MessagingPage() {
               </div>
               {s.ready ? (
                 <p className="text-xs text-gray-500 mt-1.5">{PROVIDER_NAME[s.provider ?? ''] ?? s.provider} · from <b className="text-gray-700">{s.from}</b></p>
-              ) : (
-                <p className="text-xs text-gray-500 mt-1.5">Add {CHANNEL_INFO[ch].keys} to the backend settings, then restart it.</p>
-              )}
+              ) : null}
               {s.warning && <p className="text-xs text-red-600 mt-1">{s.warning}</p>}
             </div>
           )
         })}
       </div>
-
-      {!anyReady && (
-        <div className="bms-card p-4 flex items-start gap-3 bg-blue-50 border border-blue-100">
-          <ShieldAlert className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
-          <p className="text-sm text-blue-700">
-            Nothing is connected yet, so no message leaves the system. Every message it would send is still listed in the log below as
-            “Not set up”. Add the keys (see “How to connect”) and they start going out, with no other change.
-          </p>
-        </div>
-      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(380px, 100%), 1fr))', gap: '0.75rem', alignItems: 'start' }}>
         {/* Who receives messages */}
@@ -131,11 +116,11 @@ export default function MessagingPage() {
           <div className="space-y-2">
             <label className="flex items-start gap-2 text-sm cursor-pointer">
               <input type="radio" name="mode" className="mt-1 accent-santech-600" checked={form.mode === 'TEST'} onChange={() => setForm(f => f && { ...f, mode: 'TEST' })} />
-              <span><b>Test mode</b> <span className="text-gray-500">— only the addresses and numbers below receive anything; other messages are held (listed, not sent). Safe while the system has demo data.</span></span>
+              <span><b>Test mode</b></span>
             </label>
             <label className="flex items-start gap-2 text-sm cursor-pointer">
               <input type="radio" name="mode" className="mt-1 accent-santech-600" checked={form.mode === 'LIVE'} onChange={() => setForm(f => f && { ...f, mode: 'LIVE' })} />
-              <span><b>Live</b> <span className="text-gray-500">— messages go to the real clients, suppliers and staff.</span></span>
+              <span><b>Live</b></span>
             </label>
           </div>
           <div>
@@ -145,13 +130,12 @@ export default function MessagingPage() {
           </div>
           <label className="flex items-start gap-2 text-sm cursor-pointer">
             <input type="checkbox" className="mt-1 accent-santech-600" checked={form.emailStaff} onChange={e => setForm(f => f && { ...f, emailStaff: e.target.checked })} />
-            <span>Email staff their notifications <span className="text-gray-500">(task assigned, approvals, expense claims, leave, tickets…)</span></span>
+            <span>Email staff their notifications</span>
           </label>
           <label className="flex items-start gap-2 text-sm cursor-pointer">
             <input type="checkbox" className="mt-1 accent-santech-600" checked={form.emailPortal} onChange={e => setForm(f => f && { ...f, emailPortal: e.target.checked })} />
-            <span>Email customers and suppliers their portal updates <span className="text-gray-500">(new quotation, invoice, contract, document, ticket reply, purchase order)</span></span>
+            <span>Email customers and suppliers their portal updates</span>
           </label>
-          <p className="text-xs text-gray-400">Daily reminders (due invoices, deadlines, renewals) stay in the bell only. Payment reminders to clients are sent from the invoice.</p>
           <button disabled={saving} className="flex items-center gap-2 px-4 py-2 bg-santech-600 text-white rounded-lg text-sm font-medium hover:bg-santech-700 disabled:opacity-50">
             <Save className="w-4 h-4" /> {saving ? 'Saving…' : 'Save'}
           </button>
@@ -173,31 +157,8 @@ export default function MessagingPage() {
               </button>
             </div>
             {testResult && <p className={cn('text-xs', testResult.status === 'SENT' ? 'text-green-700' : 'text-red-600')}>{testResult.message}</p>}
-            <p className="text-xs text-gray-400">A test is sent even in test mode.</p>
           </form>
 
-          <div className="bms-card px-5 py-4">
-            <button type="button" onClick={() => setHelp(h => !h)} className="w-full flex items-center justify-between text-sm font-semibold text-gray-800">
-              How to connect {help ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-            </button>
-            {help && (
-              <div className="mt-3 space-y-3 text-xs text-gray-600">
-                <p>Put the keys in <b>backend/.env</b> (your computer) and in <b>Render → backend service → Environment</b> (live site), then restart. They are never shown here.</p>
-                <div>
-                  <p className="font-semibold text-gray-800">Email — Brevo (recommended, free 300 a day)</p>
-                  <p>brevo.com → Senders: verify your sender address → <code>MAIL_FROM</code>. SMTP & API → API Keys → <code>BREVO_API_KEY</code>. Works on the live site.</p>
-                </div>
-                <div>
-                  <p className="font-semibold text-gray-800">Email — Gmail (computer only)</p>
-                  <p>Turn on 2-Step Verification, create an App Password, then set <code>SMTP_USER</code> (your Gmail) and <code>SMTP_PASS</code> (the app password). Render's free plan blocks this, so use Brevo for the live site.</p>
-                </div>
-                <div>
-                  <p className="font-semibold text-gray-800">SMS and WhatsApp — Twilio</p>
-                  <p>twilio.com console → <code>TWILIO_ACCOUNT_SID</code>, <code>TWILIO_AUTH_TOKEN</code>, your Twilio number → <code>TWILIO_SMS_FROM</code>. WhatsApp: Messaging → Try it out → WhatsApp sandbox → <code>TWILIO_WHATSAPP_FROM</code>. The free trial only sends to numbers you verified.</p>
-                </div>
-              </div>
-            )}
-          </div>
         </div>
       </div>
 

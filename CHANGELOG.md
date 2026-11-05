@@ -27,6 +27,15 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 
 ## 1.7.0 — 2 November 2026
 
+### Cleaner Email & SMS page; Gmail app passwords with spaces (5 Nov)
+- **Email & SMS page:** removed the guidance text: the blue "nothing is connected" box, the "How to connect"
+  section and the grey notes under each option. What is left is the three channel cards, test or live mode
+  with the test list and the two email switches, "Send a test" and the message log. The setup steps
+  are in `backend/.env.example` and SETUP.md.
+- **Gmail:** Google shows an app password as `abcd efgh ijkl mnop`. The spaces are now ignored, so it
+  works pasted either way.
+- **Technical:** `frontend/src/pages/settings/MessagingPage.tsx`; `smtpTransport()` in `backend/src/lib/messaging.ts`.
+
 ### Email, SMS and WhatsApp — ready to switch on (2 Nov)
 - **What:** the system can now send email, SMS and WhatsApp. It needs only the provider keys in the
   backend settings; nothing else changes. Without keys it works exactly as before, and each message it
