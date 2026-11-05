@@ -27,6 +27,14 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 
 ## 1.7.0 — 2 November 2026
 
+### A user's email can be changed (5 Nov)
+- **What:** in Settings → User Management, the email box is no longer locked when editing a user. Admins can
+  correct a wrong address. The email is also the login name, so the person signs in with the new address
+  from then on (same password). Notification emails go to this address.
+- **Checks:** it must look like an email address and must not belong to another user. The change is
+  written to the audit trail with the old and new address.
+- **Technical:** `PUT /api/users/:id` accepts `email`.
+
 ### Reminder days can be changed (5 Nov)
 - **What:** the days at which the system reminds people (invoice due, contract ending, tasks, ...) used to be
   fixed in the code. Super Admin and Admin (HR) can now change them, and switch any reminder off.

@@ -249,7 +249,7 @@ export default function SettingsPage() {
   async function handleSave() {
     if (!validate()) return
     const payload = {
-      firstName: form.firstName.trim(), lastName: form.lastName.trim(), phone: form.phone.trim(),
+      firstName: form.firstName.trim(), lastName: form.lastName.trim(), email: form.email.trim(), phone: form.phone.trim(),
       role: form.role, department: form.department.trim(), position: form.position.trim(),
       ...(form.password ? { password: form.password } : {}),
     }
@@ -260,7 +260,7 @@ export default function SettingsPage() {
         setUsers(prev => prev.map(u => (u.id === editingUser.id ? toUser(res.data) : u)))
         toast.success('User updated')
       } else {
-        const res = await userService.create({ ...payload, email: form.email.trim() })
+        const res = await userService.create(payload)
         setUsers(prev => [...prev, toUser(res.data)])
         toast.success(`User created — they can log in with ${form.email.trim()}`)
       }
@@ -619,8 +619,6 @@ export default function SettingsPage() {
                   name="email"
                   value={form.email}
                   onChange={handleFormChange}
-                  disabled={!!editingUser}
-                  title={editingUser ? 'Email is the login and cannot be changed' : undefined}
                   placeholder="user@santech.rw"
                   className={cn(
                     'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-santech-600',

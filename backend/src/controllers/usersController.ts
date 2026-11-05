@@ -83,6 +83,11 @@ export async function updateUser(req: AuthRequest, res: Response): Promise<void>
     const before = await prisma.user.findUnique({ where: { id: req.params.id }, select })
     if (!before) { res.status(404).json({ success: false, message: 'User not found' }); return }
     const { firstName, lastName, phone, role, isActive, department, position, password } = req.body
+    const newEmail = req.body.email !== undefined ? String(req.body.email).toLowerCase().trim() : undefined
+    if (newEmail !== undefined && newEmail !== before.email) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) { res.status(400).json({ success: false, message: 'Enter a valid email address' }); return }
+      if (await prisma.user.findUnique({ where: { email: newEmail }, select: { id: true } })) { res.status(409).json({ success: false, message: 'A user with this email already exists' }); return }
+    }
     const dept = department ? await findDepartment(department) : null
     if (department && !dept) { res.status(400).json({ success: false, message: 'Choose a department from the list (Team → Departments)' }); return }
     if (!guardRole(req, res, before.role) || !guardRole(req, res, role)) return
@@ -98,6 +103,7 @@ export async function updateUser(req: AuthRequest, res: Response): Promise<void>
         data: {
           ...(firstName !== undefined && { firstName }),
           ...(lastName !== undefined && { lastName }),
+          ...(newEmail && { email: newEmail }),
           ...(phone !== undefined && { phone: phone || null }),
           ...(role !== undefined && { role }),
           ...(isActive !== undefined && { isActive: !!isActive }),
@@ -124,8 +130,8 @@ export async function updateUser(req: AuthRequest, res: Response): Promise<void>
       entityName: `${user!.firstName} ${user!.lastName}`,
       description: toggled ? `${isActive ? 'Activated' : 'Deactivated'} user ${user!.firstName} ${user!.lastName}`
         : role && role !== before.role ? `Changed role of ${user!.firstName} ${user!.lastName} from ${before.role} to ${role}`
-        : `Updated user ${user!.firstName} ${user!.lastName}${password ? ' (password reset)' : ''}`,
-      oldValue: { role: before.role, isActive: before.isActive }, newValue: { role: user!.role, isActive: user!.isActive },
+        : `Updated user ${user!.firstName} ${user!.lastName}${user!.email !== before.email ? ` (email changed from ${before.email} to ${user!.email})` : ''}${password ? ' (password reset)' : ''}`,
+      oldValue: { role: before.role, isActive: before.isActive, email: before.email }, newValue: { role: user!.role, isActive: user!.isActive, email: user!.email },
     })
     res.json({ success: true, data: user, message: toggled ? (isActive ? 'User activated' : 'User deactivated') : 'User updated' })
   } catch (e) { fail(res, e, 'updateUser') }
