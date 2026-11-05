@@ -159,8 +159,11 @@ const smtpTransport = () => {
   return smtp
 }
 
-async function sendEmailNow(provider: EmailProvider, to: string, subject: string, text: string, html: string, replyTo?: string): Promise<void> {
+async function sendEmailNow(provider: EmailProvider, to: string, subject: string, text: string, html: string, replyToGiven?: string): Promise<void> {
   const from = mailFrom()
+  // replies go to the person who wrote the message, or else to the company address REPLY_TO (a mailbox someone reads)
+  const company = env('REPLY_TO')
+  const replyTo = replyToGiven || (EMAIL_RE.test(company) ? company : undefined)
   if (!from.email) throw new Error('No sender address: set MAIL_FROM')
   if (provider === 'resend') {
     const r = await fetch(RESEND_URL(), {

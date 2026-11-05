@@ -35,6 +35,9 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 - **Which one is used:** `EMAIL_PROVIDER` (`resend`, `brevo` or `smtp`) picks one when its keys are set.
   Otherwise the first with keys is used, in the order Resend, Brevo, SMTP.
 - **Where to see it:** Settings → Email & SMS shows "Resend" and the sender address (never the key).
+- **Reply address:** new `REPLY_TO` setting (for example `bms@santechconnect.com`). Automatic emails go out from
+  the no-reply sender but carry this as "reply to", so a reply reaches a real mailbox. A message written by a
+  staff member in the communication log still replies to that person. A value that is not an email is ignored.
 - **Tested** against a stand-in Resend server: provider choice, sender parsing, key in the Bearer header,
   from/to/subject/reply-to, a refusal logged as failed with Resend's reason, and fall-back.
 
