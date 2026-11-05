@@ -27,6 +27,18 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 
 ## 1.7.0 — 2 November 2026
 
+### Email & SMS page ready for production (5 Nov)
+- **Delivery switch:** the Test / Live radio buttons are now one switch, **Send to all recipients**. When it is off
+  (restricted delivery), only the addresses in **Allowed recipients** receive messages and the rest are held;
+  that box is only shown while it is off. The badge at the top says "Live delivery" or "Restricted delivery".
+  Turning it on asks for confirmation. Nothing changed on the server.
+- **Who can do what:** a short table on the page lists what each role can do with email: admins (Super Admin and
+  Admin (HR)) manage this page, portal logins, reminders and sending; Finance Manager sends payment reminders and
+  creates supplier logins; Sales Manager creates customer logins; all staff receive their own notifications;
+  customers and suppliers receive updates about their own records.
+- **Note:** the local frontend (`frontend/.env` → `VITE_API_URL`) talks to the live backend on Render, so its
+  Email & SMS page shows the live connection (Brevo), not your local `.env`.
+
 ### Cleaner Email & SMS page; Gmail app passwords with spaces (5 Nov)
 - **Email & SMS page:** removed the guidance text: the blue "nothing is connected" box, the "How to connect"
   section and the grey notes under each option. What is left is the three channel cards, test or live mode

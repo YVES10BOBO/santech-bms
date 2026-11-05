@@ -17,10 +17,18 @@ const CHANNEL_INFO: Record<Channel, { label: string; icon: typeof Mail }> = {
   SMS: { label: 'SMS', icon: MessageSquare },
   WHATSAPP: { label: 'WhatsApp', icon: MessageCircle },
 }
+/** Who can use messaging, matching the server's rules */
+const ACCESS = [
+  { who: 'Super Admin, Admin (HR)', what: 'This page: connections, delivery, tests and the message log. Customer and supplier portal logins. Payment reminders. Sending from the communication log.' },
+  { who: 'Finance Manager', what: 'Payment reminders on invoices. Supplier portal logins.' },
+  { who: 'Sales Manager', what: 'Customer portal logins.' },
+  { who: 'All staff', what: 'Receive their own notifications by email (when switched on).' },
+  { who: 'Customers, suppliers', what: 'Receive updates about their own quotations, invoices, orders and tickets.' },
+]
 const PROVIDER_NAME: Record<string, string> = { brevo: 'Brevo', smtp: 'SMTP (e.g. Gmail)', twilio: 'Twilio' }
 const STATUS_INFO: Record<string, { label: string; cls: string; hint: string }> = {
   SENT: { label: 'Sent', cls: 'bg-green-100 text-green-700', hint: 'Delivered to the provider' },
-  HELD: { label: 'Held', cls: 'bg-amber-100 text-amber-700', hint: 'Test mode: not on the test list' },
+  HELD: { label: 'Held', cls: 'bg-amber-100 text-amber-700', hint: 'Restricted delivery: not on the allowed list' },
   NOT_CONFIGURED: { label: 'Not set up', cls: 'bg-gray-100 text-gray-600', hint: 'No provider keys yet, so it was only recorded' },
   FAILED: { label: 'Failed', cls: 'bg-red-100 text-red-700', hint: 'The provider refused it' },
 }
@@ -52,7 +60,7 @@ export default function MessagingPage() {
   const save = async (e: React.FormEvent) => {
     e.preventDefault()
     if (form.mode === 'LIVE' && data.settings.mode !== 'LIVE' &&
-      !window.confirm('Switch to Live? Every client, supplier and staff member with an email or phone will receive messages. Make sure the demo data is replaced with real contacts first.')) return
+      !window.confirm('Send to all recipients? Every client, supplier and staff member with an email or phone number will receive messages.')) return
     setSaving(true)
     try {
       const r: any = await messagingService.save({ mode: form.mode, testRecipients: form.testText, emailStaff: form.emailStaff, emailPortal: form.emailPortal })
@@ -83,8 +91,8 @@ export default function MessagingPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Email & SMS</h1>
         </div>
-        <span className={cn('text-xs font-semibold px-3 py-1.5 rounded-full', form.mode === 'LIVE' && data.settings.mode === 'LIVE' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700')}>
-          {data.settings.mode === 'LIVE' ? 'Live: messages go to everyone' : 'Test mode: only the test list receives messages'}
+        <span className={cn('text-xs font-semibold px-3 py-1.5 rounded-full', data.settings.mode === 'LIVE' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700')}>
+          {data.settings.mode === 'LIVE' ? 'Live delivery' : 'Restricted delivery'}
         </span>
       </div>
 
@@ -112,22 +120,22 @@ export default function MessagingPage() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(380px, 100%), 1fr))', gap: '0.75rem', alignItems: 'start' }}>
         {/* Who receives messages */}
         <form onSubmit={save} className="bms-card px-5 py-4 space-y-3">
-          <h2 className="text-sm font-semibold text-gray-800">Who receives messages</h2>
-          <div className="space-y-2">
-            <label className="flex items-start gap-2 text-sm cursor-pointer">
-              <input type="radio" name="mode" className="mt-1 accent-santech-600" checked={form.mode === 'TEST'} onChange={() => setForm(f => f && { ...f, mode: 'TEST' })} />
-              <span><b>Test mode</b></span>
-            </label>
-            <label className="flex items-start gap-2 text-sm cursor-pointer">
-              <input type="radio" name="mode" className="mt-1 accent-santech-600" checked={form.mode === 'LIVE'} onChange={() => setForm(f => f && { ...f, mode: 'LIVE' })} />
-              <span><b>Live</b></span>
-            </label>
+          <h2 className="text-sm font-semibold text-gray-800">Delivery</h2>
+          <div className="flex items-center justify-between gap-3 text-sm">
+            <span>Send to all recipients <span className="block text-xs text-gray-400">Clients, suppliers and staff</span></span>
+            <button type="button" role="switch" aria-checked={form.mode === 'LIVE'} aria-label="Send to all recipients"
+              onClick={() => setForm(f => f && { ...f, mode: f.mode === 'LIVE' ? 'TEST' : 'LIVE' })}
+              className={cn('relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors', form.mode === 'LIVE' ? 'bg-green-600' : 'bg-gray-300')}>
+              <span className={cn('inline-block h-5 w-5 rounded-full bg-white shadow transition-transform', form.mode === 'LIVE' ? 'translate-x-5' : 'translate-x-0.5')} />
+            </button>
           </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Test list (one email or phone number per line)</label>
-            <textarea rows={3} className={cn(input, 'font-mono text-xs')} value={form.testText} disabled={form.mode === 'LIVE'}
-              onChange={e => setForm(f => f && { ...f, testText: e.target.value })} placeholder={'you@example.com\n+250788123456'} />
-          </div>
+          {form.mode === 'TEST' && (
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Allowed recipients (one email or phone number per line)</label>
+              <textarea rows={3} className={cn(input, 'font-mono text-xs')} value={form.testText}
+                onChange={e => setForm(f => f && { ...f, testText: e.target.value })} placeholder="name@company.com" />
+            </div>
+          )}
           <label className="flex items-start gap-2 text-sm cursor-pointer">
             <input type="checkbox" className="mt-1 accent-santech-600" checked={form.emailStaff} onChange={e => setForm(f => f && { ...f, emailStaff: e.target.checked })} />
             <span>Email staff their notifications</span>
@@ -159,6 +167,17 @@ export default function MessagingPage() {
             {testResult && <p className={cn('text-xs', testResult.status === 'SENT' ? 'text-green-700' : 'text-red-600')}>{testResult.message}</p>}
           </form>
 
+          <div className="bms-card px-5 py-4">
+            <h2 className="text-sm font-semibold text-gray-800 mb-2">Who can do what</h2>
+            <ul className="divide-y divide-gray-100 text-xs">
+              {ACCESS.map(a => (
+                <li key={a.who} className="py-2 flex gap-3">
+                  <span className="w-40 shrink-0 font-semibold text-gray-700">{a.who}</span>
+                  <span className="text-gray-500">{a.what}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       </div>
 

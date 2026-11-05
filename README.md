@@ -665,8 +665,9 @@ only ever see their own client's records and never the staff menus or API.
 **Where:** Settings → Email & SMS (admins)
 - Which channels are connected: email (Brevo or SMTP such as Gmail), SMS and WhatsApp (Twilio). It shows
   the provider and sender, never the keys. Keys go in `backend/.env` and in Render → Environment.
-- **Test mode (default):** only the emails and phone numbers on the test list receive anything; other
-  messages are held and listed. Switch to **Live** once real contacts replace the demo data.
+- **Delivery switch:** "Send to all recipients". While it is off (restricted delivery), only the addresses in
+  Allowed recipients receive anything; other messages are held and listed. Turn it on once real contacts are in.
+- A "Who can do what" table shows which roles use email.
 - Switches: email staff their notifications; email customers and suppliers their portal updates.
 - **Send a test** (email, SMS or WhatsApp). How to get the keys is in `backend/.env.example` and SETUP.md.
 - **Message log:** every message, with its result: sent, held (test mode), not set up (no keys yet) or
