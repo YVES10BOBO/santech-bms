@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { LogOut, Bell, Save, KeyRound, type LucideIcon } from 'lucide-react'
+import { LogOut, Bell, Save, KeyRound, Send, type LucideIcon } from 'lucide-react'
 import { cn, timeAgo } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
 import { authService } from '@/lib/services/authService'
@@ -54,7 +54,7 @@ export default function PortalShell({ kind, orgName, tabs, active, onTab, childr
 }
 
 /** Latest notifications for the portal login (quotations sent, invoices, ticket updates, orders…) */
-export function PortalUpdates({ onOpen }: { onOpen?: (link: string) => void }) {
+export function PortalUpdates({ onOpen, emptyText }: { onOpen?: (link: string) => void; emptyText?: string }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [items, setItems] = useState<any[] | null>(null)
   useEffect(() => {
@@ -74,7 +74,7 @@ export function PortalUpdates({ onOpen }: { onOpen?: (link: string) => void }) {
         {items?.some(n => !n.isRead) && <button onClick={markAll} className="text-xs text-santech-700 hover:underline">Mark all read</button>}
       </div>
       {items === null ? <p className="text-sm text-gray-400">Loading…</p> : items.length === 0 ? (
-        <p className="text-sm text-gray-400">No updates yet. You will see new quotations, invoices and support replies here.</p>
+        <p className="text-sm text-gray-400">{emptyText ?? 'No updates yet. You will see new quotations, invoices and support replies here.'}</p>
       ) : (
         <ul className="divide-y divide-gray-100">
           {items.map(n => (
@@ -154,5 +154,65 @@ export function Tile({ label, value, hint, tone = 'text-santech-700', onClick }:
       <p className="text-xs text-gray-600 mt-0.5 font-medium">{label}</p>
       {hint && <p className="text-[11px] text-gray-400 mt-0.5">{hint}</p>}
     </button>
+  )
+}
+
+/** The tab a notification link points at, e.g. "/supplier?tab=orders" gives "orders" */
+export const tabOfLink = (link: string) => new URLSearchParams(link.split('?')[1] ?? '').get('tab')
+
+export interface Message { id: string; body: string; fromPortal: boolean; createdAt: string; author: string }
+
+/**
+ * A conversation between a portal login and Santech: messages oldest first, and a box to write.
+ * `load` and `send` call the right endpoint (ticket or order, portal side or staff side).
+ */
+export function Conversation({ load, send, canSend = true, mine, placeholder }: {
+  load: () => Promise<Message[]>; send: (body: string) => Promise<Message>; canSend?: boolean
+  /** which messages are on the right: portal messages (default) or Santech's */
+  mine?: 'portal' | 'santech'; placeholder?: string
+}) {
+  const [items, setItems] = useState<Message[] | null>(null)
+  const [text, setText] = useState('')
+  const [busy, setBusy] = useState(false)
+  const side = mine ?? 'portal'
+  useEffect(() => { load().then(setItems).catch(() => setItems([])) }, [load])
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!text.trim()) return
+    setBusy(true)
+    try {
+      const m = await send(text.trim())
+      setItems(prev => [...(prev ?? []), m]); setText('')
+    } catch (err) { toast.error(apiError(err, 'Failed to send')) } finally { setBusy(false) }
+  }
+  return (
+    <div className="space-y-2">
+      {items === null ? <p className="text-xs text-gray-400">Loading…</p> : items.length === 0 ? (
+        <p className="text-xs text-gray-400">No messages yet.</p>
+      ) : (
+        <ul className="space-y-2 max-h-64 overflow-y-auto pr-1">
+          {items.map(m => {
+            const right = side === 'portal' ? m.fromPortal : !m.fromPortal
+            return (
+              <li key={m.id} className={cn('flex', right ? 'justify-end' : 'justify-start')}>
+                <div className={cn('max-w-[85%] rounded-xl px-3 py-2 text-sm', right ? 'bg-santech-600 text-white' : 'bg-gray-100 text-gray-800')}>
+                  <p className={cn('text-[11px] mb-0.5', right ? 'text-santech-200' : 'text-gray-500')}>{m.author} · {timeAgo(m.createdAt)}</p>
+                  <p className="whitespace-pre-wrap break-words">{m.body}</p>
+                </div>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+      {canSend && (
+        <form onSubmit={submit} className="flex gap-2">
+          <input value={text} onChange={e => setText(e.target.value)} maxLength={2000} aria-label="Write a message" placeholder={placeholder ?? 'Write a message…'}
+            className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500" />
+          <button disabled={busy || !text.trim()} className="flex items-center gap-1.5 px-3 py-2 bg-santech-600 text-white rounded-lg text-sm font-medium hover:bg-santech-700 disabled:opacity-50">
+            <Send className="w-4 h-4" /> Send
+          </button>
+        </form>
+      )}
+    </div>
   )
 }

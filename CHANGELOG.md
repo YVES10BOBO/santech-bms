@@ -11,6 +11,7 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 
 | Version | Date (2026) | Highlights |
 |---|---|---|
+| **1.8.0** | 5 Nov | Customer and supplier portals completed: supplier invoice status and payment, messages, requests for quotation, documents and company details; customer "I have paid", contract signing, ticket conversation, quotation requests, bank details |
 | **1.7.0** | 2 Nov | Email, SMS and WhatsApp ready to switch on (Brevo or Gmail, Twilio): notification emails, portal login emails, payment reminders, "send it now" in the communication log, test mode, message log |
 | **1.6.0** | 2 Nov | Features linked together (deal ↔ quotation ↔ contract, leads ↔ campaigns, employees ↔ departments, tickets ↔ projects, visitors ↔ clients, catalogue lines), lost-deal reasons, 2px card borders, Santech logo, full-width Roles & Permissions page |
 | **1.5.0** | 30 Oct | Customer portal and supplier portal, suppliers and purchase orders |
@@ -24,6 +25,87 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 | **0.1.0** | 11–13 Oct | Foundation: first pages, backend skeleton, hosting on Vercel, Render and Neon |
 
 ---
+
+## 1.8.0 — 5 November 2026
+
+### Resend as an email provider (5 Nov)
+- **What:** email can now go out through **Resend** as well as Brevo or SMTP. Set `RESEND_API_KEY` and the
+  sender in `MAIL_FROM` (or `EMAIL_FROM`), for example `SAN TECH <no-reply@notification.example.com>`.
+  The domain must be verified in Resend, otherwise Resend only delivers to its owner.
+- **Which one is used:** `EMAIL_PROVIDER` (`resend`, `brevo` or `smtp`) picks one when its keys are set.
+  Otherwise the first with keys is used, in the order Resend, Brevo, SMTP.
+- **Where to see it:** Settings → Email & SMS shows "Resend" and the sender address (never the key).
+- **Tested** against a stand-in Resend server: provider choice, sender parsing, key in the Bearer header,
+  from/to/subject/reply-to, a refusal logged as failed with Resend's reason, and fall-back.
+
+### Customer and supplier portals completed (5 Nov)
+Both portals now cover what each side needs day to day, not only the main flow.
+
+**Supplier portal** (`/supplier`)
+- **Invoice status and payment:** every invoice the supplier sends shows where it stands: *Under review*,
+  *Approved: to be paid*, *Not accepted* (with Finance's reason, and a button to send a corrected invoice)
+  or *Paid* (amount, date and payment reference). A new **Invoices & payments** tab lists them all, and the
+  overview shows invoices under review, to be paid and paid so far. An approved or paid invoice cannot be
+  replaced.
+- **Order details and messages:** each order opens a panel with its details, a printable **purchase order
+  PDF**, and a conversation with Santech about that order.
+- **Quotation requests (RFQ):** a new tab shows the requests Santech sent. The supplier enters a price per
+  unit, delivery days, an optional offer end date, a note and its own quotation file, can change it before
+  the deadline, or say it cannot quote. When Santech chooses another supplier, it is told.
+- **Documents:** the supplier sees what Santech shared with it, and adds its own certificates, licences and
+  price lists (with an optional expiry date). It can remove only its own.
+- **Company details:** contact, phone, email, address, tax number and **bank details**, edited by the supplier.
+  The name and category stay with Santech. Finance is notified when the bank details change.
+- The updates box on the overview no longer says "quotations, invoices and support replies" (that was the
+  customer wording).
+
+**Customer portal** (`/portal`)
+- **Bank and mobile money details:** Settings → Company Profile has a new **How customers pay** card (bank,
+  account name and number, mobile money code, instructions). They appear on invoice and proforma PDFs and
+  next to every unpaid invoice in the portal.
+- **"I have paid":** the customer tells Santech about a payment (amount, method, date, reference, optional
+  proof file). Finance sees it on the invoice (and a *Customer says paid* tag in the list), records the payment
+  with one click (the form is filled in from the notice) or tells the customer it was not found. The customer
+  sees the answer. Limits: no more than the amount still owed, not in the future, at most 3 waiting notices
+  per invoice.
+- **Contract signing:** when Santech lists a person as a signatory and that person has a portal login with
+  the same name, the contract shows **Review and sign**. The person must tick that they agree. The signature
+  is recorded as signed in the portal, and the sales managers and the responsible manager are told.
+  Santech still attaches the signed document and activates the contract.
+- **Ticket conversation:** replies between the customer and the support team on each ticket, in the portal
+  and in Support → ticket panel.
+- **Ask for a quotation:** the customer describes what they need (and a budget). It becomes a lead for the
+  account manager and the sales managers, linked to the client.
+- **Contact details:** the customer edits contact person, phones, email and address. The company name and tax
+  number stay with Santech.
+
+**Staff side**
+- **Procurement:** new **Quotation requests** tab. Finance creates a request for several suppliers, compares
+  the answers side by side (lowest price marked, total, delivery days) and orders from the best one, which
+  makes a purchase order with the next PO number and tells every supplier the result. In the order panel:
+  approve, send back (with a reason) or mark paid the supplier's invoice, and write to the supplier. The
+  supplier form has bank name and account.
+- **Support:** the ticket panel has the conversation with the customer.
+- **Finance → Invoices:** customer payment notices (see above).
+- **Documents:** a document can be linked to a supplier and shared with it in the supplier portal.
+- **Contracts:** the signatories box says that a signer with a portal login of the same name can sign online.
+
+**Underneath**
+- New tables `portal_messages`, `payment_notices`, `rfqs`, `rfq_quotes` (migration
+  `20261105100000_portal_complete`). New columns: purchase order invoice status, reason, paid date, amount
+  and reference; supplier bank name and account; document supplier link and share flag.
+- New customer endpoints: ticket messages, `payment-notice`, `contracts/:id/sign`, `quotation-requests`,
+  `profile`. New supplier endpoints: order detail and messages, `profile`, `documents`, `rfqs`. New staff
+  endpoints under `/api/portal-admin`: ticket and order messages, invoice review, payment notices, RFQs.
+- Company profile settings gained `bankName`, `bankAccountName`, `bankAccountNumber`, `momoCode`,
+  `paymentInstructions`.
+- Demo data (`prisma/seeds/portalExtras.ts`, safe to run again): bank details, supplier invoices at every
+  stage, a conversation on an order and a ticket, a payment notice, a contract waiting for the customer's
+  signature, supplier documents and two requests for quotation.
+- Tested with 93 API checks (permissions, other suppliers' and clients' data, limits, every status change)
+  and browser checks of every new screen.
+- **Not built:** paying online (mobile money or card) from the portal. Customers pay with the bank or mobile
+  money details and tell Santech with "I have paid". Online payment needs an account with a payment provider.
 
 ## 1.7.0 — 2 November 2026
 

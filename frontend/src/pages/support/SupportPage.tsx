@@ -4,6 +4,7 @@ import { cn, formatDate } from '@/lib/utils'
 import { ticketService } from '@/lib/services/operationsService'
 import { useLookups, apiError } from '@/lib/services/lookupService'
 import PageLoader from '@/components/shared/PageLoader'
+import TicketConversation from './TicketConversation'
 import toast from 'react-hot-toast'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -933,6 +934,8 @@ export default function SupportPage() {
                   {viewTicket.description}
                 </p>
               </div>
+
+              <TicketConversation ticketId={viewTicket.id} canReply={viewTicket.status !== 'CLOSED'} />
             </div>
 
             {/* Assignment + progress */}

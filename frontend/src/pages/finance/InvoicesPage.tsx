@@ -8,6 +8,8 @@ import { CURRENCIES, toRwf, rwfHint, useRates } from '@/lib/currency'
 import PageLoader from '@/components/shared/PageLoader'
 import toast from 'react-hot-toast'
 import { printDocument } from '@/lib/printDocument'
+import { portalAdminService } from '@/lib/services/operationsService'
+import CustomerPaymentNotices, { METHOD_TO_PAYMENT } from './CustomerPaymentNotices'
 
 type InvoiceStatus = 'DRAFT' | 'SENT' | 'DUE' | 'PARTIALLY_PAID' | 'PAID' | 'OVERDUE' | 'CANCELLED'
 type InvoiceType = 'INVOICE' | 'PROFORMA' | 'CREDIT_NOTE'
@@ -131,6 +133,11 @@ export default function InvoicesPage() {
   const [form, setForm] = useState(emptyForm)
   const [payFor, setPayFor] = useState<Invoice | null>(null)
   const [payForm, setPayForm] = useState({ amount: '', paymentDate: today(), paymentMethod: 'Bank Transfer', reference: '' })
+  // a payment the customer reported in the portal that this payment confirms
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [payNotice, setPayNotice] = useState<any | null>(null)
+  const [noticeKey, setNoticeKey] = useState(0)
+  const [pendingNotices, setPendingNotices] = useState<Record<string, number>>({})
   const [creditFor, setCreditFor] = useState<Invoice | null>(null)
   const [creditForm, setCreditForm] = useState({ amount: '', reason: '' })
   const [convertFor, setConvertFor] = useState<Invoice | null>(null)
@@ -150,6 +157,11 @@ export default function InvoicesPage() {
       .catch(err => toast.error(apiError(err, 'Failed to load invoices')))
 
   useEffect(() => { loadInvoices().finally(() => setLoading(false)) }, [])
+  const loadPending = () => portalAdminService.pendingNotices()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .then((r: any) => setPendingNotices(Object.fromEntries((r.data ?? []).map((x: { invoiceId: string; count: number }) => [x.invoiceId, x.count]))))
+    .catch(() => undefined)
+  useEffect(() => { loadPending() }, [])
 
   // A search for a proforma or credit note number opens its tab
   useEffect(() => {
@@ -244,8 +256,10 @@ export default function InvoicesPage() {
     await financeService.recordPayment(payFor.id, {
       amount: parseFloat(payForm.amount), paymentDate: payForm.paymentDate, paymentMethod: payForm.paymentMethod, reference: payForm.reference,
     })
+    // the customer said they paid: mark their notice as confirmed
+    if (payNotice) await portalAdminService.reviewNotice(payNotice.id, 'CONFIRMED').catch(() => undefined)
     return { message: `Payment recorded — added to Finance income${payFor.currency !== 'RWF' ? ' in RWF at today\'s rate' : ''}` }
-  }, 'Failed to record payment', () => { setPayFor(null); setPayForm({ amount: '', paymentDate: today(), paymentMethod: 'Bank Transfer', reference: '' }) })
+  }, 'Failed to record payment', () => { setPayFor(null); setPayNotice(null); setNoticeKey(k => k + 1); loadPending(); setPayForm({ amount: '', paymentDate: today(), paymentMethod: 'Bank Transfer', reference: '' }) })
 
   const issueCredit = () => creditFor && act(
     () => financeService.createCreditNote(creditFor.id, { amount: parseFloat(creditForm.amount), reason: creditForm.reason.trim() }),
@@ -380,6 +394,7 @@ export default function InvoicesPage() {
                   <td className="px-4 py-3 font-mono text-xs font-semibold text-santech-700 whitespace-nowrap">
                     {inv.invoiceNumber}
                     {inv.service && <Repeat className="w-3 h-3 inline ml-1 text-gray-400" aria-label="recurring service invoice" />}
+                    {pendingNotices[inv.id] > 0 && <span className="ml-2 font-sans text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium" title="The customer says they paid. Open the invoice to check">Customer says paid</span>}
                   </td>
                   <td className="px-4 py-3 text-xs font-medium text-gray-800 whitespace-nowrap">{inv.clientName}</td>
                   {tab === 'INVOICE' && <>
@@ -499,6 +514,8 @@ export default function InvoicesPage() {
                       </div>
                     ))}
                   </div>
+                  <CustomerPaymentNotices invoiceId={viewInvoice.id} currency={viewInvoice.currency} refreshKey={noticeKey}
+                    onRecord={n => { setPayNotice(n); setPayFor(viewInvoice); setPayForm({ amount: String(n.amount), paymentDate: String(n.paidOn).slice(0, 10), paymentMethod: METHOD_TO_PAYMENT[n.method] ?? 'Bank Transfer', reference: n.reference ?? '' }) }} />
                   {viewInvoice.creditNotes.length > 0 && (
                     <div>
                       <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Credit notes</p>

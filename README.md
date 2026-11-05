@@ -427,25 +427,42 @@ only ever see their own client's records and never the staff menus or API.
   **Decline** (reason required). Opening a sent quotation marks it *Viewed*. Expired quotations cannot be
   accepted. The salesperson and sales manager are notified, and the answer is in the quotation history.
 - **Invoices:** invoices, proforma invoices and credit notes (no drafts), what is still to pay, payments
-  received and credit notes, PDF for each.
+  received and credit notes, PDF for each. Next to an unpaid invoice: **how to pay** (bank account and mobile
+  money from the company profile) and **I have paid** (amount, method, date, reference, optional proof).
+  Finance checks it and records the payment; the customer sees the answer.
 - **Contracts:** signing, active, completed and renewal contracts with value, dates, terms, deliverables,
-  signatures and the signed file to download.
+  signatures and the signed file to download. A listed signatory with a portal login of the same name sees
+  **Review and sign** and signs online (after ticking that they agree).
 - **Projects:** status, progress, milestones and dates, project manager, warranty end date (no budget).
 - **Support:** open a ticket (subject, product, urgency, description), follow its status and response
-  times, rate the help (1–5) once resolved, or reopen it when the problem comes back.
+  times, a **conversation** with the support team on each ticket, rate the help (1–5) once resolved, or
+  reopen it when the problem comes back.
+- **Quotation requests:** **Ask for a quotation** (what, details, budget); it becomes a lead for the account
+  manager.
 - **Documents:** signed contracts and the documents Santech shared with the client.
-- **Account:** name, phone, change password.
+- **Account:** contact person, phones, email, address (Santech keeps the company name and tax number), name,
+  phone, change password.
 - **Notifications:** the client is told when Santech sends a quotation, an invoice, a proforma or credit
   note, shares a document, activates a contract, or updates a ticket.
 
 ### Supplier Portal
 **Where:** sign in with a supplier login (e.g. `supplier@santech.rw`) → lands on `/supplier`.
 - **Overview:** new orders to confirm, confirmed / on the way, delivered, waiting for the supplier's
-  invoice, open order value, latest updates.
+  invoice, open order value, invoices under review, approved and to be paid, paid so far, open quotation
+  requests, latest updates.
 - **Purchase orders** placed with that supplier (with a PO number): **Confirm order** with the expected
-  delivery date (and a note), **Mark dispatched**, **Send invoice** (amount + PDF or photo).
+  delivery date (and a note), **Mark dispatched**, **Send invoice** (amount + PDF or photo), and **Details
+  and messages**: the order details, a printable purchase order PDF and a conversation with Santech.
   Procurement / Finance and the person who asked for the item are notified at each step.
-- Santech still confirms the delivery in Procurement, which books the expense.
+- **Invoices & payments:** each invoice is *Under review*, *Approved: to be paid*, *Not accepted* (with the
+  reason, and a corrected invoice can be sent) or *Paid* (amount, date, reference).
+- **Quotation requests:** requests for a price from Santech: enter price per unit, delivery days, offer
+  end date, note and file, change it until the deadline, or decline. The winner gets a purchase order.
+- **Documents:** what Santech shared, and the supplier's own certificates, licences and price lists.
+- **Account:** company details including bank account (the supplier edits them), and password.
+- Santech still confirms the delivery in Procurement, which books the expense. In Procurement, Finance also
+  checks the supplier's invoice (approve, send back, mark paid), writes to the supplier, and runs
+  **Quotation requests**: ask several suppliers, compare the answers, order from the best one.
 
 ### Reports
 **Where:** Reports → All Reports — 4 tabs, calculated from live data:
@@ -837,7 +854,7 @@ CLIENT_URL=https://santech-bms.vercel.app
 PORT=5000
 
 # Optional: email, SMS and WhatsApp (see backend/.env.example for where to get each one)
-BREVO_API_KEY=...
+RESEND_API_KEY=...      # or BREVO_API_KEY=... (Resend is used first when both are set)
 MAIL_FROM=you@yourdomain.com
 MAIL_FROM_NAME=Santech Innovate
 TWILIO_ACCOUNT_SID=...

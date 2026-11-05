@@ -7,6 +7,7 @@ import { fileService } from '@/lib/services/fileService'
 import { useAuthStore } from '@/store/authStore'
 import PageLoader from '@/components/shared/PageLoader'
 import PortalLogins from '@/components/shared/PortalLogins'
+import { InvoiceReview, OrderMessages, RfqPanel } from './ProcurementPortal'
 import toast from 'react-hot-toast'
 
 type ProcurementStatus = 'PENDING' | 'APPROVED' | 'ORDERED' | 'DELIVERED' | 'CANCELLED'
@@ -34,11 +35,16 @@ interface ProcurementItem {
   supplierInvoiceFileId: string
   supplierInvoiceName: string
   supplierInvoiceAmount: number | null
+  supplierInvoiceStatus: string
+  supplierInvoiceNote: string
+  supplierInvoicePaidAt: string
+  supplierInvoicePaidAmount: number | null
+  supplierInvoiceReference: string
 }
 
 interface Supplier {
   id: string; name: string; contactName: string | null; email: string | null; phone: string | null; address: string | null
-  tin: string | null; category: ProcurementCategory; notes: string | null; isActive: boolean
+  tin: string | null; bankName: string | null; bankAccount: string | null; category: ProcurementCategory; notes: string | null; isActive: boolean
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   users: any[]; _count: { purchases: number }
 }
@@ -61,6 +67,8 @@ const toItem = (p: any): ProcurementItem => ({
   supplierStatus: p.supplierStatus ?? '', expectedDelivery: p.expectedDelivery ? String(p.expectedDelivery).slice(0, 10) : '',
   supplierNote: p.supplierNote ?? '', supplierInvoiceFileId: p.supplierInvoiceFileId ?? '', supplierInvoiceName: p.supplierInvoiceName ?? '',
   supplierInvoiceAmount: p.supplierInvoiceAmount ?? null,
+  supplierInvoiceStatus: p.supplierInvoiceStatus ?? '', supplierInvoiceNote: p.supplierInvoiceNote ?? '',
+  supplierInvoicePaidAt: p.supplierInvoicePaidAt ?? '', supplierInvoicePaidAmount: p.supplierInvoicePaidAmount ?? null, supplierInvoiceReference: p.supplierInvoiceReference ?? '',
 })
 
 /** What the supplier did on a placed order (supplier portal) */
@@ -73,7 +81,7 @@ function supplierStage(i: ProcurementItem): { text: string; tone: string } | nul
 }
 
 const emptyForm = { itemName: '', category: 'OTHER' as ProcurementCategory, quantity: 1, unitPrice: 0, supplierId: '', supplier: '', notes: '' }
-const emptySupplier = { name: '', contactName: '', email: '', phone: '', address: '', tin: '', category: 'OTHER' as ProcurementCategory, notes: '', isActive: true }
+const emptySupplier = { name: '', contactName: '', email: '', phone: '', address: '', tin: '', bankName: '', bankAccount: '', category: 'OTHER' as ProcurementCategory, notes: '', isActive: true }
 
 export default function ProcurementPage() {
   const [items, setItems] = useState<ProcurementItem[]>([])
@@ -82,7 +90,7 @@ export default function ProcurementPage() {
   const [saving, setSaving] = useState(false)
   const { user } = useAuthStore()
   const canApprove = ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER'].includes(user?.role ?? '')
-  const [tab, setTab] = useState<'requests' | 'suppliers'>('requests')
+  const [tab, setTab] = useState<'requests' | 'rfqs' | 'suppliers'>('requests')
 
   const loadSuppliers = () => supplierService.getAll()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -193,7 +201,7 @@ export default function ProcurementPage() {
           <button onClick={() => { setForm(emptyForm); setShowAddModal(true) }} className="flex items-center gap-2 px-4 py-2 bg-santech-600 text-white rounded-lg text-sm font-medium hover:bg-santech-700">
             <Plus className="w-4 h-4" /> New Request
           </button>
-        ) : canApprove && (
+        ) : tab === 'suppliers' && canApprove && (
           <button onClick={() => setSupplierForm({ ...emptySupplier })} className="flex items-center gap-2 px-4 py-2 bg-santech-600 text-white rounded-lg text-sm font-medium hover:bg-santech-700">
             <Plus className="w-4 h-4" /> New Supplier
           </button>
@@ -201,12 +209,14 @@ export default function ProcurementPage() {
       </div>
 
       <div className="flex gap-1 border-b border-gray-200">
-        {([['requests', `Purchase requests`, items.length], ['suppliers', 'Suppliers', suppliers.length]] as const).map(([k, l, n]) => (
+        {([['requests', `Purchase requests`, items.length], ['rfqs', 'Quotation requests', null], ['suppliers', 'Suppliers', suppliers.length]] as const).map(([k, l, n]) => (
           <button key={k} onClick={() => setTab(k)} className={cn('px-4 py-2 text-sm font-medium border-b-2 -mb-px', tab === k ? 'border-santech-600 text-santech-700' : 'border-transparent text-gray-500 hover:text-gray-700')}>
-            {l} <span className="ml-1 text-xs text-gray-400">{n}</span>
+            {l} {n !== null && <span className="ml-1 text-xs text-gray-400">{n}</span>}
           </button>
         ))}
       </div>
+
+      {tab === 'rfqs' && <RfqPanel suppliers={suppliers} canManage={canApprove} onOrdered={() => purchaseService.getAll().then((res: any) => setItems((res.data ?? []).map(toItem))).catch(() => undefined)} />}
 
       {tab === 'requests' && (
         <>
@@ -309,7 +319,7 @@ export default function ProcurementPage() {
                   {canApprove && (
                     <div className="flex gap-1.5">
                       <button onClick={() => setOpenSupplier(o => (o === s.id ? null : s.id))} className="text-xs px-2 py-1 rounded-lg bg-santech-50 text-santech-700 hover:bg-santech-100">Portal access</button>
-                      <button onClick={() => setSupplierForm({ id: s.id, name: s.name, contactName: s.contactName ?? '', email: s.email ?? '', phone: s.phone ?? '', address: s.address ?? '', tin: s.tin ?? '', category: s.category, notes: s.notes ?? '', isActive: s.isActive })}
+                      <button onClick={() => setSupplierForm({ id: s.id, name: s.name, contactName: s.contactName ?? '', email: s.email ?? '', phone: s.phone ?? '', address: s.address ?? '', tin: s.tin ?? '', bankName: s.bankName ?? '', bankAccount: s.bankAccount ?? '', category: s.category, notes: s.notes ?? '', isActive: s.isActive })}
                         className="p-1.5 rounded-lg hover:bg-gray-100" aria-label={`Edit ${s.name}`}><Pencil className="w-3.5 h-3.5 text-gray-600" /></button>
                     </div>
                   )}
@@ -374,6 +384,8 @@ export default function ProcurementPage() {
                   {view.supplierInvoiceAmount !== null && Math.abs(view.supplierInvoiceAmount - view.quantity * view.unitPrice) > 0.5 && (
                     <p className="text-xs text-amber-700">The invoice differs from the order value ({formatCurrency(view.quantity * view.unitPrice)}).</p>
                   )}
+                  {view.supplierInvoiceFileId && canApprove && <InvoiceReview key={`${view.id}-${view.supplierInvoiceStatus}`} item={view} onChanged={patch => replace({ ...view, supplierInvoiceStatus: String(patch.supplierInvoiceStatus ?? ''), supplierInvoiceNote: String(patch.supplierInvoiceNote ?? ''), supplierInvoicePaidAt: String(patch.supplierInvoicePaidAt ?? ''), supplierInvoicePaidAmount: (patch.supplierInvoicePaidAmount as number | null) ?? null, supplierInvoiceReference: String(patch.supplierInvoiceReference ?? '') })} />}
+                  {view.supplierOnPortal && canApprove && <OrderMessages orderId={view.id} />}
                 </div>
               )}
               {canApprove && view.status !== 'DELIVERED' && view.status !== 'CANCELLED' && (
@@ -471,6 +483,10 @@ export default function ProcurementPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div><label className={labelCls}>Address</label><input className={inputCls} value={supplierForm.address} onChange={e => setSupplierForm(f => f && { ...f, address: e.target.value })} /></div>
                 <div><label className={labelCls}>TIN</label><input className={inputCls} value={supplierForm.tin} onChange={e => setSupplierForm(f => f && { ...f, tin: e.target.value })} /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className={labelCls}>Bank</label><input className={inputCls} value={supplierForm.bankName} onChange={e => setSupplierForm(f => f && { ...f, bankName: e.target.value })} /></div>
+                <div><label className={labelCls}>Bank account number</label><input className={inputCls} value={supplierForm.bankAccount} onChange={e => setSupplierForm(f => f && { ...f, bankAccount: e.target.value })} /></div>
               </div>
               <div><label className={labelCls}>Notes</label><textarea rows={2} className={cn(inputCls, 'resize-none')} value={supplierForm.notes} onChange={e => setSupplierForm(f => f && { ...f, notes: e.target.value })} /></div>
               {supplierForm.id && (

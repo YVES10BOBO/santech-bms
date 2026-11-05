@@ -626,6 +626,7 @@ export default function ContractsPage() {
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Signatories</label>
                 <textarea name="signatories" value={form.signatories} onChange={handleChange} rows={2} placeholder="Enter one signer name per line" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-santech-500 resize-none" />
+                <p className="text-[11px] text-gray-400 mt-1">If a signer has a customer portal login with the same name, they can sign here in the portal.</p>
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Notes</label>

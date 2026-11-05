@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Building2, Save, MapPin, Phone, Mail, Globe, FileText } from 'lucide-react'
+import { Building2, Save, MapPin, Phone, Mail, Globe, FileText, Landmark } from 'lucide-react'
 import { companyService } from '@/lib/services/operationsService'
 import { apiError } from '@/lib/services/lookupService'
 import { useAuthStore } from '@/store/authStore'
@@ -20,11 +20,17 @@ interface CompanyProfile {
   website: string
   industry: string
   description: string
+  bankName: string
+  bankAccountName: string
+  bankAccountNumber: string
+  momoCode: string
+  paymentInstructions: string
 }
 
 const emptyProfile: CompanyProfile = {
   name: '', legalName: '', registrationNumber: '', tin: '', address: '', city: '', country: '',
   phone: '', email: '', website: '', industry: '', description: '',
+  bankName: '', bankAccountName: '', bankAccountNumber: '', momoCode: '', paymentInstructions: '',
 }
 
 export default function CompanyProfilePage() {
@@ -151,6 +157,36 @@ export default function CompanyProfilePage() {
             <div className="md:col-span-2">
               <label className={labelCls}><Globe className="w-3 h-3 inline mr-1" />Website</label>
               <input name="website" value={profile.website} onChange={handleChange} className={inputCls} />
+            </div>
+          </div>
+        </div>
+
+        {/* Where customers pay */}
+        <div className="bms-card p-6 space-y-4">
+          <h2 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+            <Landmark className="w-4 h-4 text-santech-600" /> How customers pay
+          </h2>
+          <p className="text-xs text-gray-500 -mt-2">Shown on invoice PDFs and in the customer portal, next to every unpaid invoice.</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className={labelCls}>Bank</label>
+              <input name="bankName" value={profile.bankName} onChange={handleChange} className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Account name</label>
+              <input name="bankAccountName" value={profile.bankAccountName} onChange={handleChange} className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Account number</label>
+              <input name="bankAccountNumber" value={profile.bankAccountNumber} onChange={handleChange} className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Mobile money code</label>
+              <input name="momoCode" value={profile.momoCode} onChange={handleChange} className={inputCls} placeholder="e.g. *182*8*1*123456#" />
+            </div>
+            <div className="md:col-span-2">
+              <label className={labelCls}>Payment instructions</label>
+              <input name="paymentInstructions" value={profile.paymentInstructions} onChange={handleChange} className={inputCls} placeholder="e.g. Write the invoice number as the payment reference" />
             </div>
           </div>
         </div>

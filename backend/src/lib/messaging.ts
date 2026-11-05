@@ -3,7 +3,8 @@
  *
  * Providers switch on by themselves from environment variables
  * (backend/.env on your computer, Render → Environment for the live site):
- *   Email     BREVO_API_KEY + MAIL_FROM            recommended; works on Render (sends over HTTPS)
+ *   Email     RESEND_API_KEY + MAIL_FROM           Resend; needs a verified domain; works on Render (HTTPS)
+ *             or BREVO_API_KEY + MAIL_FROM          Brevo; works on Render (sends over HTTPS)
  *             or SMTP_HOST + SMTP_USER + SMTP_PASS  e.g. Gmail with an app password; Render's free plan
  *                                                   blocks SMTP ports, so this works on your computer only
  *   SMS       TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN + TWILIO_SMS_FROM
@@ -24,16 +25,22 @@ export const CHANNELS: Channel[] = ['EMAIL', 'SMS', 'WHATSAPP']
 
 const env = (k: string) => (process.env[k] ?? '').trim()
 // Provider addresses. The *_API_URL overrides exist only so tests can point at a local fake server.
+const RESEND_URL = () => env('RESEND_API_URL') || 'https://api.resend.com/emails'
 const BREVO_URL = () => env('BREVO_API_URL') || 'https://api.brevo.com/v3/smtp/email'
 const TWILIO_URL = () => (env('TWILIO_API_URL') || 'https://api.twilio.com').replace(/\/+$/, '')
 export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 // ── Which providers are set up ────────────────────────────────────────────────
 
-export function emailProvider(): 'brevo' | 'smtp' | null {
-  if (env('BREVO_API_KEY')) return 'brevo'
-  if (env('SMTP_HOST') && env('SMTP_USER') && env('SMTP_PASS')) return 'smtp'
-  return null
+export type EmailProvider = 'resend' | 'brevo' | 'smtp'
+const emailKeys = (p: EmailProvider) =>
+  p === 'resend' ? !!env('RESEND_API_KEY') : p === 'brevo' ? !!env('BREVO_API_KEY') : !!(env('SMTP_HOST') && env('SMTP_USER') && env('SMTP_PASS'))
+
+/** The email provider in use. EMAIL_PROVIDER (resend, brevo or smtp) picks one; otherwise the first one with keys: Resend, Brevo, SMTP */
+export function emailProvider(): EmailProvider | null {
+  const wanted = env('EMAIL_PROVIDER').toLowerCase() as EmailProvider
+  if (['resend', 'brevo', 'smtp'].includes(wanted) && emailKeys(wanted)) return wanted
+  return (['resend', 'brevo', 'smtp'] as EmailProvider[]).find(emailKeys) ?? null
 }
 const twilioKeys = () => !!(env('TWILIO_ACCOUNT_SID') && env('TWILIO_AUTH_TOKEN'))
 const callMeBotReady = () => !!(env('CALLMEBOT_APIKEY') && env('CALLMEBOT_PHONE'))
@@ -42,7 +49,13 @@ const channelReady = (c: Channel) =>
   c === 'WHATSAPP' ? (twilioKeys() && !!env('TWILIO_WHATSAPP_FROM')) || callMeBotReady() :
   twilioKeys() && !!env('TWILIO_SMS_FROM')
 
-export const mailFrom = () => ({ email: env('MAIL_FROM') || env('SMTP_USER'), name: env('MAIL_FROM_NAME') || 'Santech Innovate' })
+/** The sender: MAIL_FROM (or EMAIL_FROM) as "Name <address>" or just the address; MAIL_FROM_NAME gives the name when there is none */
+export const mailFrom = () => {
+  const raw = env('MAIL_FROM') || env('EMAIL_FROM')
+  const m = raw.match(/^\s*"?([^"<]*?)"?\s*<([^>]+)>\s*$/)
+  const email = (m ? m[2] : raw || env('SMTP_USER')).trim()
+  return { email, name: (m && m[1].trim()) || env('MAIL_FROM_NAME') || 'Santech Innovate' }
+}
 const whatsappFrom = () => { const f = env('TWILIO_WHATSAPP_FROM'); return f.startsWith('whatsapp:') ? f : `whatsapp:${f}` }
 
 /** What is set up — names and sender addresses only, never keys */
@@ -52,7 +65,7 @@ export function messagingStatus() {
   return {
     email: {
       ready: !!provider, provider, from: provider ? from.email : null, fromName: from.name,
-      warning: provider === 'brevo' && !env('MAIL_FROM') ? 'Set MAIL_FROM to the sender address you verified in Brevo' : null,
+      warning: (provider === 'brevo' || provider === 'resend') && !from.email ? `Set MAIL_FROM to the sender address you verified in ${provider === 'resend' ? 'Resend' : 'Brevo'}` : null,
     },
     sms: { ready: channelReady('SMS'), provider: channelReady('SMS') ? 'twilio' : null, from: channelReady('SMS') ? env('TWILIO_SMS_FROM') : null },
     whatsapp: {
@@ -146,9 +159,22 @@ const smtpTransport = () => {
   return smtp
 }
 
-async function sendEmailNow(provider: 'brevo' | 'smtp', to: string, subject: string, text: string, html: string, replyTo?: string): Promise<void> {
+async function sendEmailNow(provider: EmailProvider, to: string, subject: string, text: string, html: string, replyTo?: string): Promise<void> {
   const from = mailFrom()
   if (!from.email) throw new Error('No sender address: set MAIL_FROM')
+  if (provider === 'resend') {
+    const r = await fetch(RESEND_URL(), {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${env('RESEND_API_KEY')}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ from: `${from.name} <${from.email}>`, to: [to], subject, html, text, ...(replyTo && { reply_to: replyTo }) }),
+      signal: AbortSignal.timeout(15000),
+    })
+    if (!r.ok) {
+      const j = await r.json().catch(() => null) as { message?: string } | null
+      throw new Error(`Resend refused it (${r.status})${j?.message ? `: ${j.message}` : ''}`)
+    }
+    return
+  }
   if (provider === 'brevo') {
     const r = await fetch(BREVO_URL(), {
       method: 'POST',
@@ -237,7 +263,7 @@ export async function deliver(m: Outgoing): Promise<Delivery> {
         status = 'HELD'
       } else if (m.channel === 'EMAIL') {
         const subject = m.subject || 'Message from Santech'
-        await sendEmailNow(provider as 'brevo' | 'smtp', to, subject, m.text, m.html ?? emailHtml({ title: subject, text: m.text, link: m.link }), m.replyTo && EMAIL_RE.test(m.replyTo) ? m.replyTo : undefined)
+        await sendEmailNow(provider as EmailProvider, to, subject, m.text, m.html ?? emailHtml({ title: subject, text: m.text, link: m.link }), m.replyTo && EMAIL_RE.test(m.replyTo) ? m.replyTo : undefined)
         status = 'SENT'
       } else {
         // WhatsApp: prefer Twilio if configured, fall back to CallMeBot (free, sends to registered number only)

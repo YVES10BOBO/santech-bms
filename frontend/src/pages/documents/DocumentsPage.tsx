@@ -7,7 +7,7 @@ import {
   Eye, ExternalLink, FolderUp, FileUp, Loader2, CheckCircle2, AlertCircle, CalendarClock, History, type LucideIcon,
 } from 'lucide-react'
 import { cn, formatDate } from '@/lib/utils'
-import { documentService } from '@/lib/services/operationsService'
+import { documentService, supplierService } from '@/lib/services/operationsService'
 import { useLookups, apiError } from '@/lib/services/lookupService'
 import { fileService, formatSize } from '@/lib/services/fileService'
 import { useAuthStore } from '@/store/authStore'
@@ -41,6 +41,9 @@ interface Document {
   version: number
   versions: number
   sharedWithClient: boolean
+  supplierId: string
+  supplierName: string
+  sharedWithSupplier: boolean
 }
 
 interface DocVersion { id: string; version: number; fileId: string; name: string; size: string | null; uploadedByName: string | null; createdAt: string }
@@ -85,7 +88,7 @@ const FOLDER_GREY = '#444746'
 const FOLDER_COLORS = ['', '#1a73e8', '#188038', '#f9ab00', '#e8710a', '#d93025', '#9334e6', '#00897b', '#e52592']
 const DOC_DRAG = 'application/x-santech-document'
 
-const emptyForm = { name: '', category: 'OTHER' as DocCategory, description: '', clientId: '', projectId: '', folderId: '', expiryDate: '', sharedWithClient: false }
+const emptyForm = { name: '', category: 'OTHER' as DocCategory, description: '', clientId: '', projectId: '', folderId: '', expiryDate: '', sharedWithClient: false, supplierId: '', sharedWithSupplier: false }
 type Form = typeof emptyForm
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -101,6 +104,7 @@ const toDoc = (d: any): Document => ({
   version: d.version ?? 1,
   versions: d._count?.versions ?? 0,
   sharedWithClient: !!d.sharedWithClient,
+  supplierId: d.supplierId ?? '', supplierName: d.supplier?.name ?? '', sharedWithSupplier: !!d.sharedWithSupplier,
 })
 
 /** How soon a document expires: red when expired, amber within 30 days, grey later */
@@ -190,6 +194,9 @@ function collectDropped(dt: DataTransfer): Promise<Picked[]> {
 
 export default function DocumentsPage() {
   const lookups = useLookups()
+  const [suppliers, setSuppliers] = useState<{ id: string; name: string }[]>([])
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  useEffect(() => { supplierService.getAll().then((r: any) => setSuppliers((r.data ?? []).filter((x: { isActive: boolean }) => x.isActive))).catch(() => undefined) }, [])
   const { user } = useAuthStore()
   const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN'
   const canEdit = (doc: Document) => isAdmin || doc.uploadedById === user?.id
@@ -539,7 +546,7 @@ export default function DocumentsPage() {
 
   const openEdit = (doc: Document) => {
     setEditDoc(doc)
-    setForm({ name: doc.name, category: doc.category, description: doc.description, clientId: doc.clientId, projectId: doc.projectId, folderId: doc.folderId, expiryDate: doc.expiryDate, sharedWithClient: doc.sharedWithClient })
+    setForm({ name: doc.name, category: doc.category, description: doc.description, clientId: doc.clientId, projectId: doc.projectId, folderId: doc.folderId, expiryDate: doc.expiryDate, sharedWithClient: doc.sharedWithClient, supplierId: doc.supplierId, sharedWithSupplier: doc.sharedWithSupplier })
     setFile(null)
     setViewDoc(null)
     setShowModal(true)
@@ -573,6 +580,7 @@ export default function DocumentsPage() {
         clientId: form.clientId || null, projectId: form.projectId || null, folderId: form.folderId || null,
         expiryDate: form.expiryDate || null,
         sharedWithClient: !!form.clientId && form.sharedWithClient,
+        supplierId: form.supplierId || null, sharedWithSupplier: !!form.supplierId && form.sharedWithSupplier,
         ...(up ? { fileId: up.id, size: formatSize(up.size) } : {}),
       }
       const res = editDoc ? await documentService.update(editDoc.id, payload) : await documentService.create(payload)
@@ -1294,6 +1302,19 @@ export default function DocumentsPage() {
                   <span>Share with the client in the customer portal <span className="block text-xs text-gray-400">Their portal logins can see and download it; they are notified.</span></span>
                 </label>
               )}
+              <div>
+                <label className={labelCls}>Supplier (optional)</label>
+                <select name="supplierId" value={form.supplierId} onChange={e => setForm(f => ({ ...f, supplierId: e.target.value, sharedWithSupplier: e.target.value ? f.sharedWithSupplier : false }))} className={inputCls}>
+                  <option value="">No supplier</option>
+                  {suppliers.map(sp => <option key={sp.id} value={sp.id}>{sp.name}</option>)}
+                </select>
+              </div>
+              {form.supplierId && (
+                <label className="flex items-start gap-2 text-sm text-gray-700 -mt-1 cursor-pointer">
+                  <input type="checkbox" checked={form.sharedWithSupplier} onChange={e => setForm(f => ({ ...f, sharedWithSupplier: e.target.checked }))} className="mt-0.5 accent-santech-600" />
+                  <span>Share with the supplier in the supplier portal <span className="block text-xs text-gray-400">Their portal logins can see and download it; they are notified.</span></span>
+                </label>
+              )}
               <p className="text-xs text-gray-400 -mt-2">
                 The folder is where you file it. The client, project and type also show it in the automatic folders
                 (Clients › client › project, and the type's folder) and on the client's 360° page.
@@ -1363,6 +1384,7 @@ export default function DocumentsPage() {
               <p>Size: <span className="text-gray-700 font-medium">{viewDoc.size}</span></p>
               {viewDoc.version > 1 && <p>Version: <span className="text-gray-700 font-medium">{viewDoc.version}</span></p>}
               {viewDoc.sharedWithClient && <p className="text-sky-700">Shared with the client in the customer portal</p>}
+              {viewDoc.supplierName && <p className={viewDoc.sharedWithSupplier ? 'text-sky-700' : 'text-gray-500'}>Supplier: {viewDoc.supplierName}{viewDoc.sharedWithSupplier ? ' (shared in the supplier portal)' : ''}</p>}
               {viewDoc.expiryDate && (
                 <p className="flex items-center gap-1">
                   <CalendarClock className="w-3 h-3" /> Expiry / review:{' '}

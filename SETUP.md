@@ -37,8 +37,9 @@ Settings → Email & SMS):
 
 | Key | Value |
 |---|---|
-| `BREVO_API_KEY`, `MAIL_FROM`, `MAIL_FROM_NAME` | Email through Brevo (recommended, also works on Render) |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` | Or email through SMTP, e.g. Gmail with an app password (used only when `BREVO_API_KEY` is empty) |
+| `RESEND_API_KEY`, `MAIL_FROM` (or `EMAIL_FROM`), `EMAIL_PROVIDER` | Email through Resend. Needs a verified domain. `MAIL_FROM` can be `Name <address>`. Also works on Render |
+| `BREVO_API_KEY`, `MAIL_FROM`, `MAIL_FROM_NAME` | Email through Brevo (a verified sender address is enough, also works on Render) |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` | Or email through SMTP, e.g. Gmail with an app password (used only when no Resend or Brevo key is set) |
 | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_SMS_FROM`, `TWILIO_WHATSAPP_FROM` | SMS and WhatsApp through Twilio |
 
 `.env.example` says where to get each one. Restart the backend after changing them. New setups start in

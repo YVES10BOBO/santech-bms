@@ -49,6 +49,7 @@ export async function seedPortalExtras(prisma: PrismaClient) {
   const orders = [
     { id: 'pr-th-1', po: 'PO-2026-021', item: 'Network switches 24-port', qty: 4, price: 185000, status: 'APPROVED', note: null, ordered: -20 },
     { id: 'pr-th-2', po: 'PO-2026-022', item: 'Laptop chargers (65W)', qty: 10, price: 22000, status: 'REJECTED', note: 'The amount on the invoice does not match the purchase order. Please send a corrected invoice', ordered: -16 },
+    { id: 'pr-th-3', po: 'PO-2026-020', item: 'Wireless access points', qty: 6, price: 95000, status: 'PAID', note: null, ordered: -34 },
   ]
   for (const o of orders) {
     if (await prisma.purchaseRequest.findUnique({ where: { id: o.id }, select: { id: true } })) continue
@@ -61,6 +62,7 @@ export async function seedPortalExtras(prisma: PrismaClient) {
         supplierStatus: 'DISPATCHED', expectedDelivery: days(o.ordered + 6), supplierNote: 'Delivered to the Kigali office',
         supplierInvoiceFileId: f.id, supplierInvoiceName: f.name, supplierInvoiceAmount: o.status === 'REJECTED' ? total + 20000 : total,
         supplierInvoiceStatus: o.status, supplierInvoiceNote: o.note, supplierUpdatedAt: days(o.ordered + 7),
+        ...(o.status === 'PAID' && { supplierInvoicePaidAmount: total, supplierInvoicePaidAt: days(o.ordered + 20), supplierInvoiceReference: 'EQ-TRF-260903' }),
       },
     })
   }

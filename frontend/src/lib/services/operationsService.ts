@@ -207,6 +207,14 @@ export const portalService = {
   createTicket: (b: Body) => post('/portal/tickets', b),
   rateTicket: (id: string, satisfaction: number, note?: string) => post(`/portal/tickets/${id}/rate`, { satisfaction, note }),
   reopenTicket: (id: string, note: string) => post(`/portal/tickets/${id}/reopen`, { note }),
+  ticketMessages: (id: string) => get(`/portal/tickets/${id}/messages`),
+  sendTicketMessage: (id: string, body: string) => post(`/portal/tickets/${id}/messages`, { body }),
+  /** "I have paid": amount, method, paidOn, reference?, note?, fileId?, fileName? */
+  paymentNotice: (invoiceId: string, b: Body) => post(`/portal/invoices/${invoiceId}/payment-notice`, b),
+  signContract: (id: string) => post(`/portal/contracts/${id}/sign`, { agree: true }),
+  requestQuotation: (b: Body) => post('/portal/quotation-requests', b),
+  profile: () => get('/portal/profile'),
+  saveProfile: (b: Body) => put('/portal/profile', b),
 }
 
 /** Supplier portal (SUPPLIER logins only) */
@@ -216,6 +224,16 @@ export const supplierPortalService = {
   confirm: (id: string, expectedDelivery: string, note?: string) => post(`/supplier-portal/orders/${id}/confirm`, { expectedDelivery, note }),
   dispatch: (id: string, note?: string) => post(`/supplier-portal/orders/${id}/dispatch`, { note }),
   invoice: (id: string, b: { fileId: string; fileName: string; amount: number }) => post(`/supplier-portal/orders/${id}/invoice`, b),
+  order: (id: string) => get(`/supplier-portal/orders/${id}`),
+  sendMessage: (id: string, body: string) => post(`/supplier-portal/orders/${id}/messages`, { body }),
+  profile: () => get('/supplier-portal/profile'),
+  saveProfile: (b: Body) => put('/supplier-portal/profile', b),
+  documents: () => get('/supplier-portal/documents'),
+  addDocument: (b: Body) => post('/supplier-portal/documents', b),
+  removeDocument: (id: string) => del(`/supplier-portal/documents/${id}`),
+  rfqs: () => get('/supplier-portal/rfqs'),
+  quote: (id: string, b: Body) => post(`/supplier-portal/rfqs/${id}/quote`, b),
+  declineRfq: (id: string, reason?: string) => post(`/supplier-portal/rfqs/${id}/decline`, { reason }),
 }
 
 /** Staff: suppliers and the portal logins of clients and suppliers */
@@ -230,6 +248,20 @@ export const portalAdminService = {
   createSupplierUser: (supplierId: string, b: Body) => post(`/portal-admin/suppliers/${supplierId}/users`, b),
   /** { isActive } to enable/disable, { resetPassword: true } for a new temporary password */
   updateUser: (id: string, b: Body) => put(`/portal-admin/users/${id}`, b),
+  // customers: ticket replies and the payments they report
+  ticketMessages: (id: string) => get(`/portal-admin/tickets/${id}/messages`),
+  replyOnTicket: (id: string, body: string) => post(`/portal-admin/tickets/${id}/messages`, { body }),
+  paymentNotices: (invoiceId: string) => get(`/portal-admin/invoices/${invoiceId}/payment-notices`),
+  pendingNotices: () => get('/portal-admin/payment-notices/pending'),
+  reviewNotice: (id: string, status: 'CONFIRMED' | 'REJECTED', note?: string) => put(`/portal-admin/payment-notices/${id}`, { status, note }),
+  // suppliers: order messages, their invoices, requests for quotation
+  orderMessages: (id: string) => get(`/portal-admin/orders/${id}/messages`),
+  writeToSupplier: (id: string, body: string) => post(`/portal-admin/orders/${id}/messages`, { body }),
+  reviewInvoice: (id: string, b: Body) => put(`/portal-admin/orders/${id}/invoice-review`, b),
+  rfqs: () => get('/portal-admin/rfqs'),
+  createRfq: (b: Body) => post('/portal-admin/rfqs', b),
+  cancelRfq: (id: string) => post(`/portal-admin/rfqs/${id}/cancel`),
+  awardRfq: (id: string, quoteId: string) => post(`/portal-admin/rfqs/${id}/award`, { quoteId }),
 }
 
 /** Earlier versions of a contract or quotation */

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   LayoutDashboard, FileText, Receipt, FileSignature, FolderKanban, LifeBuoy, FolderOpen, UserCog,
-  X, Download, Check, Star, Phone, Mail, Plus, RotateCcw,
+  X, Download, Check, Star, Phone, Mail, Plus, RotateCcw, Banknote, PenLine, MessageSquare, ClipboardList,
 } from 'lucide-react'
 import { cn, formatDate, formatCurrency } from '@/lib/utils'
 import { portalService } from '@/lib/services/operationsService'
@@ -12,6 +12,7 @@ import { printDocument } from '@/lib/printDocument'
 import PageLoader from '@/components/shared/PageLoader'
 import toast from 'react-hot-toast'
 import PortalShell, { PortalAccount, PortalUpdates, Tile, type PortalTab } from './PortalShell'
+import { PaymentNoticeModal, PaymentNotices, HowToPay, SignContractModal, QuotationRequestModal, TicketThread, ClientProfile } from './CustomerExtras'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Any = any
@@ -121,12 +122,12 @@ export default function CustomerPortalPage() {
         </>
       )}
       {tab === 'quotations' && <Quotations rows={data.quotations} reload={() => refresh('quotations')} clientName={overview?.client?.name} />}
-      {tab === 'invoices' && <Invoices rows={data.invoices} clientName={overview?.client?.name} santech={overview?.santech} />}
-      {tab === 'contracts' && <Contracts rows={data.contracts} />}
+      {tab === 'invoices' && <Invoices rows={data.invoices} clientName={overview?.client?.name} santech={overview?.santech} paymentDetails={overview?.paymentDetails} reload={() => refresh('invoices')} />}
+      {tab === 'contracts' && <Contracts rows={data.contracts} reload={() => refresh('contracts')} />}
       {tab === 'projects' && <Projects rows={data.projects} />}
       {tab === 'support' && <Support rows={data.support} reload={() => refresh('support')} />}
       {tab === 'documents' && <Documents rows={data.documents} />}
-      {tab === 'account' && <PortalAccount />}
+      {tab === 'account' && (<><ClientProfile /><PortalAccount /></>)}
     </PortalShell>
   )
 }
@@ -157,10 +158,18 @@ function Quotations({ rows, reload, clientName }: { rows?: Any[]; reload: () => 
     lines: q.items, subtotal: q.subtotal, discountRate: q.discountRate, discountAmount: q.discountAmount, vatRate: q.vatRate, vatAmount: q.vatAmount, total: q.totalAmount,
     currency: q.currency, paymentTerms: q.paymentTerms ?? undefined, notes: q.notes ?? undefined,
   })
+  const [ask, setAsk] = useState(false)
   const canAnswer = (q: Any) => ['SENT', 'VIEWED', 'NEGOTIATION'].includes(q.status)
   return (
     <>
-      <h1 className="text-xl font-bold text-gray-800">Quotations</h1>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-xl font-bold text-gray-800">Quotations</h1>
+          <p className="text-sm text-gray-500">Review, accept or decline what Santech sent you, or ask for a new quotation.</p>
+        </div>
+        <button onClick={() => setAsk(true)} className="flex items-center gap-2 px-4 py-2 bg-santech-600 text-white rounded-lg text-sm font-medium hover:bg-santech-700"><ClipboardList className="w-4 h-4" /> Ask for a quotation</button>
+      </div>
+      {ask && <QuotationRequestModal onClose={() => setAsk(false)} />}
       {rows.length === 0 ? <Empty>No quotations yet.</Empty> : (
         <div className="space-y-3">
           {rows.map(q => (
@@ -226,8 +235,9 @@ function Quotations({ rows, reload, clientName }: { rows?: Any[]; reload: () => 
 
 // ── Invoices ──────────────────────────────────────────────────────────────────
 
-function Invoices({ rows, clientName, santech }: { rows?: Any[]; clientName?: string; santech?: Any }) {
+function Invoices({ rows, clientName, santech, paymentDetails, reload }: { rows?: Any[]; clientName?: string; santech?: Any; paymentDetails?: Any; reload: () => void }) {
   const [open, setOpen] = useState<Any>(null)
+  const [paying, setPaying] = useState<Any>(null)
   if (!rows) return <PageLoader />
   const balance = (i: Any) => Math.max(0, i.totalAmount - i.paidAmount - (i.creditedAmount ?? 0))
   const kindLabel: Record<string, string> = { INVOICE: 'Invoice', PROFORMA: 'Proforma', CREDIT_NOTE: 'Credit note' }
@@ -265,6 +275,7 @@ function Invoices({ rows, clientName, santech }: { rows?: Any[]; clientName?: st
           </div>
         </div>
       )}
+      {paying && <PaymentNoticeModal invoice={paying} balance={balance(paying)} onClose={() => setPaying(null)} onDone={() => { setPaying(null); setOpen(null); reload() }} />}
       {open && (
         <Modal title={<span>{kindLabel[open.type]} <span className="font-mono">{open.invoiceNumber}</span></span>} onClose={() => setOpen(null)}>
           <div className="flex justify-between items-center">
@@ -291,8 +302,13 @@ function Invoices({ rows, clientName, santech }: { rows?: Any[]; clientName?: st
               {open.creditNotes.map((n: Any) => <p key={n.invoiceNumber} className="text-sm flex justify-between bg-teal-50 rounded px-3 py-1.5 mb-1"><span>−{money(n.totalAmount, open.currency)} {n.invoiceNumber}</span><span className="text-xs text-teal-700">{day(n.issueDate)}</span></p>)}
             </div>
           )}
+          <PaymentNotices notices={open.paymentNotices} currency={open.currency} />
           {open.type === 'INVOICE' && balance(open) > 0 && (
-            <p className="text-xs text-gray-500">To pay, use the payment details on the PDF or contact {santech?.name ?? 'Santech'}{santech?.email ? ` (${santech.email})` : ''}. Payments appear here once Santech records them.</p>
+            <>
+              <HowToPay details={paymentDetails} invoiceNumber={open.invoiceNumber} />
+              <button onClick={() => setPaying(open)} className="w-full flex items-center justify-center gap-2 py-2.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700"><Banknote className="w-4 h-4" /> I have paid</button>
+              <p className="text-xs text-gray-500">Questions about this invoice: {santech?.name ?? 'Santech'}{santech?.email ? ` (${santech.email})` : ''}. Payments appear here once Santech has checked and recorded them.</p>
+            </>
           )}
         </Modal>
       )}
@@ -302,11 +318,13 @@ function Invoices({ rows, clientName, santech }: { rows?: Any[]; clientName?: st
 
 // ── Contracts, projects, documents ────────────────────────────────────────────
 
-function Contracts({ rows }: { rows?: Any[] }) {
+function Contracts({ rows, reload }: { rows?: Any[]; reload: () => void }) {
+  const [signing, setSigning] = useState<Any>(null)
   if (!rows) return <PageLoader />
   return (
     <>
       <h1 className="text-xl font-bold text-gray-800">Contracts</h1>
+      {signing && <SignContractModal contract={signing} onClose={() => setSigning(null)} onDone={() => { setSigning(null); reload() }} />}
       {rows.length === 0 ? <Empty>No contracts yet.</Empty> : rows.map(ct => (
         <section key={ct.id} className="bms-card p-5 space-y-3">
           <div className="flex flex-wrap items-center gap-2 justify-between">
@@ -323,6 +341,9 @@ function Contracts({ rows }: { rows?: Any[] }) {
           {ct.deliverables && <p className="text-sm text-gray-600 whitespace-pre-line bg-gray-50 rounded-lg p-3">{ct.deliverables}</p>}
           {Array.isArray(ct.signatories) && ct.signatories.length > 0 && (
             <p className="text-xs text-gray-500">Signatures: {ct.signatories.map((s: Any) => `${s.name} — ${s.status === 'SIGNED' ? 'signed' : 'pending'}`).join(' · ')}</p>
+          )}
+          {ct.canSign && (
+            <button onClick={() => setSigning(ct)} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700"><PenLine className="w-4 h-4" /> Review and sign</button>
           )}
           {ct.signedFileId && (
             <button onClick={() => fileService.open(ct.signedFileId, true, ct.signedDocumentName ?? `${ct.contractNumber}.pdf`)} className="flex items-center gap-2 text-sm text-santech-700 hover:underline"><Download className="w-4 h-4" /> Download the signed contract</button>
@@ -412,6 +433,7 @@ function Support({ rows, reload }: { rows?: Any[]; reload: () => void }) {
   const [rating, setRating] = useState<{ t: Any; stars: number; note: string } | null>(null)
   const [reopen, setReopen] = useState<{ t: Any; note: string } | null>(null)
   const [busy, setBusy] = useState(false)
+  const [thread, setThread] = useState<string | null>(null)
   if (!rows) return <PageLoader />
   const run = async (fn: () => Promise<Any>, done: () => void) => {
     setBusy(true)
@@ -445,6 +467,8 @@ function Support({ rows, reload }: { rows?: Any[]; reload: () => void }) {
                 {hours(t.createdAt, t.firstResponseAt) && ` · first answer after ${hours(t.createdAt, t.firstResponseAt)}`}
                 {hours(t.createdAt, t.resolvedAt) && ` · resolved in ${hours(t.createdAt, t.resolvedAt)}`}
               </p>
+              <button onClick={() => setThread(thread === t.id ? null : t.id)} className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 font-medium"><MessageSquare className="w-3.5 h-3.5" /> {thread === t.id ? 'Hide the conversation' : 'Conversation with support'}</button>
+              {thread === t.id && <TicketThread ticketId={t.id} closed={t.status === 'CLOSED'} />}
               {['RESOLVED', 'CLOSED'].includes(t.status) && (
                 <div className="flex flex-wrap items-center gap-2 pt-1">
                   {t.satisfaction ? (

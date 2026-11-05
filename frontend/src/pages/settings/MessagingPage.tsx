@@ -25,7 +25,7 @@ const ACCESS = [
   { who: 'All staff', what: 'Receive their own notifications by email (when switched on).' },
   { who: 'Customers, suppliers', what: 'Receive updates about their own quotations, invoices, orders and tickets.' },
 ]
-const PROVIDER_NAME: Record<string, string> = { brevo: 'Brevo', smtp: 'SMTP (e.g. Gmail)', twilio: 'Twilio' }
+const PROVIDER_NAME: Record<string, string> = { resend: 'Resend', brevo: 'Brevo', smtp: 'SMTP (e.g. Gmail)', twilio: 'Twilio' }
 const STATUS_INFO: Record<string, { label: string; cls: string; hint: string }> = {
   SENT: { label: 'Sent', cls: 'bg-green-100 text-green-700', hint: 'Delivered to the provider' },
   HELD: { label: 'Held', cls: 'bg-amber-100 text-amber-700', hint: 'Restricted delivery: not on the allowed list' },
