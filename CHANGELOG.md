@@ -27,6 +27,21 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 
 ## 1.7.0 — 2 November 2026
 
+### Reminder days can be changed (5 Nov)
+- **What:** the days at which the system reminds people (invoice due, contract ending, tasks, ...) used to be
+  fixed in the code. Super Admin and Admin (HR) can now change them, and switch any reminder off.
+- **Where:** Settings → **Reminders**. One row per reminder: the days (for example `7, 3, 1`), an on/off switch,
+  and the default shown underneath. **Back to defaults** puts everything back.
+- **Defaults** (used until someone changes them, same as before):
+  invoice due 7, 3, 1 days before; invoice overdue 1, 7, 14, 30 days after; contract ending 90, 30, 7;
+  service renewal 30, 15, 7; task deadline 2; milestone 7; tender 7, 2; document expiry 30, 7; warranty
+  30, 7; quotation expiring 3.
+- **Rules:** whole numbers from 0 up to 60 (365 for contracts, renewals, documents, warranties and overdue
+  invoices). Changes are written to the audit trail.
+- **Technical:** settings in the `settings` table under the key `reminders` (no migration).
+  New `backend/src/lib/reminderSettings.ts`; `generateReminders()` reads it. `GET/PUT /api/settings/reminders`
+  (admins). Reminders are still created when the bell is opened and stay in-app.
+
 ### Email & SMS page ready for production (5 Nov)
 - **"Send a test" card removed** from Settings → Email & SMS. Connection checks are no longer part of the page;
   the message log shows every real message and its result. The test endpoint is still there but unused.

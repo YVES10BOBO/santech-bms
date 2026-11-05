@@ -3,6 +3,7 @@ import prisma from './prisma'
 import { FINANCE, ADMINS, SALES, PROJECT_LEADS, hasRole } from './roles'
 import { toRwf } from './currency'
 import { emailNotification } from './messaging'
+import { getReminderSettings, stageBefore, stageAfter, windowOf } from './reminderSettings'
 
 export type NotificationType = 'PAYMENT_DUE' | 'OVERDUE' | 'CONTRACT_EXPIRY' | 'FOLLOW_UP' | 'TASK_DEADLINE' | 'SYSTEM'
 
@@ -65,6 +66,9 @@ export async function generateReminders(userId: string, role: UserRole): Promise
   const jobs: Promise<void>[] = []
   // reminders are made when the user opens notifications, so they stay in-app (no email)
   const remind = (uid: string, n: NewNotification) => notify(uid, { ...n, email: false })
+  // how many days before/after each date to remind: the defaults, or what an admin chose in Settings → Reminders
+  const R = await getReminderSettings()
+  const ahead = (n: number) => new Date(today.getTime() + n * DAY)
 
   // Finance: overdue and soon-due invoices
   if (hasRole(role, FINANCE)) {
@@ -77,17 +81,17 @@ export async function generateReminders(userId: string, role: UserRole): Promise
       const days = Math.round((inv.dueDate.getTime() - today.getTime()) / DAY)
       if (days < 0) {
         // One reminder per overdue stage (1, 7, 14, 30 days) as in the spec
-        const stage = [30, 14, 7, 1].find(s => -days >= s)
-        if (stage) {
+        const stage = R.invoiceOverdue.on ? stageAfter(-days, R.invoiceOverdue.days) : undefined
+        if (stage !== undefined) {
           jobs.push(remind(userId, {
             type: 'OVERDUE', title: 'Invoice Overdue', link: '/finance/invoices', key: `inv-overdue-${inv.id}-${stage}`,
             description: `${inv.client.companyName ?? 'Client'} invoice ${inv.invoiceNumber} is overdue by ${-days} day${-days === 1 ? '' : 's'} — ${rwf(balance)} outstanding`,
           }))
         }
         if (inv.status !== 'OVERDUE') jobs.push(prisma.invoice.update({ where: { id: inv.id }, data: { status: 'OVERDUE' } }).then(() => undefined))
-      } else if (days <= 7) {
-        const stage = days <= 1 ? 1 : days <= 3 ? 3 : 7
-        jobs.push(remind(userId, {
+      } else if (R.invoiceDue.on) {
+        const stage = stageBefore(days, R.invoiceDue.days)
+        if (stage !== undefined) jobs.push(remind(userId, {
           type: 'PAYMENT_DUE', title: 'Payment Due Soon', link: '/finance/invoices', key: `inv-due-${inv.id}-${stage}`,
           description: `Invoice ${inv.invoiceNumber} of ${rwf(balance)} (${inv.client.companyName ?? 'client'}) is due in ${days} day${days === 1 ? '' : 's'} (${fmtDate(inv.dueDate)})`,
         }))
@@ -104,8 +108,8 @@ export async function generateReminders(userId: string, role: UserRole): Promise
     for (const c of contracts) {
       if (c.status === 'ACTIVE') {
         const days = Math.round((c.endDate.getTime() - today.getTime()) / DAY)
-        const stage = [7, 30, 90].find(s => days >= 0 && days <= s)
-        if (stage) {
+        const stage = R.contractEnd.on ? stageBefore(days, R.contractEnd.days) : undefined
+        if (stage !== undefined) {
           jobs.push(remind(userId, {
             type: 'CONTRACT_EXPIRY', title: 'Contract Expiring', link: '/contracts', key: `ct-exp-${c.id}-${stage}`,
             description: `Contract ${c.contractNumber} (${c.client.companyName ?? 'client'}) ends in ${days} days — plan renewal`,
@@ -129,13 +133,13 @@ export async function generateReminders(userId: string, role: UserRole): Promise
   if (hasRole(role, [...FINANCE, 'SALES_MANAGER'])) {
     const subs = await prisma.clientSubscription.findMany({
       // Paid only covers the current period, so every upcoming renewal is reminded
-      where: { renewalDate: { lte: new Date(today.getTime() + 30 * DAY) } },
+      where: { renewalDate: { lte: ahead(Math.max(windowOf(R.serviceRenewal), 0)) } },
       include: { client: { select: { companyName: true } } },
     })
     for (const s of subs) {
       const days = Math.round((s.renewalDate.getTime() - today.getTime()) / DAY)
-      const stage = days < 0 ? 'expired' : [7, 15, 30].find(x => days <= x)
-      jobs.push(remind(userId, {
+      const stage = days < 0 ? 'expired' : stageBefore(days, R.serviceRenewal.days)
+      if (R.serviceRenewal.on && stage !== undefined) jobs.push(remind(userId, {
         type: days < 0 ? 'OVERDUE' : 'CONTRACT_EXPIRY', link: '/contracts/services', key: `sub-${s.id}-${s.renewalDate.getTime()}-${stage}`,
         title: days < 0 ? 'Service Expired' : 'Service Renewal Due',
         description: days < 0
@@ -146,18 +150,18 @@ export async function generateReminders(userId: string, role: UserRole): Promise
   }
 
   // Tender owner: submission deadline within 7 days
-  const tenders = await prisma.tender.findMany({ where: { assignedToId: userId, status: 'OPEN', deadline: { gte: today, lte: new Date(today.getTime() + 7 * DAY) } } })
+  const tenders = !R.tenderDeadline.on ? [] : await prisma.tender.findMany({ where: { assignedToId: userId, status: 'OPEN', deadline: { gte: today, lte: ahead(windowOf(R.tenderDeadline)) } } })
   for (const t of tenders) {
     const days = Math.round((t.deadline.getTime() - today.getTime()) / DAY)
     jobs.push(remind(userId, {
-      type: 'FOLLOW_UP', title: 'Tender Deadline', link: '/sales/tenders', key: `tender-${t.id}-${days <= 2 ? 2 : 7}`,
+      type: 'FOLLOW_UP', title: 'Tender Deadline', link: '/sales/tenders', key: `tender-${t.id}-${stageBefore(days, R.tenderDeadline.days) ?? 0}`,
       description: `${t.title} (${t.issuer}) must be submitted ${days === 0 ? 'today' : `in ${days} day${days === 1 ? '' : 's'}`}`,
     }))
   }
 
   // Everyone: own tasks due within 2 days or overdue
-  const tasks = await prisma.task.findMany({
-    where: { assignedToId: userId, status: { in: ['CREATED', 'ASSIGNED', 'ACCEPTED', 'IN_PROGRESS', 'REJECTED'] }, deadline: { lte: new Date(today.getTime() + 2 * DAY) } },
+  const tasks = !R.taskDue.on ? [] : await prisma.task.findMany({
+    where: { assignedToId: userId, status: { in: ['CREATED', 'ASSIGNED', 'ACCEPTED', 'IN_PROGRESS', 'REJECTED'] }, deadline: { lte: ahead(windowOf(R.taskDue)) } },
   })
   for (const t of tasks) {
     const days = Math.round((t.deadline.getTime() - today.getTime()) / DAY)
@@ -185,9 +189,9 @@ export async function generateReminders(userId: string, role: UserRole): Promise
 
   // Project leads: milestones due within 7 days or overdue (admins see all, project managers their own projects)
   if (hasRole(role, PROJECT_LEADS)) {
-    const milestones = await prisma.milestone.findMany({
+    const milestones = !R.milestoneDue.on ? [] : await prisma.milestone.findMany({
       where: {
-        isCompleted: false, status: { in: ['NOT_STARTED', 'IN_PROGRESS'] }, deadline: { lte: new Date(today.getTime() + 7 * DAY) },
+        isCompleted: false, status: { in: ['NOT_STARTED', 'IN_PROGRESS'] }, deadline: { lte: ahead(windowOf(R.milestoneDue)) },
         ...(hasRole(role, ADMINS) ? {} : { project: { projectManagerId: userId } }),
       },
       include: { project: { select: { name: true } } },
@@ -207,10 +211,10 @@ export async function generateReminders(userId: string, role: UserRole): Promise
 
   // Admins: documents (certificates, licences, …) expiring within 30 days, or expired
   if (hasRole(role, ADMINS)) {
-    const docs = await prisma.document.findMany({ where: { status: 'ACTIVE', expiryDate: { not: null, lte: new Date(today.getTime() + 30 * DAY) } } })
+    const docs = !R.documentExpiry.on ? [] : await prisma.document.findMany({ where: { status: 'ACTIVE', expiryDate: { not: null, lte: ahead(windowOf(R.documentExpiry)) } } })
     for (const d of docs) {
       const days = Math.round((d.expiryDate!.getTime() - today.getTime()) / DAY)
-      const stage = days < 0 ? 'expired' : days <= 7 ? '7' : '30'
+      const stage = days < 0 ? 'expired' : String(stageBefore(days, R.documentExpiry.days) ?? 0)
       jobs.push(remind(userId, {
         type: 'CONTRACT_EXPIRY', title: days < 0 ? 'Document Expired' : 'Document Expiring', link: '/documents?f=expiring', key: `doc-expiry-${d.id}-${stage}`,
         description: days < 0 ? `"${d.name}" expired on ${fmtDate(d.expiryDate!)} — upload the renewed one` : `"${d.name}" expires ${days === 0 ? 'today' : `in ${days} day${days === 1 ? '' : 's'}`} (${fmtDate(d.expiryDate!)})`,
@@ -220,14 +224,14 @@ export async function generateReminders(userId: string, role: UserRole): Promise
 
   // Admins and the project manager: warranties ending within 30 days, or ended
   if (hasRole(role, PROJECT_LEADS)) {
-    const projects = await prisma.project.findMany({
-      where: { warrantyEndDate: { not: null, lte: new Date(today.getTime() + 30 * DAY), gte: new Date(today.getTime() - 7 * DAY) }, ...(hasRole(role, ADMINS) ? {} : { projectManagerId: userId }) },
+    const projects = !R.warrantyEnd.on ? [] : await prisma.project.findMany({
+      where: { warrantyEndDate: { not: null, lte: ahead(windowOf(R.warrantyEnd)), gte: new Date(today.getTime() - 7 * DAY) }, ...(hasRole(role, ADMINS) ? {} : { projectManagerId: userId }) },
       include: { client: { select: { companyName: true } } },
     })
     for (const p of projects) {
       const days = Math.round((p.warrantyEndDate!.getTime() - today.getTime()) / DAY)
       jobs.push(remind(userId, {
-        type: 'CONTRACT_EXPIRY', title: days < 0 ? 'Warranty Ended' : 'Warranty Ending', link: '/projects', key: `warranty-${p.id}-${days < 0 ? 'ended' : days <= 7 ? '7' : '30'}`,
+        type: 'CONTRACT_EXPIRY', title: days < 0 ? 'Warranty Ended' : 'Warranty Ending', link: '/projects', key: `warranty-${p.id}-${days < 0 ? 'ended' : stageBefore(days, R.warrantyEnd.days) ?? 0}`,
         description: `${p.name} (${p.client.companyName ?? 'client'}): warranty ${days < 0 ? 'ended' : 'ends'} on ${fmtDate(p.warrantyEndDate!)}${days >= 0 ? ' — offer a maintenance contract' : ''}`,
       }))
     }
@@ -235,9 +239,9 @@ export async function generateReminders(userId: string, role: UserRole): Promise
 
   // Sales: quotations sent to clients that expire within 3 days without an answer
   if (hasRole(role, SALES)) {
-    const quotes = await prisma.quotation.findMany({
+    const quotes = !R.quotationExpiry.on ? [] : await prisma.quotation.findMany({
       where: {
-        status: { in: ['SENT', 'VIEWED', 'NEGOTIATION'] }, validUntil: { gte: today, lte: new Date(today.getTime() + 3 * DAY) },
+        status: { in: ['SENT', 'VIEWED', 'NEGOTIATION'] }, validUntil: { gte: today, lte: ahead(windowOf(R.quotationExpiry)) },
         ...(hasRole(role, [...ADMINS, 'SALES_MANAGER']) ? {} : { assignedToId: userId }),
       },
       include: { client: { select: { companyName: true } } },

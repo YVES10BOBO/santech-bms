@@ -173,6 +173,11 @@ export const companyService = {
 }
 
 /** Settings → Email & SMS (admins): what is set up, test mode, test message, message log */
+export const remindersService = {
+  get: () => get('/settings/reminders'),
+  save: (b: Body) => put('/settings/reminders', b),
+}
+
 export const messagingService = {
   get: () => get('/settings/messaging'),
   save: (b: Body) => put('/settings/messaging', b),

@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { getExpenseClaims, createExpenseClaim, approveExpenseClaim, rejectExpenseClaim } from '../controllers/expenseClaimsController'
 import { authenticate, authorize } from '../middleware/auth'
 import { getExchangeRates, saveExchangeRates, getVersions } from '../controllers/billingController'
+import { getReminders, saveReminders } from '../controllers/reminderSettingsController'
 import { getMessaging, saveMessaging, sendTestMessage, getMessageLog } from '../controllers/messagingController'
 import { ADMINS, SALES } from '../lib/roles'
 import { getLeads, createLead, updateLead, advanceLead, convertLead, deleteLead } from '../controllers/leadsController'
@@ -153,6 +154,8 @@ router.get('/settings/messaging', authorize(...ADMINS), getMessaging)
 router.put('/settings/messaging', authorize(...ADMINS), saveMessaging)
 router.post('/settings/messaging/test', authorize(...ADMINS), sendTestMessage)
 router.get('/settings/messaging/log', authorize(...ADMINS), getMessageLog)
+router.get('/settings/reminders', authorize(...ADMINS), getReminders)
+router.put('/settings/reminders', authorize(...ADMINS), saveReminders)
 
 // Notifications for the logged-in user
 router.get('/notifications', getNotifications)

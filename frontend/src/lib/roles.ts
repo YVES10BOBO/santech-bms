@@ -20,7 +20,7 @@ export const MODULES: { key: string; label: string; hint: string; portal?: boole
   { key: 'team', label: 'Team', hint: 'Employees, departments, workload, attendance' },
   { key: 'my-tasks', label: 'My Tasks', hint: 'Tasks given to you' },
   { key: 'expenses', label: 'Expense Claims', hint: 'Claim money you spent for work' },
-  { key: 'settings', label: 'Settings', hint: 'Users, company, roles, email & SMS, products, audit' },
+  { key: 'settings', label: 'Settings', hint: 'Users, company, roles, email & SMS, reminders, products, audit' },
   { key: 'notifications', label: 'Notifications', hint: 'Alerts and reminders' },
   { key: 'portal', label: 'Customer portal', hint: 'Own quotations, invoices, contracts, tickets', portal: true },
   { key: 'supplier-portal', label: 'Supplier portal', hint: 'Own purchase orders and invoices', portal: true },

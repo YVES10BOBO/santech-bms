@@ -678,6 +678,13 @@ only ever see their own client's records and never the staff menus or API.
   - payment reminders (Finance → Invoices → Remind client);
   - "Send it now" from the communication log.
 
+#### Reminders
+**Where:** Settings → Reminders (Super Admin, Admin (HR))
+- Choose how many days before or after a date the system reminds people: invoice due and overdue, contract
+  ending, service renewal, task, milestone, tender, document expiry, warranty, quotation expiring.
+- Each reminder has its days, an on/off switch and its default shown; **Back to defaults** resets all.
+- Reminders appear in the notification bell when it is opened; they are not emailed.
+
 #### Product Catalog
 **Where:** Settings → Product Catalog
 - 8 Santech products (EVS, SANTRACK, REVIXSAN, SANBOOK, SANHUB, Website, Mobile App, Training)

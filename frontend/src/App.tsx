@@ -48,6 +48,7 @@ import ProcurementPage from '@/pages/procurement/ProcurementPage'
 import CompanyProfilePage from '@/pages/settings/CompanyProfilePage'
 import RolesPage from '@/pages/settings/RolesPage'
 import MessagingPage from '@/pages/settings/MessagingPage'
+import RemindersPage from '@/pages/settings/RemindersPage'
 import TendersPage from '@/pages/sales/TendersPage'
 import KnowledgeBasePage from '@/pages/support/KnowledgeBasePage'
 import ProfilePage from '@/pages/profile/ProfilePage'
@@ -170,6 +171,7 @@ export default function App() {
           <Route path="settings/company" element={<CompanyProfilePage />} />
           <Route path="settings/roles" element={<RolesPage />} />
           <Route path="settings/messaging" element={<MessagingPage />} />
+          <Route path="settings/reminders" element={<RemindersPage />} />
           <Route path="settings/config" element={<SettingsPage />} />
 
           {/* New pages */}
