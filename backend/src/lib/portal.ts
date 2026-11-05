@@ -51,7 +51,11 @@ export async function portalCanOpenFile(userId: string, fileId: string): Promise
     return docs + contracts > 0
   }
   if (u.role === 'SUPPLIER' && u.supplierId) {
-    return (await prisma.purchaseRequest.count({ where: { supplierId: u.supplierId, supplierInvoiceFileId: fileId } })) > 0
+    const [inv, docs] = await Promise.all([
+      prisma.purchaseRequest.count({ where: { supplierId: u.supplierId, supplierInvoiceFileId: fileId } }),
+      prisma.document.count({ where: { fileId, supplierId: u.supplierId, sharedWithSupplier: true, status: 'ACTIVE' } }),
+    ])
+    return inv + docs > 0
   }
   return false
 }
@@ -86,3 +90,19 @@ export async function tellClientAboutInvoice(inv: { id: string; clientId: string
 
 /** A temporary password for a new portal login (shown once to the staff member who created it) */
 export const tempPassword = () => `Portal-${randomBytes(4).toString('hex')}`
+
+/** What a conversation message looks like in the API */
+export const messageSelect = {
+  id: true, body: true, fromPortal: true, createdAt: true,
+  author: { select: { firstName: true, lastName: true } },
+} as const
+
+export const shapeMessage = (m: { id: string; body: string; fromPortal: boolean; createdAt: Date; author: { firstName: string; lastName: string } }) => ({
+  id: m.id, body: m.body, fromPortal: m.fromPortal, createdAt: m.createdAt, author: `${m.author.firstName} ${m.author.lastName}`,
+})
+
+/** A message body from a request: trimmed, 1 to 2000 characters, or null */
+export function cleanMessage(raw: unknown): string | null {
+  const t = String(raw ?? '').trim()
+  return t && t.length <= 2000 ? t : null
+}

@@ -119,6 +119,8 @@ export async function saveSupplier(req: AuthRequest, res: Response): Promise<voi
       ...(b.phone !== undefined && { phone: opt(b.phone) }),
       ...(b.address !== undefined && { address: opt(b.address) }),
       ...(b.tin !== undefined && { tin: opt(b.tin) }),
+      ...(b.bankName !== undefined && { bankName: opt(b.bankName) }),
+      ...(b.bankAccount !== undefined && { bankAccount: opt(b.bankAccount) }),
       ...(b.notes !== undefined && { notes: opt(b.notes) }),
       ...(b.category !== undefined && { category: b.category }),
       ...(b.isActive !== undefined && { isActive: !!b.isActive }),

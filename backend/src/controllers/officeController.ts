@@ -27,6 +27,7 @@ const docInclude = {
   uploadedBy: userName,
   client: { select: { id: true, companyName: true } },
   project: { select: { id: true, name: true } },
+  supplier: { select: { id: true, name: true } },
   folder: { select: { id: true, name: true } },
   _count: { select: { versions: true } },
 }
@@ -184,6 +185,12 @@ export async function saveDocument(req: AuthRequest, res: Response): Promise<voi
       }
     }
 
+    // Supplier link: the supplier sees the document in the supplier portal when it is shared
+    const supplierId: string | null | undefined = b.supplierId === undefined ? undefined : (b.supplierId || null)
+    if (supplierId && !(await prisma.supplier.findUnique({ where: { id: supplierId }, select: { id: true } }))) {
+      res.status(400).json({ success: false, message: 'Supplier not found' }); return
+    }
+
     // Folder (admin-made). The document still shows in its automatic client / type folders.
     const folderId: string | null | undefined = b.folderId === undefined ? undefined : (b.folderId || null)
     if (folderId && !(await prisma.documentFolder.findUnique({ where: { id: folderId }, select: { id: true } }))) {
@@ -207,6 +214,9 @@ export async function saveDocument(req: AuthRequest, res: Response): Promise<voi
       ...(b.expiryDate !== undefined && { expiryDate: b.expiryDate ? new Date(b.expiryDate) : null }),
       ...(b.sharedWithClient !== undefined && { sharedWithClient: !!b.sharedWithClient }),
       ...(clientId === null && { sharedWithClient: false }), // no client, nobody to share with
+      ...(supplierId !== undefined && { supplierId }),
+      ...(b.sharedWithSupplier !== undefined && { sharedWithSupplier: !!b.sharedWithSupplier }),
+      ...(supplierId === null && { sharedWithSupplier: false }), // no supplier, nobody to share with
     }
     // A new file replaces the old one: keep the old file as an earlier version
     const replacing = !!before && !!b.fileId && !!before.fileId && b.fileId !== before.fileId
@@ -229,6 +239,9 @@ export async function saveDocument(req: AuthRequest, res: Response): Promise<voi
 
     if (d.sharedWithClient && d.clientId && (!before || !before.sharedWithClient)) {
       await notifyClientPortal(d.clientId, { type: 'SYSTEM', title: 'New Document Shared', link: '/portal?tab=documents', key: `doc-shared-${d.id}`, description: `Santech shared “${d.name}” with you` })
+    }
+    if (d.sharedWithSupplier && d.supplierId && (!before || !before.sharedWithSupplier)) {
+      await notifySupplierPortal(d.supplierId, { type: 'SYSTEM', title: 'New Document Shared', link: '/supplier?tab=documents', key: `doc-shared-${d.id}`, description: `Santech shared “${d.name}” with you` })
     }
     const statusChanged = !!before && before.status !== d.status
     const moved = !!before && folderId !== undefined && before.folderId !== d.folderId && Object.keys(b).every(k => k === 'folderId')
@@ -788,7 +801,8 @@ export async function viewArticle(req: AuthRequest, res: Response): Promise<void
 
 // ── COMPANY SETTINGS ──────────────────────────────────────────────────────────
 
-const COMPANY_FIELDS = ['name', 'legalName', 'registrationNumber', 'tin', 'address', 'city', 'country', 'phone', 'email', 'website', 'industry', 'description']
+const COMPANY_FIELDS = ['name', 'legalName', 'registrationNumber', 'tin', 'address', 'city', 'country', 'phone', 'email', 'website', 'industry', 'description',
+  'bankName', 'bankAccountName', 'bankAccountNumber', 'momoCode', 'paymentInstructions']
 
 export async function getCompany(_req: AuthRequest, res: Response): Promise<void> {
   try {

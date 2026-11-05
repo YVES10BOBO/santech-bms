@@ -7,6 +7,7 @@
  */
 import { PrismaClient } from '@prisma/client'
 import bcrypt from 'bcryptjs'
+import { seedPortalExtras } from './portalExtras'
 
 const d = (s: string) => new Date(`${s}T00:00:00.000Z`)
 
@@ -56,4 +57,5 @@ export async function seedPortals(prisma: PrismaClient) {
   }
 
   console.log('✅ Suppliers, purchase orders, portal logins and shared documents seeded')
+  await seedPortalExtras(prisma)
 }

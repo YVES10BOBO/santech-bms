@@ -228,61 +228,65 @@ enum ProductCategory {
 // ===========================
 
 model User {
-  id            String    @id @default(cuid())
-  firstName     String
-  lastName      String
-  email         String    @unique
-  password      String
-  phone         String?
-  role          UserRole  @default(EMPLOYEE)
-  avatar        String?
-  isActive      Boolean   @default(true)
-  lastLoginAt   DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id          String    @id @default(cuid())
+  firstName   String
+  lastName    String
+  email       String    @unique
+  password    String
+  phone       String?
+  role        UserRole  @default(EMPLOYEE)
+  avatar      String?
+  isActive    Boolean   @default(true)
+  lastLoginAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   // Relations
   employee              Employee?
-  fieldVisitsLogged     FieldVisit[]   @relation("LoggedBy")
-  tasksAssigned         Task[]         @relation("AssignedTo")
-  tasksCreated          Task[]         @relation("AssignedBy")
-  tasksApproved         Task[]         @relation("ApprovedBy")
-  clientsManaged        Client[]       @relation("AccountManager")
-  projectsManaged       Project[]      @relation("ProjectManager")
-  opportunitiesAssigned Opportunity[]  @relation("OpportunityAssignedTo")
-  contractsManaged      Contract[]     @relation("ContractManager")
+  fieldVisitsLogged     FieldVisit[]       @relation("LoggedBy")
+  tasksAssigned         Task[]             @relation("AssignedTo")
+  tasksCreated          Task[]             @relation("AssignedBy")
+  tasksApproved         Task[]             @relation("ApprovedBy")
+  clientsManaged        Client[]           @relation("AccountManager")
+  projectsManaged       Project[]          @relation("ProjectManager")
+  opportunitiesAssigned Opportunity[]      @relation("OpportunityAssignedTo")
+  contractsManaged      Contract[]         @relation("ContractManager")
   auditLogs             AuditLog[]
-  incomeRecorded        IncomeEntry[]  @relation("IncomeRecordedBy")
-  expensesRecorded      ExpenseEntry[] @relation("ExpenseRecordedBy")
-  leadsAssigned         Lead[]         @relation("LeadAssignedTo")
-  quotationsAssigned    Quotation[]    @relation("QuotationAssignedTo")
+  incomeRecorded        IncomeEntry[]      @relation("IncomeRecordedBy")
+  expensesRecorded      ExpenseEntry[]     @relation("ExpenseRecordedBy")
+  leadsAssigned         Lead[]             @relation("LeadAssignedTo")
+  quotationsAssigned    Quotation[]        @relation("QuotationAssignedTo")
   notifications         Notification[]
-  ticketsAssigned       SupportTicket[] @relation("TicketAssignedTo")
-  ticketsCreated        SupportTicket[] @relation("TicketCreatedBy")
-  departmentsHeaded     Department[]   @relation("DepartmentHead")
-  visitorsHosted        Visitor[]      @relation("VisitorHost")
-  communicationsLogged  Communication[] @relation("CommunicationLoggedBy")
-  meetingsCreated       Meeting[]      @relation("MeetingCreatedBy")
-  campaignsCreated      Campaign[]     @relation("CampaignCreatedBy")
-  timesheets            Timesheet[]    @relation("TimesheetUser")
-  timesheetsReviewed    Timesheet[]    @relation("TimesheetReviewer")
-  documentsUploaded     Document[]     @relation("DocumentUploadedBy")
-  documentFolders       DocumentFolder[] @relation("DocumentFolderCreatedBy")
+  ticketsAssigned       SupportTicket[]    @relation("TicketAssignedTo")
+  ticketsCreated        SupportTicket[]    @relation("TicketCreatedBy")
+  departmentsHeaded     Department[]       @relation("DepartmentHead")
+  visitorsHosted        Visitor[]          @relation("VisitorHost")
+  communicationsLogged  Communication[]    @relation("CommunicationLoggedBy")
+  meetingsCreated       Meeting[]          @relation("MeetingCreatedBy")
+  campaignsCreated      Campaign[]         @relation("CampaignCreatedBy")
+  timesheets            Timesheet[]        @relation("TimesheetUser")
+  timesheetsReviewed    Timesheet[]        @relation("TimesheetReviewer")
+  documentsUploaded     Document[]         @relation("DocumentUploadedBy")
+  documentFolders       DocumentFolder[]   @relation("DocumentFolderCreatedBy")
   expenseClaims         ExpenseClaim[]     @relation("ExpenseClaimRequestedBy")
-  attendance            Attendance[]   @relation("AttendanceUser")
-  leaveRequests         LeaveRequest[] @relation("LeaveUser")
-  leaveReviews          LeaveRequest[] @relation("LeaveReviewer")
-  tendersAssigned       Tender[]       @relation("TenderAssignedTo")
-  purchaseRequests      PurchaseRequest[] @relation("PurchaseRequestedBy")
-  purchaseApprovals     PurchaseRequest[] @relation("PurchaseApprovedBy")
-  trainingsCreated      TrainingSession[] @relation("TrainingCreatedBy")
+  attendance            Attendance[]       @relation("AttendanceUser")
+  leaveRequests         LeaveRequest[]     @relation("LeaveUser")
+  leaveReviews          LeaveRequest[]     @relation("LeaveReviewer")
+  tendersAssigned       Tender[]           @relation("TenderAssignedTo")
+  purchaseRequests      PurchaseRequest[]  @relation("PurchaseRequestedBy")
+  purchaseApprovals     PurchaseRequest[]  @relation("PurchaseApprovedBy")
+  trainingsCreated      TrainingSession[]  @relation("TrainingCreatedBy")
   articles              KnowledgeArticle[] @relation("ArticleAuthor")
 
   // Portal logins: a CUSTOMER belongs to a client, a SUPPLIER to a supplier
-  clientId              String?
-  client                Client?    @relation("ClientPortalUsers", fields: [clientId], references: [id])
-  supplierId            String?
-  supplier              Supplier?  @relation(fields: [supplierId], references: [id])
+  clientId   String?
+  client     Client?   @relation("ClientPortalUsers", fields: [clientId], references: [id])
+  supplierId String?
+  supplier   Supplier? @relation(fields: [supplierId], references: [id])
+
+  portalMessages PortalMessage[] @relation("PortalMessageAuthor")
+  paymentNotices PaymentNotice[] @relation("PaymentNoticeBy")
+  rfqsCreated    Rfq[]           @relation("RfqCreatedBy")
 
   @@map("users")
 }
@@ -296,7 +300,7 @@ model Employee {
   userId           String           @unique
   user             User             @relation(fields: [userId], references: [id])
   employeeCode     String           @unique
-  department       String           // department name, kept in step with departmentId
+  department       String // department name, kept in step with departmentId
   departmentId     String?
   departmentRef    Department?      @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   position         String
@@ -317,20 +321,20 @@ model Employee {
 }
 
 model SalaryRecord {
-  id          String   @id @default(cuid())
-  employeeId  String
-  employee    Employee @relation(fields: [employeeId], references: [id])
-  month       Int
-  year        Int
-  baseSalary  Float
-  bonuses     Float    @default(0)
-  deductions  Float    @default(0)
-  netSalary   Float
-  currency    String   @default("RWF")
-  isPaid      Boolean  @default(false)
-  paidAt      DateTime?
-  notes       String?
-  createdAt   DateTime @default(now())
+  id         String    @id @default(cuid())
+  employeeId String
+  employee   Employee  @relation(fields: [employeeId], references: [id])
+  month      Int
+  year       Int
+  baseSalary Float
+  bonuses    Float     @default(0)
+  deductions Float     @default(0)
+  netSalary  Float
+  currency   String    @default("RWF")
+  isPaid     Boolean   @default(false)
+  paidAt     DateTime?
+  notes      String?
+  createdAt  DateTime  @default(now())
 
   expenseEntry ExpenseEntry?
 
@@ -343,27 +347,27 @@ model SalaryRecord {
 // ===========================
 
 model Client {
-  id                   String         @id @default(cuid())
-  companyName          String?
-  category             ClientCategory
-  status               ClientStatus   @default(PROSPECT)
-  clientType           ClientType     @default(ACQUISITION)
-  registrationNumber   String?
-  address              String?
-  location             String?
-  phone                String?
-  email                String?
-  website              String?
-  industry             String?
-  contactPersonName    String?
-  contactPersonPhone   String?
-  contactPersonEmail   String?
-  assignedToId         String?
-  assignedTo           User?          @relation("AccountManager", fields: [assignedToId], references: [id])
-  notes                String?
-  source               String?
-  createdAt            DateTime       @default(now())
-  updatedAt            DateTime       @updatedAt
+  id                 String         @id @default(cuid())
+  companyName        String?
+  category           ClientCategory
+  status             ClientStatus   @default(PROSPECT)
+  clientType         ClientType     @default(ACQUISITION)
+  registrationNumber String?
+  address            String?
+  location           String?
+  phone              String?
+  email              String?
+  website            String?
+  industry           String?
+  contactPersonName  String?
+  contactPersonPhone String?
+  contactPersonEmail String?
+  assignedToId       String?
+  assignedTo         User?          @relation("AccountManager", fields: [assignedToId], references: [id])
+  notes              String?
+  source             String?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
 
   kind                  ClientKind?
   active                Boolean     @default(true)
@@ -390,23 +394,24 @@ model Client {
   delegationRepCountry  String?
 
   // Relations
-  members      ClientMember[]
-  fieldVisits  FieldVisit[]
-  opportunities Opportunity[]
-  contracts    Contract[]
-  invoices     Invoice[]
-  projects     Project[]
-  incomeEntries IncomeEntry[]
-  quotations   Quotation[]
-  tickets      SupportTicket[]
+  members        ClientMember[]
+  fieldVisits    FieldVisit[]
+  opportunities  Opportunity[]
+  contracts      Contract[]
+  invoices       Invoice[]
+  projects       Project[]
+  incomeEntries  IncomeEntry[]
+  quotations     Quotation[]
+  tickets        SupportTicket[]
+  paymentNotices PaymentNotice[]
   communications Communication[]
-  meetings     Meeting[]
-  subscriptions ClientSubscription[]
-  portalUsers   User[]         @relation("ClientPortalUsers")
-  documents    Document[]
+  meetings       Meeting[]
+  subscriptions  ClientSubscription[]
+  portalUsers    User[]               @relation("ClientPortalUsers")
+  documents      Document[]
 
-  convertedLeads Lead[]      @relation("LeadClient")
-  visitors       Visitor[]   @relation("VisitorClient")
+  convertedLeads Lead[]    @relation("LeadClient")
+  visitors       Visitor[] @relation("VisitorClient")
 
   @@map("clients")
 }
@@ -429,28 +434,28 @@ model ClientMember {
 // ===========================
 
 model FieldVisit {
-  id                   String         @id @default(cuid())
-  visitDate            DateTime
-  companyName          String
-  category             ClientCategory
-  location             String?
-  contactName          String?
-  contactPhone         String
-  contactEmail         String?
-  needsAndObservation  String         @db.Text
-  whatSantechCanSell   String
-  outcome              VisitOutcome   @default(PENDING)
-  followUpDate         DateTime?
-  finalDecision        String?
-  comments             String?        @db.Text
-  amountPromising      Float?
-  contractWon          Boolean        @default(false)
-  recordedById         String
-  recordedBy           User           @relation("LoggedBy", fields: [recordedById], references: [id])
-  clientId             String?
-  client               Client?        @relation(fields: [clientId], references: [id])
-  createdAt            DateTime       @default(now())
-  updatedAt            DateTime       @updatedAt
+  id                  String         @id @default(cuid())
+  visitDate           DateTime
+  companyName         String
+  category            ClientCategory
+  location            String?
+  contactName         String?
+  contactPhone        String
+  contactEmail        String?
+  needsAndObservation String         @db.Text
+  whatSantechCanSell  String
+  outcome             VisitOutcome   @default(PENDING)
+  followUpDate        DateTime?
+  finalDecision       String?
+  comments            String?        @db.Text
+  amountPromising     Float?
+  contractWon         Boolean        @default(false)
+  recordedById        String
+  recordedBy          User           @relation("LoggedBy", fields: [recordedById], references: [id])
+  clientId            String?
+  client              Client?        @relation(fields: [clientId], references: [id])
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
 
   @@map("field_visits")
 }
@@ -483,29 +488,29 @@ model Product {
 // ===========================
 
 model Opportunity {
-  id                 String        @id @default(cuid())
-  name               String
-  clientId           String
-  client             Client        @relation(fields: [clientId], references: [id])
-  stage              PipelineStage @default(NEW_LEAD)
-  estimatedValue     Float
-  currency           String        @default("RWF")
-  probability        Float         @default(0)
-  expectedCloseDate  DateTime?
-  assignedToId       String
-  assignedTo         User          @relation("OpportunityAssignedTo", fields: [assignedToId], references: [id])
-  notes              String?
-  nextAction         String?
-  followUpDate       DateTime?
-  lostReason         String?
-  products           OpportunityProduct[]
-  contractId         String?   // the contract this deal became
-  contract           Contract? @relation(fields: [contractId], references: [id], onDelete: SetNull)
-  createdAt          DateTime      @default(now())
-  updatedAt          DateTime      @updatedAt
+  id                String               @id @default(cuid())
+  name              String
+  clientId          String
+  client            Client               @relation(fields: [clientId], references: [id])
+  stage             PipelineStage        @default(NEW_LEAD)
+  estimatedValue    Float
+  currency          String               @default("RWF")
+  probability       Float                @default(0)
+  expectedCloseDate DateTime?
+  assignedToId      String
+  assignedTo        User                 @relation("OpportunityAssignedTo", fields: [assignedToId], references: [id])
+  notes             String?
+  nextAction        String?
+  followUpDate      DateTime?
+  lostReason        String?
+  products          OpportunityProduct[]
+  contractId        String? // the contract this deal became
+  contract          Contract?            @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
 
-  quotations         Quotation[]
-  leads              Lead[]
+  quotations Quotation[]
+  leads      Lead[]
 
   @@map("opportunities")
 }
@@ -526,31 +531,31 @@ model OpportunityProduct {
 // ===========================
 
 model Contract {
-  id                  String         @id @default(cuid())
-  contractNumber      String         @unique
-  clientId            String
-  client              Client         @relation(fields: [clientId], references: [id])
-  projectName         String?
-  value               Float
-  currency            String         @default("RWF")
-  exchangeRate        Float          @default(1) // RWF for 1 unit of the currency, when it was set
-  version             Int            @default(1) // goes up when the terms change (see record_versions)
-  startDate           DateTime
-  endDate             DateTime
-  paymentTerms        String?
-  deliverables        String?        @db.Text
-  status              ContractStatus @default(DRAFT)
-  responsibleManagerId String?
-  responsibleManager  User?          @relation("ContractManager", fields: [responsibleManagerId], references: [id])
-  signedAt            DateTime?
-  signedDocumentUrl   String?
-  signedDocumentName  String?
-  signatories         Json?          // [{ name, status: PENDING|SIGNED, signedAt }]
-  approvalNote        String?
+  id                    String         @id @default(cuid())
+  contractNumber        String         @unique
+  clientId              String
+  client                Client         @relation(fields: [clientId], references: [id])
+  projectName           String?
+  value                 Float
+  currency              String         @default("RWF")
+  exchangeRate          Float          @default(1) // RWF for 1 unit of the currency, when it was set
+  version               Int            @default(1) // goes up when the terms change (see record_versions)
+  startDate             DateTime
+  endDate               DateTime
+  paymentTerms          String?
+  deliverables          String?        @db.Text
+  status                ContractStatus @default(DRAFT)
+  responsibleManagerId  String?
+  responsibleManager    User?          @relation("ContractManager", fields: [responsibleManagerId], references: [id])
+  signedAt              DateTime?
+  signedDocumentUrl     String?
+  signedDocumentName    String?
+  signatories           Json? // [{ name, status: PENDING|SIGNED, signedAt }]
+  approvalNote          String?
   sourceQuotationNumber String?
-  notes               String?        @db.Text
-  createdAt           DateTime       @default(now())
-  updatedAt           DateTime       @updatedAt
+  notes                 String?        @db.Text
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
 
   projects Project[]
   invoices Invoice[]
@@ -566,45 +571,46 @@ model Contract {
 // ===========================
 
 model Invoice {
-  id            String        @id @default(cuid())
-  invoiceNumber String        @unique
-  type          String        @default("INVOICE") // INVOICE, PROFORMA (no payments; becomes an invoice), CREDIT_NOTE
-  clientId      String
-  client        Client        @relation(fields: [clientId], references: [id])
-  contractId    String?
-  contract      Contract?     @relation(fields: [contractId], references: [id])
-  projectId     String?
-  project       Project?      @relation(fields: [projectId], references: [id])
-  milestone     Milestone?
-  amount        Float
-  taxAmount     Float         @default(0)
-  totalAmount   Float
-  currency      String        @default("RWF")
-  issueDate     DateTime
-  dueDate       DateTime
-  paidAmount    Float         @default(0)
-  creditedAmount Float        @default(0) // credit notes issued against this invoice
-  exchangeRate  Float         @default(1) // RWF for 1 unit of the currency, on the issue date
-  status        InvoiceStatus @default(DRAFT)
-  notes         String?
-  payments      Payment[]
+  id             String          @id @default(cuid())
+  invoiceNumber  String          @unique
+  type           String          @default("INVOICE") // INVOICE, PROFORMA (no payments; becomes an invoice), CREDIT_NOTE
+  clientId       String
+  client         Client          @relation(fields: [clientId], references: [id])
+  contractId     String?
+  contract       Contract?       @relation(fields: [contractId], references: [id])
+  projectId      String?
+  project        Project?        @relation(fields: [projectId], references: [id])
+  milestone      Milestone?
+  amount         Float
+  taxAmount      Float           @default(0)
+  totalAmount    Float
+  currency       String          @default("RWF")
+  issueDate      DateTime
+  dueDate        DateTime
+  paidAmount     Float           @default(0)
+  creditedAmount Float           @default(0) // credit notes issued against this invoice
+  exchangeRate   Float           @default(1) // RWF for 1 unit of the currency, on the issue date
+  status         InvoiceStatus   @default(DRAFT)
+  notes          String?
+  payments       Payment[]
+  paymentNotices PaymentNotice[]
 
   // A credit note points to the invoice it reduces
-  creditForId   String?
-  creditFor     Invoice?      @relation("CreditNotes", fields: [creditForId], references: [id])
-  creditNotes   Invoice[]     @relation("CreditNotes")
+  creditForId         String?
+  creditFor           Invoice?            @relation("CreditNotes", fields: [creditForId], references: [id])
+  creditNotes         Invoice[]           @relation("CreditNotes")
   // An invoice made from a proforma points to it
-  proformaId    String?       @unique
-  proforma      Invoice?      @relation("ProformaInvoice", fields: [proformaId], references: [id])
-  invoiceFromProforma Invoice? @relation("ProformaInvoice")
+  proformaId          String?             @unique
+  proforma            Invoice?            @relation("ProformaInvoice", fields: [proformaId], references: [id])
+  invoiceFromProforma Invoice?            @relation("ProformaInvoice")
   // Recurring: invoices raised for a client service's billing period
-  subscriptionId String?
-  subscription  ClientSubscription? @relation(fields: [subscriptionId], references: [id])
-  periodStart   DateTime?
-  periodEnd     DateTime?
+  subscriptionId      String?
+  subscription        ClientSubscription? @relation(fields: [subscriptionId], references: [id])
+  periodStart         DateTime?
+  periodEnd           DateTime?
 
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("invoices")
 }
@@ -621,7 +627,7 @@ model Payment {
   notes         String?
   createdAt     DateTime @default(now())
 
-  incomeEntry   IncomeEntry?
+  incomeEntry IncomeEntry?
 
   @@map("payments")
 }
@@ -658,29 +664,29 @@ model Project {
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 
-  tickets          SupportTicket[]
+  tickets SupportTicket[]
 
   @@map("projects")
 }
 
 model Milestone {
-  id                String   @id @default(cuid())
+  id                String          @id @default(cuid())
   projectId         String
-  project           Project  @relation(fields: [projectId], references: [id])
+  project           Project         @relation(fields: [projectId], references: [id])
   name              String
   milestoneNumber   Int             @default(1)
   description       String?         @db.Text
   deadline          DateTime
   deliverables      String?
-  paymentPercentage Float    @default(0)
+  paymentPercentage Float           @default(0)
   status            MilestoneStatus @default(NOT_STARTED)
-  isCompleted       Boolean  @default(false)
+  isCompleted       Boolean         @default(false)
   completedAt       DateTime?
   approvedAt        DateTime?
   invoiceId         String?         @unique
   invoice           Invoice?        @relation(fields: [invoiceId], references: [id])
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
 
   @@map("milestones")
 }
@@ -719,19 +725,19 @@ model Task {
 // ===========================
 
 model AuditLog {
-  id         String   @id @default(cuid())
-  userId     String
-  user       User     @relation(fields: [userId], references: [id])
-  action     String
-  entity     String
-  entityId   String
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  action      String
+  entity      String
+  entityId    String
   entityName  String?
   description String?
-  oldValue   Json?
-  newValue   Json?
-  ipAddress  String?
-  userAgent  String?
-  createdAt  DateTime @default(now())
+  oldValue    Json?
+  newValue    Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
 
   @@map("audit_logs")
 }
@@ -741,23 +747,23 @@ model AuditLog {
 // ===========================
 
 model IncomeEntry {
-  id           String   @id @default(cuid())
-  date         DateTime
-  description  String
-  category     String   // Software Dev, EVS, SANTRACK, Website, Training, Maintenance, Other
-  amount       Float    // always in RWF (the reporting currency)
-  currency     String   @default("RWF")
-  originalAmount   Float?  // when paid in another currency: the amount in that currency
+  id               String   @id @default(cuid())
+  date             DateTime
+  description      String
+  category         String // Software Dev, EVS, SANTRACK, Website, Training, Maintenance, Other
+  amount           Float // always in RWF (the reporting currency)
+  currency         String   @default("RWF")
+  originalAmount   Float? // when paid in another currency: the amount in that currency
   originalCurrency String?
-  exchangeRate     Float?  // RWF for 1 unit of originalCurrency
-  clientId     String?
-  client       Client?  @relation(fields: [clientId], references: [id])
-  clientName   String?
-  paymentId    String?  @unique // set when the income comes from an invoice payment
-  payment      Payment? @relation(fields: [paymentId], references: [id], onDelete: Cascade)
-  recordedById String
-  recordedBy   User     @relation("IncomeRecordedBy", fields: [recordedById], references: [id])
-  createdAt    DateTime @default(now())
+  exchangeRate     Float? // RWF for 1 unit of originalCurrency
+  clientId         String?
+  client           Client?  @relation(fields: [clientId], references: [id])
+  clientName       String?
+  paymentId        String?  @unique // set when the income comes from an invoice payment
+  payment          Payment? @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  recordedById     String
+  recordedBy       User     @relation("IncomeRecordedBy", fields: [recordedById], references: [id])
+  createdAt        DateTime @default(now())
 
   trainingAttendee TrainingAttendee?
 
@@ -765,24 +771,24 @@ model IncomeEntry {
 }
 
 model ExpenseEntry {
-  id             String        @id @default(cuid())
-  date           DateTime
-  description    String
-  category       String        // Salaries, Rent, Internet, Equipment, Marketing, Transport, Other
-  amount         Float         // always in RWF (the reporting currency)
-  currency       String        @default("RWF")
-  originalAmount   Float?      // when paid in another currency: the amount in that currency
+  id               String        @id @default(cuid())
+  date             DateTime
+  description      String
+  category         String // Salaries, Rent, Internet, Equipment, Marketing, Transport, Other
+  amount           Float // always in RWF (the reporting currency)
+  currency         String        @default("RWF")
+  originalAmount   Float? // when paid in another currency: the amount in that currency
   originalCurrency String?
-  exchangeRate     Float?      // RWF for 1 unit of originalCurrency
-  notes          String?
-  salaryRecordId String?       @unique // set when the expense comes from paying a salary
-  salaryRecord   SalaryRecord? @relation(fields: [salaryRecordId], references: [id], onDelete: Cascade)
-  recordedById   String
-  recordedBy     User          @relation("ExpenseRecordedBy", fields: [recordedById], references: [id])
-  createdAt      DateTime      @default(now())
+  exchangeRate     Float? // RWF for 1 unit of originalCurrency
+  notes            String?
+  salaryRecordId   String?       @unique // set when the expense comes from paying a salary
+  salaryRecord     SalaryRecord? @relation(fields: [salaryRecordId], references: [id], onDelete: Cascade)
+  recordedById     String
+  recordedBy       User          @relation("ExpenseRecordedBy", fields: [recordedById], references: [id])
+  createdAt        DateTime      @default(now())
 
-  expenseClaim   ExpenseClaim?    @relation("ClaimExpense")
-  purchase       PurchaseRequest? @relation("PurchaseExpense")
+  expenseClaim ExpenseClaim?    @relation("ClaimExpense")
+  purchase     PurchaseRequest? @relation("PurchaseExpense")
 
   @@map("expense_entries")
 }
@@ -806,11 +812,11 @@ model Lead {
   followUpDate   DateTime?
   estimatedValue Float          @default(0)
   notes          String?        @db.Text
-  clientId       String?        // set when converted
+  clientId       String? // set when converted
   client         Client?        @relation("LeadClient", fields: [clientId], references: [id], onDelete: SetNull)
-  opportunityId  String?        // set when converted
+  opportunityId  String? // set when converted
   opportunity    Opportunity?   @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
-  campaignId     String?        // the marketing campaign that brought the lead
+  campaignId     String? // the marketing campaign that brought the lead
   campaign       Campaign?      @relation(fields: [campaignId], references: [id], onDelete: SetNull)
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
@@ -831,7 +837,7 @@ model Quotation {
   contactEmail    String?
   contactPhone    String?
   status          QuotationStatus @default(DRAFT)
-  items           Json            // [{ id, description, quantity, unitPrice, total }]
+  items           Json // [{ id, description, quantity, unitPrice, total }]
   subtotal        Float
   discountRate    Float           @default(0) // % off the subtotal, before VAT
   discountAmount  Float           @default(0)
@@ -846,13 +852,13 @@ model Quotation {
   notes           String?         @db.Text
   assignedToId    String?
   assignedTo      User?           @relation("QuotationAssignedTo", fields: [assignedToId], references: [id])
-  linkedDeal      String?         // name of the deal (kept for display; the link is opportunityId)
+  linkedDeal      String? // name of the deal (kept for display; the link is opportunityId)
   opportunityId   String?
   opportunity     Opportunity?    @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
-  approvalHistory Json?           // [{ status, action, actor, createdAt }]
+  approvalHistory Json? // [{ status, action, actor, createdAt }]
   sentAt          DateTime?
   acceptedAt      DateTime?
-  contractId      String?         // set when converted to a contract
+  contractId      String? // set when converted to a contract
   contract        Contract?       @relation(fields: [contractId], references: [id], onDelete: SetNull)
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
@@ -868,11 +874,11 @@ model Notification {
   id          String   @id @default(cuid())
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type        String   // PAYMENT_DUE, OVERDUE, CONTRACT_EXPIRY, FOLLOW_UP, TASK_DEADLINE, SYSTEM
+  type        String // PAYMENT_DUE, OVERDUE, CONTRACT_EXPIRY, FOLLOW_UP, TASK_DEADLINE, SYSTEM
   title       String
   description String
   link        String?
-  key         String?  // stops the same reminder being created twice
+  key         String? // stops the same reminder being created twice
   read        Boolean  @default(false)
   createdAt   DateTime @default(now())
 
@@ -885,27 +891,28 @@ model Notification {
 // ===========================
 
 model SupportTicket {
-  id           String       @id @default(cuid())
-  ticketNo     String       @unique
-  clientId     String
-  client       Client       @relation(fields: [clientId], references: [id])
-  projectId    String?      // the project / system the ticket is about
-  project      Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  subject      String
-  description  String       @db.Text
-  product      String
-  priority     Priority     @default(MEDIUM)
-  status       TicketStatus @default(NEW)
-  assignedToId String?
-  assignedTo   User?        @relation("TicketAssignedTo", fields: [assignedToId], references: [id])
-  createdById  String
-  createdBy    User         @relation("TicketCreatedBy", fields: [createdById], references: [id])
-  resolvedAt   DateTime?
+  id               String          @id @default(cuid())
+  ticketNo         String          @unique
+  clientId         String
+  client           Client          @relation(fields: [clientId], references: [id])
+  projectId        String? // the project / system the ticket is about
+  project          Project?        @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  subject          String
+  description      String          @db.Text
+  product          String
+  priority         Priority        @default(MEDIUM)
+  status           TicketStatus    @default(NEW)
+  assignedToId     String?
+  assignedTo       User?           @relation("TicketAssignedTo", fields: [assignedToId], references: [id])
+  createdById      String
+  createdBy        User            @relation("TicketCreatedBy", fields: [createdById], references: [id])
+  resolvedAt       DateTime?
   firstResponseAt  DateTime? // first time the team worked on it (In Progress / Waiting / Resolved)
   satisfaction     Int? // customer rating 1–5, recorded when resolved
   satisfactionNote String?
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  messages         PortalMessage[]
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
 
   @@map("support_tickets")
 }
@@ -925,7 +932,7 @@ model Department {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  employees   Employee[]
+  employees Employee[]
 
   @@map("departments")
 }
@@ -938,7 +945,7 @@ model Visitor {
   id               String        @id @default(cuid())
   visitorName      String
   company          String?
-  clientId         String?       // when the visitor comes from a client
+  clientId         String? // when the visitor comes from a client
   client           Client?       @relation("VisitorClient", fields: [clientId], references: [id], onDelete: SetNull)
   phone            String?
   email            String?
@@ -965,17 +972,17 @@ model Visitor {
 
 model Communication {
   id             String    @id @default(cuid())
-  type           String    // CALL, EMAIL, WHATSAPP, SMS, MEETING, NOTE, STATUS_CHANGE
-  direction      String?   // INBOUND, OUTBOUND
+  type           String // CALL, EMAIL, WHATSAPP, SMS, MEETING, NOTE, STATUS_CHANGE
+  direction      String? // INBOUND, OUTBOUND
   clientId       String?
   client         Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull)
-  company        String?   // shown when there is no client (e.g. "Internal")
+  company        String? // shown when there is no client (e.g. "Internal")
   contactName    String?
   dateTime       DateTime
-  duration       Int?      // minutes, for calls
+  duration       Int? // minutes, for calls
   subject        String
   summary        String    @db.Text
-  linkedTo       String?   // e.g. quotation or deal reference
+  linkedTo       String? // e.g. quotation or deal reference
   followUpNeeded Boolean   @default(false)
   followUpDate   DateTime?
   loggedById     String
@@ -992,7 +999,7 @@ model Communication {
 model Meeting {
   id           String    @id @default(cuid())
   title        String
-  type         String    // CLIENT_MEETING, PROJECT_MEETING, INTERNAL, SALES_MEETING, CONTRACT_MEETING, TRAINING
+  type         String // CLIENT_MEETING, PROJECT_MEETING, INTERNAL, SALES_MEETING, CONTRACT_MEETING, TRAINING
   status       String    @default("SCHEDULED") // SCHEDULED, IN_PROGRESS, COMPLETED, CANCELLED, POSTPONED
   date         DateTime
   startTime    String
@@ -1026,14 +1033,14 @@ model ClientSubscription {
   client              Client    @relation(fields: [clientId], references: [id])
   systemName          String
   systemLink          String?
-  serviceType         String    // HOSTING_ONLY, MAINTENANCE_ONLY, HOSTING_AND_MAINTENANCE, DOMAIN_ONLY, DOMAIN_AND_HOSTING
+  serviceType         String // HOSTING_ONLY, MAINTENANCE_ONLY, HOSTING_AND_MAINTENANCE, DOMAIN_ONLY, DOMAIN_AND_HOSTING
   hostingProvider     String    @default("OTHER")
   hostingAccountEmail String?
   hostingAccountInfo  String?
   billingCycle        String    @default("ANNUAL") // MONTHLY, QUARTERLY, ANNUAL
   startDate           DateTime
   renewalDate         DateTime
-  amount              Float     // charged to the client per cycle (before tax)
+  amount              Float // charged to the client per cycle (before tax)
   currency            String    @default("RWF")
   autoInvoice         Boolean   @default(true) // raise the next invoice automatically before renewal
   cost                Float     @default(0) // what it costs Santech
@@ -1056,7 +1063,7 @@ model ClientSubscription {
 model Campaign {
   id               String   @id @default(cuid())
   name             String
-  type             String   // EXPO_EVENT, FIELD_VISITS, SOCIAL_MEDIA, EMAIL_CAMPAIGN, REFERRAL, COLD_OUTREACH, OTHER
+  type             String // EXPO_EVENT, FIELD_VISITS, SOCIAL_MEDIA, EMAIL_CAMPAIGN, REFERRAL, COLD_OUTREACH, OTHER
   status           String   @default("PLANNING") // PLANNING, ACTIVE, PAUSED, COMPLETED, CANCELLED
   objective        String?
   targetAudience   String?
@@ -1074,7 +1081,7 @@ model Campaign {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  leads            Lead[]
+  leads Lead[]
 
   @@map("campaigns")
 }
@@ -1107,31 +1114,35 @@ model Timesheet {
 // ===========================
 
 model Document {
-  id           String   @id @default(cuid())
-  fileId       String?  // uploaded file (see StoredFile)
-  name         String
-  category     String   // CONTRACT, INVOICE, PROPOSAL, REPORT, POLICY, OTHER
-  description  String?
-  size         String?
-  status       String   @default("ACTIVE") // ACTIVE, ARCHIVED
-  clientId     String?  // optional link so the document shows on the client's 360° page
-  client       Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
-  projectId    String?  // optional link to a project (its client is linked too)
-  project      Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  uploadedById String
-  uploadedBy   User     @relation("DocumentUploadedBy", fields: [uploadedById], references: [id])
-  folderId     String?  // folder an admin filed it in (Drive-style); it still shows in the automatic folders
-  folder       DocumentFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
-  expiryDate   DateTime? // e.g. certificates, licences, insurance — reminders before it expires
-  sharedWithClient Boolean @default(false) // visible to the client in the customer portal
-  version      Int               @default(1)
-  versions     DocumentVersion[]
-  date         DateTime @default(now())
-  createdAt    DateTime @default(now())
+  id                 String            @id @default(cuid())
+  fileId             String? // uploaded file (see StoredFile)
+  name               String
+  category           String // CONTRACT, INVOICE, PROPOSAL, REPORT, POLICY, OTHER
+  description        String?
+  size               String?
+  status             String            @default("ACTIVE") // ACTIVE, ARCHIVED
+  clientId           String? // optional link so the document shows on the client's 360° page
+  client             Client?           @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  projectId          String? // optional link to a project (its client is linked too)
+  project            Project?          @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  uploadedById       String
+  uploadedBy         User              @relation("DocumentUploadedBy", fields: [uploadedById], references: [id])
+  folderId           String? // folder an admin filed it in (Drive-style); it still shows in the automatic folders
+  folder             DocumentFolder?   @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  expiryDate         DateTime? // e.g. certificates, licences, insurance — reminders before it expires
+  sharedWithClient   Boolean           @default(false) // visible to the client in the customer portal
+  supplierId         String? // a supplier's document (see the supplier portal)
+  supplier           Supplier?         @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  sharedWithSupplier Boolean           @default(false) // visible to the supplier in the supplier portal
+  version            Int               @default(1)
+  versions           DocumentVersion[]
+  date               DateTime          @default(now())
+  createdAt          DateTime          @default(now())
 
   @@index([clientId])
   @@index([projectId])
   @@index([folderId])
+  @@index([supplierId])
   @@map("documents")
 }
 
@@ -1139,8 +1150,8 @@ model Document {
 model DocumentFolder {
   id          String           @id @default(cuid())
   name        String
-  color       String?          // hex colour of the folder icon
-  parentId    String?          // null = top level
+  color       String? // hex colour of the folder icon
+  parentId    String? // null = top level
   parent      DocumentFolder?  @relation("FolderTree", fields: [parentId], references: [id], onDelete: Restrict)
   children    DocumentFolder[] @relation("FolderTree")
   documents   Document[]
@@ -1165,7 +1176,7 @@ model Attendance {
   checkIn     String?
   checkOut    String?
   hoursWorked Float    @default(0)
-  status      String   // PRESENT, ABSENT, LATE, HALF_DAY
+  status      String // PRESENT, ABSENT, LATE, HALF_DAY
   notes       String?
   createdAt   DateTime @default(now())
 
@@ -1177,7 +1188,7 @@ model LeaveRequest {
   id           String    @id @default(cuid())
   userId       String
   user         User      @relation("LeaveUser", fields: [userId], references: [id])
-  leaveType    String    // ANNUAL, SICK, MATERNITY, PATERNITY, EMERGENCY, UNPAID
+  leaveType    String // ANNUAL, SICK, MATERNITY, PATERNITY, EMERGENCY, UNPAID
   startDate    DateTime
   endDate      DateTime
   days         Int
@@ -1198,7 +1209,7 @@ model LeaveRequest {
 model Tender {
   id             String    @id @default(cuid())
   title          String
-  issuer         String    // organisation that published the tender
+  issuer         String // organisation that published the tender
   reference      String?
   value          Float     @default(0)
   deadline       DateTime
@@ -1218,36 +1229,42 @@ model Tender {
 // ===========================
 
 model PurchaseRequest {
-  id            String    @id @default(cuid())
-  itemName      String
-  category      String    // IT_EQUIPMENT, OFFICE_SUPPLIES, HARDWARE, SOFTWARE, SERVICES, OTHER
-  quantity      Int
-  unitPrice     Float
-  supplier      String?
-  status        String    @default("PENDING") // PENDING, APPROVED, ORDERED, DELIVERED, CANCELLED
-  notes         String?
-  requestedById String
-  requestedBy   User      @relation("PurchaseRequestedBy", fields: [requestedById], references: [id])
-  approvedById  String?
-  approvedBy    User?     @relation("PurchaseApprovedBy", fields: [approvedById], references: [id])
-  requestDate   DateTime  @default(now())
-  deliveredAt   DateTime?
-  expenseId     String?   @unique // expense booked on delivery
-  expense       ExpenseEntry? @relation("PurchaseExpense", fields: [expenseId], references: [id], onDelete: SetNull)
+  id                        String          @id @default(cuid())
+  itemName                  String
+  category                  String // IT_EQUIPMENT, OFFICE_SUPPLIES, HARDWARE, SOFTWARE, SERVICES, OTHER
+  quantity                  Int
+  unitPrice                 Float
+  supplier                  String?
+  status                    String          @default("PENDING") // PENDING, APPROVED, ORDERED, DELIVERED, CANCELLED
+  notes                     String?
+  requestedById             String
+  requestedBy               User            @relation("PurchaseRequestedBy", fields: [requestedById], references: [id])
+  approvedById              String?
+  approvedBy                User?           @relation("PurchaseApprovedBy", fields: [approvedById], references: [id])
+  requestDate               DateTime        @default(now())
+  deliveredAt               DateTime?
+  expenseId                 String?         @unique // expense booked on delivery
+  expense                   ExpenseEntry?   @relation("PurchaseExpense", fields: [expenseId], references: [id], onDelete: SetNull)
   // Supplier and purchase order (supplier portal)
-  supplierId            String?
-  vendor                Supplier? @relation(fields: [supplierId], references: [id])
-  poNumber              String?   @unique // PO-2026-001, given when the order is placed
-  orderedAt             DateTime?
-  supplierStatus        String?   // CONFIRMED, DISPATCHED (set by the supplier in the portal)
-  expectedDelivery      DateTime?
-  supplierNote          String?
-  supplierInvoiceFileId String?
-  supplierInvoiceName   String?
-  supplierInvoiceAmount Float?
-  supplierUpdatedAt     DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  supplierId                String?
+  vendor                    Supplier?       @relation(fields: [supplierId], references: [id])
+  poNumber                  String?         @unique // PO-2026-001, given when the order is placed
+  orderedAt                 DateTime?
+  supplierStatus            String? // CONFIRMED, DISPATCHED (set by the supplier in the portal)
+  expectedDelivery          DateTime?
+  supplierNote              String?
+  supplierInvoiceFileId     String?
+  supplierInvoiceName       String?
+  supplierInvoiceAmount     Float?
+  supplierInvoiceStatus     String? // SUBMITTED, APPROVED, REJECTED, PAID (set by Finance)
+  supplierInvoiceNote       String? // Finance's reason when rejected
+  supplierInvoicePaidAt     DateTime?
+  supplierInvoicePaidAmount Float?
+  supplierInvoiceReference  String? // payment reference (transfer or mobile money)
+  supplierUpdatedAt         DateTime?
+  messages                  PortalMessage[]
+  createdAt                 DateTime        @default(now())
+  updatedAt                 DateTime        @updatedAt
 
   @@map("purchase_requests")
 }
@@ -1257,26 +1274,26 @@ model PurchaseRequest {
 // ===========================
 
 model TrainingSession {
-  id                  String    @id @default(cuid())
+  id                  String             @id @default(cuid())
   title               String
-  type                String    // SANHUB, EVS, SANTRACK, SOFTWARE_DEV, AI_IOT, DIGITAL, OTHER
-  description         String?   @db.Text
+  type                String // SANHUB, EVS, SANTRACK, SOFTWARE_DEV, AI_IOT, DIGITAL, OTHER
+  description         String?            @db.Text
   trainer             String
   venue               String?
   startDate           DateTime
   endDate             DateTime
   startTime           String?
   endTime             String?
-  maxAttendees        Int       @default(20)
-  feePerPerson        Float     @default(0)
-  status              String    @default("UPCOMING") // UPCOMING, IN_PROGRESS, COMPLETED, CANCELLED
+  maxAttendees        Int                @default(20)
+  feePerPerson        Float              @default(0)
+  status              String             @default("UPCOMING") // UPCOMING, IN_PROGRESS, COMPLETED, CANCELLED
   certificateTemplate String?
   notes               String?
   createdById         String
-  createdBy           User      @relation("TrainingCreatedBy", fields: [createdById], references: [id])
+  createdBy           User               @relation("TrainingCreatedBy", fields: [createdById], references: [id])
   attendees           TrainingAttendee[]
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
 
   @@map("training_sessions")
 }
@@ -1394,19 +1411,19 @@ model DocumentVersion {
 
 /// Expense claims: Employee → Manager → Finance. Final approval books the expense in Finance.
 model ExpenseClaim {
-  id              String    @id @default(cuid())
-  claimNumber     String    @unique // EXP-2026-001
+  id              String        @id @default(cuid())
+  claimNumber     String        @unique // EXP-2026-001
   description     String
   category        String
   amount          Float
-  currency        String    @default("RWF")
+  currency        String        @default("RWF")
   date            DateTime
   receiptFileId   String?
   receiptName     String?
   notes           String?
-  status          String    @default("PENDING") // PENDING → MANAGER_APPROVED → APPROVED, or REJECTED
+  status          String        @default("PENDING") // PENDING → MANAGER_APPROVED → APPROVED, or REJECTED
   requestedById   String
-  requestedBy     User      @relation("ExpenseClaimRequestedBy", fields: [requestedById], references: [id])
+  requestedBy     User          @relation("ExpenseClaimRequestedBy", fields: [requestedById], references: [id])
   managerId       String? // who gave the manager approval (Finance must be someone else)
   managerName     String?
   managerAt       DateTime?
@@ -1414,10 +1431,10 @@ model ExpenseClaim {
   financeAt       DateTime?
   rejectedByName  String?
   rejectionReason String?
-  expenseId       String?   @unique // the Finance expense booked on final approval
+  expenseId       String?       @unique // the Finance expense booked on final approval
   expense         ExpenseEntry? @relation("ClaimExpense", fields: [expenseId], references: [id], onDelete: SetNull)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 
   @@index([requestedById])
   @@map("expense_claims")
@@ -1430,11 +1447,11 @@ model ExpenseClaim {
 /// The record as it was before a change of its terms. Version N is kept when it becomes N+1.
 model RecordVersion {
   id            String   @id @default(cuid())
-  entity        String   // Contract | Quotation
+  entity        String // Contract | Quotation
   entityId      String
   version       Int
-  data          Json     // the terms as they were
-  changes       Json?    // [{ field, label, from, to }] what the next version changed
+  data          Json // the terms as they were
+  changes       Json? // [{ field, label, from, to }] what the next version changed
   changedById   String?
   changedByName String?
   createdAt     DateTime @default(now())
@@ -1448,20 +1465,117 @@ model RecordVersion {
 // ===========================
 
 model Supplier {
-  id          String   @id @default(cuid())
+  id          String            @id @default(cuid())
   name        String
   contactName String?
   email       String?
   phone       String?
   address     String?
   tin         String?
-  category    String   @default("OTHER") // IT_EQUIPMENT, OFFICE_SUPPLIES, HARDWARE, SOFTWARE, SERVICES, OTHER
+  bankName    String?
+  bankAccount String?
+  category    String            @default("OTHER") // IT_EQUIPMENT, OFFICE_SUPPLIES, HARDWARE, SOFTWARE, SERVICES, OTHER
   notes       String?
-  isActive    Boolean  @default(true)
+  isActive    Boolean           @default(true)
   purchases   PurchaseRequest[]
   users       User[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  documents   Document[]
+  rfqQuotes   RfqQuote[]
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
 
   @@map("suppliers")
+}
+
+// ===========================
+// PORTALS: messages, payment notices, requests for quotation
+// ===========================
+
+/// A message in a conversation between Santech and a customer (on a ticket) or a supplier (on an order)
+model PortalMessage {
+  id         String           @id @default(cuid())
+  ticketId   String?
+  ticket     SupportTicket?   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  orderId    String?
+  order      PurchaseRequest? @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  authorId   String
+  author     User             @relation("PortalMessageAuthor", fields: [authorId], references: [id])
+  fromPortal Boolean          @default(false) // true: written by the customer / supplier
+  body       String           @db.Text
+  createdAt  DateTime         @default(now())
+
+  @@index([ticketId, createdAt])
+  @@index([orderId, createdAt])
+  @@map("portal_messages")
+}
+
+/// A customer says they paid an invoice; Finance checks and records the payment
+model PaymentNotice {
+  id           String    @id @default(cuid())
+  invoiceId    String
+  invoice      Invoice   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  clientId     String
+  client       Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  amount       Float
+  method       String // MOBILE_MONEY, BANK_TRANSFER, CASH, OTHER
+  reference    String?
+  paidOn       DateTime
+  note         String?
+  fileId       String? // proof of payment (uploaded file)
+  fileName     String?
+  status       String    @default("PENDING") // PENDING, CONFIRMED, REJECTED
+  reviewNote   String?
+  reviewedById String?
+  reviewedAt   DateTime?
+  createdById  String
+  createdBy    User      @relation("PaymentNoticeBy", fields: [createdById], references: [id])
+  createdAt    DateTime  @default(now())
+
+  @@index([invoiceId])
+  @@index([clientId, createdAt])
+  @@map("payment_notices")
+}
+
+/// Request for quotation: Santech asks several suppliers for a price
+model Rfq {
+  id             String     @id @default(cuid())
+  rfqNo          String     @unique
+  title          String
+  description    String?    @db.Text
+  category       String     @default("OTHER")
+  quantity       Int        @default(1)
+  unit           String?
+  deadline       DateTime
+  status         String     @default("OPEN") // OPEN, AWARDED, CANCELLED
+  createdById    String
+  createdBy      User       @relation("RfqCreatedBy", fields: [createdById], references: [id])
+  awardedQuoteId String?
+  purchaseId     String? // the purchase order made when it was awarded
+  quotes         RfqQuote[]
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  @@map("rfqs")
+}
+
+model RfqQuote {
+  id           String    @id @default(cuid())
+  rfqId        String
+  rfq          Rfq       @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  supplierId   String
+  supplier     Supplier  @relation(fields: [supplierId], references: [id])
+  status       String    @default("INVITED") // INVITED, QUOTED, DECLINED, AWARDED, NOT_SELECTED
+  unitPrice    Float?
+  currency     String    @default("RWF")
+  deliveryDays Int?
+  validUntil   DateTime?
+  note         String?
+  fileId       String? // the supplier's own quotation document
+  fileName     String?
+  quotedAt     DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([rfqId, supplierId])
+  @@map("rfq_quotes")
 }
