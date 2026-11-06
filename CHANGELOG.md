@@ -28,6 +28,11 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 
 ## 1.8.0 — 5 November 2026
 
+### Task Assigned shows who sent it, with their position (6 Nov)
+- **Before:** "Claire Mukamana assigned you ...". Only the name, so the person could not tell who it was.
+- **Now:** "Claire Mukamana (HR Manager) assigned you ...". The position is the one on the employee record
+  (Team → Employees); without one, the role (Admin, Finance Manager, ...) is shown. Applies to the bell and the email.
+
 ### Resend as an email provider (5 Nov)
 - **What:** email can now go out through **Resend** as well as Brevo or SMTP. Set `RESEND_API_KEY` and the
   sender in `MAIL_FROM` (or `EMAIL_FROM`), for example `SAN TECH <no-reply@notification.example.com>`.

@@ -144,6 +144,7 @@ santech-bms-current/
 | Unpaid invoice / approved purchase / unpaid salary | Listed under Accounts Receivable or Accounts Payable on Finance → Statements |
 | Document linked to a client | Shown in that client's Client 360° profile, ready to download |
 | Task / timesheet / leave **approved** | Employee notified; task approval raises performance score |
+| Task **assigned** | The person is notified (bell, and email when switched on) with the sender's name and position, e.g. "Claire Mukamana (HR Manager) assigned you ..." |
 | Visitor **checked in** | Host notified |
 | Every important action | Written to the Audit Trail (who, what, before/after, IP, device) |
 

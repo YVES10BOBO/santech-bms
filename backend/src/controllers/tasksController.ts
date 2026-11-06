@@ -13,6 +13,22 @@ const taskInclude = {
 
 const fullName = (u?: { firstName: string; lastName: string } | null) => (u ? `${u.firstName} ${u.lastName}` : '')
 
+const ROLE_TITLE: Record<string, string> = {
+  SUPER_ADMIN: 'Super Admin', ADMIN: 'Admin', FINANCE_MANAGER: 'Finance Manager', SALES_MANAGER: 'Sales Manager',
+  MARKETING_MANAGER: 'Marketing Manager', PROJECT_MANAGER: 'Project Manager', SALES_STAFF: 'Sales Staff', EMPLOYEE: 'Employee',
+}
+
+/** "Claire Mukamana (HR Manager)": the name with the job title (or, without one, the role) */
+async function nameWithPosition(userId: string): Promise<string> {
+  const u = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { firstName: true, lastName: true, role: true, employee: { select: { position: true } } },
+  })
+  if (!u) return ''
+  const title = u.employee?.position?.trim() || ROLE_TITLE[u.role] || ''
+  return title ? `${fullName(u)} (${title})` : fullName(u)
+}
+
 /** Approved tasks raise the employee's performance score, rejected ones lower it (0–100). */
 async function adjustPerformance(userId: string, delta: number) {
   const emp = await prisma.employee.findUnique({ where: { userId }, select: { id: true, performanceScore: true } })
@@ -114,7 +130,7 @@ export async function createTask(req: AuthRequest, res: Response): Promise<void>
     if (task.assignedToId !== req.user!.id) {
       await notify(task.assignedToId, {
         type: 'TASK_DEADLINE', title: 'Task Assigned', link: '/team/my-tasks',
-        description: `${fullName(task.assignedBy)} assigned you "${task.title}" — deadline ${String(deadline).slice(0, 10)}${task.project ? ` (${task.project.name})` : ''}`,
+        description: `${await nameWithPosition(req.user!.id)} assigned you "${task.title}" — deadline ${String(deadline).slice(0, 10)}${task.project ? ` (${task.project.name})` : ''}`,
       })
     }
     res.status(201).json({ success: true, data: task, message: 'Task created successfully' })
