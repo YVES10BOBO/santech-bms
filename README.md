@@ -962,6 +962,7 @@ PostgreSQL on Neon, managed with Prisma (see `backend/prisma/schema.prisma`; 10 
 - [x] Financial statements: balance sheet, cash flow, accounts payable and receivable
 - [x] Document library like Google Drive: automatic folders, admin-made folders and subfolders, grid/list views, search, archive, admin delete
 - [x] Clear login errors; only failed logins count toward the login limit
+- [x] "Other" in a drop-down lets you type your own value (Training type, Support product, Campaign channel)
 
 ### 📋 Possible next steps
 

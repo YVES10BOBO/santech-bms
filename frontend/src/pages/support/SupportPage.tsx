@@ -6,6 +6,7 @@ import { useLookups, apiError } from '@/lib/services/lookupService'
 import PageLoader from '@/components/shared/PageLoader'
 import TicketConversation from './TicketConversation'
 import toast from 'react-hot-toast'
+import SelectOrOther from '@/components/shared/SelectOrOther'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 type TicketStatus =
@@ -18,7 +19,7 @@ type TicketStatus =
 
 type Priority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'
 
-type Product = 'EVS' | 'SANTRACK' | 'REVIXSAN' | 'Website' | 'Other'
+type Product = 'EVS' | 'SANTRACK' | 'REVIXSAN' | 'Website' | 'Other' | (string & {})
 
 interface Ticket {
   id: string
@@ -703,18 +704,7 @@ export default function SupportPage() {
                   <label className="block text-xs font-medium text-gray-700 mb-1">
                     Product / Service
                   </label>
-                  <select
-                    name="product"
-                    value={form.product}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500"
-                  >
-                    {PRODUCTS.map(p => (
-                      <option key={p} value={p}>
-                        {p}
-                      </option>
-                    ))}
-                  </select>
+                  <SelectOrOther value={form.product} onChange={v => setForm(f => ({ ...f, product: v }))} options={PRODUCTS} placeholder="Type the product or service" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Priority</label>

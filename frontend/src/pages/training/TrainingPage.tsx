@@ -4,11 +4,12 @@ import { cn, formatDate, formatCurrency, getInitials } from '@/lib/utils'
 import { trainingService } from '@/lib/services/operationsService'
 import { useLookups, apiError } from '@/lib/services/lookupService'
 import PageLoader from '@/components/shared/PageLoader'
+import SelectOrOther from '@/components/shared/SelectOrOther'
 import toast from 'react-hot-toast'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type TrainingStatus = 'UPCOMING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED'
-type TrainingType = 'SANHUB' | 'EVS' | 'SANTRACK' | 'SOFTWARE_DEV' | 'AI_IOT' | 'DIGITAL' | 'OTHER'
+type TrainingType = 'SANHUB' | 'EVS' | 'SANTRACK' | 'SOFTWARE_DEV' | 'AI_IOT' | 'DIGITAL' | 'OTHER' | (string & {})
 type AttendeeStatus = 'REGISTERED' | 'ATTENDED' | 'ABSENT' | 'CERTIFIED'
 
 interface Attendee {
@@ -65,7 +66,7 @@ const STATUS_CONFIG: Record<TrainingStatus, { label: string; color: string; icon
   CANCELLED:   { label: 'Cancelled',   color: 'bg-red-100 text-red-500',     icon: X },
 }
 
-const TYPE_CONFIG: Record<TrainingType, { label: string; color: string }> = {
+const TYPE_CONFIG: Record<string, { label: string; color: string }> = {
   SANHUB:       { label: 'SANHUB',          color: 'bg-purple-100 text-purple-700' },
   EVS:          { label: 'EVS Training',     color: 'bg-blue-100 text-blue-700' },
   SANTRACK:     { label: 'SANTRACK',         color: 'bg-green-100 text-green-700' },
@@ -74,6 +75,9 @@ const TYPE_CONFIG: Record<TrainingType, { label: string; color: string }> = {
   DIGITAL:      { label: 'Digital Marketing',color: 'bg-amber-100 text-amber-700' },
   OTHER:        { label: 'Other',            color: 'bg-gray-100 text-gray-600' },
 }
+
+/** A type the admin typed in by hand shows as its own text */
+const typeConfig = (t: string) => TYPE_CONFIG[t] ?? { label: t, color: 'bg-gray-100 text-gray-600' }
 
 const ATTENDEE_STATUS: Record<AttendeeStatus, { label: string; color: string }> = {
   REGISTERED: { label: 'Registered', color: 'bg-blue-100 text-blue-600' },
@@ -164,7 +168,7 @@ export default function TrainingPage() {
     e.preventDefault()
     if (!form.title || !form.startDate || !form.venue) { setError('Title, venue and start date are required.'); return }
     const payload = {
-      title: form.title, type: form.type, description: form.description, trainer: form.trainer, venue: form.venue,
+      title: form.title, type: form.type.trim() || 'OTHER', description: form.description, trainer: form.trainer, venue: form.venue,
       startDate: form.startDate, endDate: form.endDate || form.startDate, startTime: form.startTime, endTime: form.endTime,
       maxAttendees: parseInt(form.maxAttendees) || 20, feePerPerson: parseFloat(form.feePerPerson) || 0,
       certificateTemplate: form.certificateTemplate, notes: form.notes,
@@ -309,7 +313,7 @@ export default function TrainingPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map(session => {
             const statusCfg = STATUS_CONFIG[session.status]
-            const typeCfg = TYPE_CONFIG[session.type]
+            const typeCfg = typeConfig(session.type)
             const sessionRevenue = session.attendees.filter(a => a.feePaid).reduce((s, a) => s + a.feeAmount, 0)
             const attendedCount = session.attendees.filter(a => ['ATTENDED', 'CERTIFIED'].includes(a.status)).length
             const certifiedCount = session.attendees.filter(a => a.certificateIssued).length
@@ -412,7 +416,7 @@ export default function TrainingPage() {
                   <tr><td colSpan={10} className="text-center py-10 text-gray-400">No sessions found.</td></tr>
                 ) : filtered.map(session => {
                   const statusCfg = STATUS_CONFIG[session.status]
-                  const typeCfg = TYPE_CONFIG[session.type]
+                  const typeCfg = typeConfig(session.type)
                   const sessionRevenue = session.attendees.filter(a => a.feePaid).reduce((s, a) => s + a.feeAmount, 0)
                   return (
                     <tr key={session.id} className="hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => setViewSession(session)}>
@@ -458,7 +462,7 @@ export default function TrainingPage() {
               <div>
                 <p className="text-lg font-bold text-gray-800">{viewSession.title}</p>
                 <div className="flex gap-2 mt-1.5 flex-wrap">
-                  <span className={cn('text-xs px-2 py-1 rounded-full font-medium', TYPE_CONFIG[viewSession.type].color)}>{TYPE_CONFIG[viewSession.type].label}</span>
+                  <span className={cn('text-xs px-2 py-1 rounded-full font-medium', typeConfig(viewSession.type).color)}>{typeConfig(viewSession.type).label}</span>
                   <span className={cn('text-xs px-2 py-1 rounded-full font-medium inline-flex items-center gap-1', STATUS_CONFIG[viewSession.status].color)}>
                     {React.createElement(STATUS_CONFIG[viewSession.status].icon, { className: 'w-3 h-3' })}
                     {STATUS_CONFIG[viewSession.status].label}
@@ -620,9 +624,8 @@ export default function TrainingPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Training Type</label>
-                  <select name="type" value={form.type} onChange={handleChange} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500">
-                    {Object.entries(TYPE_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                  </select>
+                  <SelectOrOther value={form.type} onChange={v => setForm(f => ({ ...f, type: v }))} otherValue="OTHER" placeholder="Type the training type, e.g. Robotics"
+                    options={Object.entries(TYPE_CONFIG).map(([k, v]) => ({ value: k, label: v.label }))} />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Trainer</label>

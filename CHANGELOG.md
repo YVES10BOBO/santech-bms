@@ -28,6 +28,21 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 
 ## 1.8.0 — 5 November 2026
 
+### "Other" lets you type your own value (9 Nov)
+- **What:** in a drop-down with an "Other" choice, picking **Other** now shows a text box where you type your
+  own value (for example a training type "Robotics"). The typed text is what is saved and shown.
+- **Where:**
+  - **Training:** Training Type (also shown on the cards, list and details).
+  - **Support Tickets:** Product / Service.
+  - **Campaigns:** Channel.
+  - Editing a record that has a typed value opens with "Other" selected and the text filled in.
+- **Rules:** up to 60 characters. If "Other" is chosen and the box is left empty, the value saved is "Other".
+  The Training filter still lists only the standard types; typed types appear under "All".
+- **Technical:** new reusable `frontend/src/components/shared/SelectOrOther.tsx`. These three fields are free
+  text in the database, so no migration was needed. Not applied to Finance categories, Procurement
+  categories or Hosting provider, which feed fixed reports, labels or validation lists.
+- **Tested:** type check and production build. Not yet clicked through in the browser.
+
 ### Deactivating a user or changing a role works immediately (9 Nov)
 - **What:** before, a deactivated user who was already logged in could keep working for up to 7 days (until
   the login token expired), and a role change only applied after the next login. Now the server checks the

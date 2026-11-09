@@ -5,10 +5,11 @@ import { campaignService } from '@/lib/services/operationsService'
 import { apiError } from '@/lib/services/lookupService'
 import PageLoader from '@/components/shared/PageLoader'
 import toast from 'react-hot-toast'
+import SelectOrOther from '@/components/shared/SelectOrOther'
 
 type CampaignStatus = 'PLANNING' | 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'CANCELLED'
 type CampaignType = 'EXPO_EVENT' | 'FIELD_VISITS' | 'SOCIAL_MEDIA' | 'EMAIL_CAMPAIGN' | 'REFERRAL' | 'COLD_OUTREACH' | 'OTHER'
-type ChannelType = 'Social Media' | 'Events' | 'Email' | 'Direct' | 'Referral' | 'Other'
+type ChannelType = 'Social Media' | 'Events' | 'Email' | 'Direct' | 'Referral' | 'Other' | (string & {})
 
 interface Campaign {
   id: string
@@ -469,9 +470,7 @@ export default function CampaignsPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Channel</label>
-                  <select name="channel" value={form.channel} onChange={handleFormChange} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500">
-                    {CHANNEL_OPTIONS.map(c => <option key={c}>{c}</option>)}
-                  </select>
+                  <SelectOrOther value={form.channel} onChange={v => setForm(f => ({ ...f, channel: v }))} options={CHANNEL_OPTIONS} placeholder="Type the channel" />
                 </div>
               </div>
               <div>
