@@ -76,7 +76,7 @@ export async function printDocument(doc: PrintDoc): Promise<void> {
   .bottom { margin-top: 30px; text-align: center; color: #9ca3af; font-size: 10px }
 </style></head><body>
 <div class="head">
-  <div class="co"><img class="logo" src="${window.location.origin}/assets/santech_logo.png" alt="Santech">
+  <div class="co"><img class="logo" src="${window.location.origin}/assets/santech_logo_blue.png" alt="Santech">
     <h1>${esc(c.name || 'Santech Innovate')}</h1>
     <p>${esc([c.address, c.city, c.country].filter(Boolean).join(', '))}</p>
     <p>${esc([c.phone, c.email].filter(Boolean).join(' · '))}</p>

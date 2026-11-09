@@ -241,9 +241,8 @@ export default function Sidebar({ collapsed, mobileOpen, onMobileClose, onToggle
       )}>
         {!collapsed && (
           <>
-            <div className="w-9 h-9 bg-white rounded-lg p-1 flex items-center justify-center flex-shrink-0 shadow-sm">
-              <img src="/assets/santech_mark.png" alt="Santech" className="w-full h-full object-contain" />
-            </div>
+            {/* White logo straight on the blue sidebar */}
+            <img src="/assets/santech_mark_white.png" alt="Santech" className="w-10 h-10 object-contain flex-shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="font-bold text-sm leading-tight text-white">Santech</p>
               <p className="text-santech-300 text-xs">Business Management</p>

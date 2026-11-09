@@ -165,12 +165,18 @@ again. On phones, the menu button in the top bar opens the sidebar, and its X bu
   grey-blue layer (`#f4f6fa`, the portals' colour, at 85%) in front of the Imigongo pattern and behind
   the white cards, so the colour leads and the pattern shows faintly. It is one setting, `--page-layer`
   in `frontend/src/index.css` (higher = fainter pattern, solid `#f4f6fa` = hidden).
-- **Santech logo** (`frontend/public/assets/`):
-  - `santech_logo.png` is the full logo with the tagline. It is used above the sign-in form and at the top of
-    every PDF (quotations, invoices, proformas, credit notes).
-  - `santech_mark.png` is the blue "S" alone, on a white tile. It is used on navy backgrounds: the sidebar,
-    the login panel, the customer and supplier portal header, and the top bar on phones.
+- **Santech logo** (`frontend/public/assets/`): a **white** version on blue backgrounds and a **blue**
+  version on white backgrounds, so the logo always stands out.
+  - `santech_logo_white.png`: full white logo with the tagline (transparent). Used on the blue left panel
+    of the login page.
+  - `santech_mark_white.png`: the white "S" alone (transparent). Used on the blue sidebar and the blue
+    customer and supplier portal header.
+  - `santech_logo_blue.png`: full blue logo with the tagline. Used at the top of every PDF (quotations,
+    invoices, proformas, credit notes) and in emails, which are white.
+  - `santech_mark.png`: the blue "S" alone. Used on white: above the sign-in form and in the top bar on phones.
   - `favicon.png` and `apple-touch-icon.png` are the browser-tab and phone home-screen icons.
+  - The white files were cut out of `santech-logo (2).jpeg` (the logo on navy) by removing the navy
+    background, so they work on any blue.
 - **Card borders:** every card and grid tile on every page has a 2px light-blue border (`#b8c6e0`) and a soft
   shadow, so the grids stand out clearly from the background. These are two settings, `--card-border` and
   `--card-shadow`, in `frontend/src/index.css`.

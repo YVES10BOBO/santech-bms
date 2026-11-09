@@ -28,6 +28,24 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 
 ## 1.8.0 — 5 November 2026
 
+### White Santech logo on blue backgrounds (9 Nov)
+- **What:** the logo now has two versions. Where the background is **blue**, the **white** logo is shown
+  directly on it (no white tile). Where the background is **white**, the **blue** logo is shown.
+- **Where:**
+  - **Sidebar** (staff pages): white "S" next to "Santech, Business Management".
+  - **Login page, blue left panel:** the full white logo with "Making your ideas happen", and
+    "SAN-BMS · Business Management System" under it.
+  - **Login page, white sign-in side:** the blue "S" (the full logo is already on the blue panel).
+  - **Customer and supplier portal header** (blue): white "S".
+  - **PDFs and emails** (white): full blue logo, now from `santech_logo_blue.png`. The previous file,
+    `santech_logo.png`, had been replaced by the white logo and would have been almost invisible on white paper.
+  - **Top bar on phones** (white): blue "S", unchanged.
+- **Technical:** new transparent files `santech_logo_white.png` (640 px wide) and `santech_mark_white.png`
+  (256 px), cut out of `santech-logo (2).jpeg` by removing the navy background with soft edges; new
+  `santech_logo_blue.png` (copy of the original blue logo). Files changed: `Sidebar.tsx`, `LoginPage.tsx`,
+  `PortalShell.tsx`, `printDocument.ts` (PDFs), `backend/src/lib/messaging.ts` (emails).
+- **Tested:** type check and production build; both white logos previewed on the app's blue `#0b1f44`.
+
 ### Task Assigned shows who sent it, with their position (6 Nov)
 - **Before:** "Claire Mukamana assigned you ...". Only the name, so the person could not tell who it was.
 - **Now:** "Claire Mukamana (HR Manager) assigned you ...". The position is the one on the employee record

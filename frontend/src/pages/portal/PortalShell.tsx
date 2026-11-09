@@ -21,9 +21,8 @@ export default function PortalShell({ kind, orgName, tabs, active, onTab, childr
     <div className="min-h-screen page-layer">
       <header className="bg-santech-900 text-white">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-white p-1 flex items-center justify-center shadow-sm">
-            <img src="/assets/santech_mark.png" alt="Santech" className="w-full h-full object-contain" />
-          </div>
+          {/* White logo straight on the blue header */}
+          <img src="/assets/santech_mark_white.png" alt="Santech" className="w-10 h-10 object-contain flex-shrink-0" />
           <div className="min-w-0 flex-1">
             <p className="font-semibold leading-tight">Santech {kind} Portal</p>
             <p className="text-xs text-santech-200 truncate">{orgName}</p>

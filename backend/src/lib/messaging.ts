@@ -135,7 +135,7 @@ export function emailHtml(o: { title: string; text: string; link?: string | null
   return `<!doctype html><html><body style="margin:0;background:#f4f6fa;font-family:Segoe UI,Arial,sans-serif;color:#1f2937">
 <div style="max-width:560px;margin:0 auto;padding:24px 16px">
   <div style="background:#ffffff;border:1px solid #dbe3f0;border-radius:12px;padding:24px">
-    <img src="${esc(appUrl('/assets/santech_logo.png'))}" alt="Santech" style="height:56px;width:auto;display:block;margin-bottom:16px">
+    <img src="${esc(appUrl('/assets/santech_logo_blue.png'))}" alt="Santech" style="height:56px;width:auto;display:block;margin-bottom:16px">
     <h2 style="margin:0 0 12px;font-size:18px;color:#0b1f44">${esc(o.title)}</h2>
     ${paras}${button}
   </div>
