@@ -169,8 +169,8 @@ again. On phones, the menu button in the top bar opens the sidebar, and its X bu
   version on white backgrounds, so the logo always stands out.
   - `santech_logo_white.png`: full white logo with the tagline (transparent). Used on the blue left panel
     of the login page.
-  - `santech_mark_white.png`: the white "S" alone (transparent). Used on the blue sidebar and the blue
-    customer and supplier portal header.
+  - `santech_mark_white.png`: the white "S" alone (transparent). Used on the blue sidebar (32 px) and the
+    blue customer and supplier portal header (36 px), the same size the old logo tile appeared.
   - `santech_logo_blue.png`: full blue logo with the tagline. Used at the top of every PDF (quotations,
     invoices, proformas, credit notes) and in emails, which are white.
   - `santech_mark.png`: the blue "S" alone. Used on white: above the sign-in form and in the top bar on phones.

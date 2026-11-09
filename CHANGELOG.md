@@ -28,6 +28,15 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 
 ## 1.8.0 — 5 November 2026
 
+### Smaller white logo in the sidebar and portal header (9 Nov)
+- **What:** the white "S" logo looked bigger than the old one and made the top of the sidebar taller.
+  It is now back to the size the old logo appeared.
+- **Why:** the old logo was a 36 px white tile with the "S" drawn smaller inside it. The new white "S"
+  had no tile and was shown at 40 px, so the whole 40 px was logo.
+- **Where:** sidebar logo 40 px → 32 px; customer and supplier portal header logo 40 px → 36 px.
+- **Technical:** `Sidebar.tsx` (`w-10 h-10` → `w-8 h-8`), `PortalShell.tsx` (`w-10 h-10` → `w-9 h-9`).
+- **Tested:** type check and production build.
+
 ### White Santech logo on blue backgrounds (9 Nov)
 - **What:** the logo now has two versions. Where the background is **blue**, the **white** logo is shown
   directly on it (no white tile). Where the background is **white**, the **blue** logo is shown.
