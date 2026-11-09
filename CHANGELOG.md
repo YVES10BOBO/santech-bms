@@ -28,6 +28,20 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 
 ## 1.8.0 — 5 November 2026
 
+### Deactivating a user or changing a role works immediately (9 Nov)
+- **What:** before, a deactivated user who was already logged in could keep working for up to 7 days (until
+  the login token expired), and a role change only applied after the next login. Now the server checks the
+  account on every request, so both take effect on the user's very next click.
+- **Where:** Settings → User Management. Deactivate a user, and they are logged out at their next action
+  with the message "Your account has been deactivated. Contact an administrator." A role change gives the
+  new access at once. Applies to staff, customer and supplier logins alike.
+- **Rules:** an admin cannot deactivate themselves. A user cannot reactivate themselves, because only an
+  admin can change that. Changing your own password still needs your current password.
+- **Technical:** `backend/src/middleware/auth.ts`: `authenticate` is now async and reads `isActive` and
+  `role` from the database for every request (one small lookup), instead of trusting the token. The
+  frontend already logs the user out on a 401, so no frontend change was needed.
+- **Tested:** type check only. Not yet run against a live database.
+
 ### Smaller white logo in the sidebar and portal header (9 Nov)
 - **What:** the white "S" logo looked bigger than the old one and made the top of the sidebar taller.
   It is now back to the size the old logo appeared.

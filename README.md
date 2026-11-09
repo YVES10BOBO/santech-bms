@@ -667,6 +667,7 @@ only ever see their own client's records and never the staff menus or API.
 #### User Management
 **Where:** Settings → User Management
 - Create, edit, activate and deactivate users; role badges; search + role filter
+- Deactivating a user, or changing their role, takes effect on their very next click (the server checks the account on every request, not just at login)
 - Only a Super Admin can create or change Super Admin accounts
 
 #### Company Profile
