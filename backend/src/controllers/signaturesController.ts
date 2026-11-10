@@ -5,7 +5,8 @@
  */
 import { Response } from 'express'
 import bcrypt from 'bcryptjs'
-import { createHash } from 'crypto'
+import { createHash, randomBytes } from 'crypto'
+import QRCode from 'qrcode'
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 import prisma from '../lib/prisma'
 import { logAudit } from '../lib/audit'
@@ -173,6 +174,12 @@ export async function signDocument(req: AuthRequest, res: Response): Promise<voi
     const when = new Date()
     const ip = (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim() || req.ip || 'unknown'
     const originalHash = sha256(bytes)
+    // The QR code on the certificate opens the public page that lists the signers and can check a file
+    const code = randomBytes(16).toString('hex')
+    const appUrl = (process.env.CLIENT_URL || 'http://localhost:3000').split(',')[0].trim().replace(/\/+$/, '')
+    const verifyUrl = `${appUrl}/verify/signed/${code}`
+    const qrPng = await pdf.embedPng(await QRCode.toBuffer(verifyUrl, { margin: 1, width: 360, errorCorrectionLevel: 'M' }))
+    const earlier = await prisma.signedDocument.findUnique({ where: { fileId: source.id }, select: { code: true } })
     const font = await pdf.embedFont(StandardFonts.Helvetica)
     const bold = await pdf.embedFont(StandardFonts.HelveticaBold)
     const cert = pdf.addPage([595.28, 841.89])
@@ -194,10 +201,28 @@ export async function signDocument(req: AuthRequest, res: Response): Promise<voi
     line(originalHash.slice(0, 32), { gap: 14 }); line(originalHash.slice(32), { gap: 24 })
     line('The signer confirmed their identity with their account password before signing.', { size: 9, gap: 14 })
     line('The original file is kept unchanged in the system; this is a signed copy.', { size: 9 })
+    // Verification block: QR + short code
+    y -= 18
+    cert.drawImage(qrPng, { x: 56, y: y - 110, width: 110, height: 110 })
+    const tx = 180
+    cert.drawText('Verify this signed document', { x: tx, y: y - 22, size: 11, font: bold, color: rgb(0.1, 0.12, 0.2) })
+    cert.drawText('Scan the QR code, or open the address below.', { x: tx, y: y - 40, size: 9, font, color: rgb(0.3, 0.33, 0.4) })
+    cert.drawText(verifyUrl.replace(/^https?:\/\//, '').slice(0, 62), { x: tx, y: y - 56, size: 8, font, color: rgb(0.3, 0.33, 0.4) })
+    cert.drawText(`Code ${code.slice(0, 8).toUpperCase()}`, { x: tx, y: y - 74, size: 9, font: bold, color: rgb(0.1, 0.12, 0.2) })
+    cert.drawText('The page lists who signed and can check that a file is exactly this signed copy.', { x: tx, y: y - 92, size: 8, font, color: rgb(0.3, 0.33, 0.4) })
 
     const out = Buffer.from(await pdf.save())
     const base = source.name.replace(/\.[a-z0-9]+$/i, '').replace(/ \(signed\)$/i, '')
     const file = await prisma.storedFile.create({ data: { name: `${base} (signed).pdf`.slice(0, 200), mimeType: 'application/pdf', size: out.length, data: out, uploadedById: me.id } })
+
+    const outHash = sha256(out)
+    await prisma.signedDocument.create({
+      data: {
+        code, fileId: file.id, fileName: file.name, sha256: outHash, originalSha256: originalHash, documentName: source.name,
+        contractId: contract?.id ?? null, contractNumber: contract?.contractNumber ?? null, signatoryName: contract ? String(signatoryName) : null,
+        signerId: me.id, signerName: who, signerEmail: me.email, ipAddress: ip, itemCount: placements.length, previousCode: earlier?.code ?? null,
+      },
+    })
 
     if (contract) {
       const next = signatories.map(s => (s.name === signatoryName ? { ...s, status: 'SIGNED' as const, signedAt: when.toISOString() } : s))
@@ -210,7 +235,7 @@ export async function signDocument(req: AuthRequest, res: Response): Promise<voi
       action: 'APPROVE', entity: contract ? 'Contract' : 'File', entityId: contract ? contract.id : file.id,
       entityName: contract ? contract.contractNumber : file.name,
       description: contract ? `${who} signed contract ${contract.contractNumber} as ${signatoryName}` : `${who} signed the document ${source.name}`,
-      newValue: { signedFile: file.name, originalSha256: originalHash, signedSha256: sha256(out), items: placements.length },
+      newValue: { signedFile: file.name, originalSha256: originalHash, signedSha256: outHash, verifyCode: code.slice(0, 8), items: placements.length },
     })
     res.status(201).json({ success: true, data: { id: file.id, name: file.name, size: file.size, mimeType: file.mimeType, url: `/files/${file.id}` }, message: 'Document signed' })
   } catch (e) { fail(res, e, 'signDocument') }

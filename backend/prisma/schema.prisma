@@ -1620,3 +1620,27 @@ model SavedSignature {
   @@index([userId])
   @@map("saved_signatures")
 }
+
+/// One signing of a document. The QR code on the signed PDF opens /verify/signed/<code>, which lists who signed
+/// and can check that a file is exactly the signed copy (by its SHA-256 fingerprint).
+model SignedDocument {
+  id             String   @id @default(cuid())
+  code           String   @unique // 32 random hex characters, in the QR code
+  fileId         String   @unique // the signed copy
+  fileName       String
+  sha256         String // fingerprint of the signed copy as stored
+  originalSha256 String // fingerprint of the document before this signing
+  documentName   String
+  contractId     String?
+  contractNumber String?
+  signatoryName  String?
+  signerId       String
+  signerName     String
+  signerEmail    String
+  signedAt       DateTime @default(now())
+  ipAddress      String?
+  itemCount      Int
+  previousCode   String? // set when this copy was made by signing an earlier signed copy
+
+  @@map("signed_documents")
+}

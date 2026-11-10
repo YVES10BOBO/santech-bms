@@ -28,6 +28,37 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 
 ## 1.8.0 — 5 November 2026
 
+### Signed documents carry a QR code and can be verified by anyone (10 Nov)
+- **What:** a document signed in the system now has a **QR code** and short code on its certificate page. Anyone
+  who scans it (the client, a lawyer, an auditor) opens a public page that says **"Genuine signed document"**,
+  names the document, lists **who signed and when**, and lets them **check their own copy**: they pick the PDF
+  they received and the page tells them whether it is **exactly** the signed copy or has been changed.
+  It works like the QR on an RRA receipt, but for contracts and other signed documents.
+- **Where:**
+  - **Signed contracts and any document signed from Documents:** the certificate page (last page) shows the QR,
+    the address and the code (for example F6B04AF3).
+  - **Public page** `/verify/signed/<code>`: no login, read only.
+- **Rules:**
+  - The page shows the document name, contract number, the company, and each signer's name and time.
+    It does not show the document's contents or any signature image.
+  - **Check your copy:** the file never leaves the visitor's device. The browser sends only its SHA-256
+    fingerprint, and the server says match or no match. A copy saved after someone else signed it again will
+    not match the earlier fingerprint, which is correct.
+  - When several people sign the same copy one after the other, the page lists all of them, oldest first.
+  - At most 40 checks per minute from one address. The code is long and random (32 characters).
+  - A signing made before this update has no QR (it was signed with the earlier certificate).
+- **Technical:**
+  - New table `signed_documents` (migration `20261110200000_signed_documents`): one row per signing with the
+    code, the signed file, both SHA-256 fingerprints, signer, contract and the earlier copy it came from.
+  - Backend: `signaturesController.ts` draws the QR (package `qrcode`, added with pnpm) and saves the record;
+    public routes `GET /api/verify/signed/:code` and `POST /api/verify/signed/:code/check` in `routes/verify.ts`.
+    The QR address uses the first `CLIENT_URL`.
+  - Frontend: `pages/public/VerifySignedPage.tsx` and the route `/verify/signed/:code`.
+- **Tested:** against a temporary database: two people signing the same copy in turn are both listed in order;
+  the real signed file matches, a changed file and the earlier copy do not; a bad hash gives 400 and an unknown
+  code 404; the earlier 25 signing checks still pass. The certificate page was rendered and the QR looks right.
+  The public page itself has not been looked at in a browser, and the QR has not been scanned with a phone.
+
 ### QR code on invoices and a public page that confirms they are genuine (10 Nov)
 - **What:** every printed invoice and credit note now carries a **QR code** and a short code. Anyone who scans
   it (a customer, an accountant, a tax officer) opens a public page that says **"Genuine document"** and shows

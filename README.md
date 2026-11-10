@@ -548,6 +548,10 @@ only ever see their own client's records and never the staff menus or API.
 - **Result:** a new copy `name (signed).pdf` with the images on it and a **signature certificate** page (who,
   when, network address, fingerprint of the document before signing). **The original file stays unchanged.**
   Each signer adds their own certificate page to the same copy
+- **Verify a signed document:** the certificate page has a **QR code** and a short code. Scanning it opens a public page
+  (no login, read only) saying **Genuine signed document**, with the document name, who signed and when. The visitor can
+  also **check their own copy**: they choose the PDF they received and, using only its fingerprint (the file is not
+  uploaded), the page says whether it is exactly the signed copy or has been changed
 - **Contracts:** the contract's signatory you chose is marked signed and the signed copy becomes the contract's
   signed document. The contract still becomes **Active** in the usual step (all signatories signed + signed file)
 - Only staff who may handle contracts (admins, finance, sales and project managers) can sign a contract.
