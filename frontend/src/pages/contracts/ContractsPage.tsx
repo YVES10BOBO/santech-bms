@@ -8,6 +8,7 @@ import { useLookups, apiError } from '@/lib/services/lookupService'
 import { useAuthStore } from '@/store/authStore'
 import PageLoader from '@/components/shared/PageLoader'
 import toast from 'react-hot-toast'
+import { useTextPrompt } from '@/components/shared/TextPrompt'
 import { fileService } from '@/lib/services/fileService'
 import { CURRENCIES, toRwf, rwfHint, useRates } from '@/lib/currency'
 import VersionHistory from '@/components/shared/VersionHistory'
@@ -130,6 +131,7 @@ export default function ContractsPage() {
   const [viewContract, setViewContract] = useState<Contract | null>(null)
   const [error, setError] = useState('')
   const [signatureError, setSignatureError] = useState('')
+  const { ask, dialog: promptDialog } = useTextPrompt()
   const [signFor, setSignFor] = useState<{ contract: Contract; signatory: string } | null>(null)
   // Quotation hand-off carries names; match them to real records once lookups load
   const [pendingQuotation, setPendingQuotation] = useState<{ clientName: string; manager: string } | null>(null)
@@ -281,10 +283,12 @@ export default function ContractsPage() {
     saveContract(id, { status: next }, `Contract moved to ${STATUS_CONFIG[next].label}`)
   }
 
-  const reviewApproval = (id: string, approved: boolean) => {
-    const note = window.prompt(approved ? 'Optional approval note:' : 'Reason for requesting changes (required):', '')
-    if (note === null || (!approved && !note.trim())) return
-    saveContract(id, { status: approved ? 'SIGNING' : 'REVIEW', approvalNote: note.trim() }, approved ? 'Contract approved for signing' : 'Changes requested')
+  const reviewApproval = async (id: string, approved: boolean) => {
+    const a = await ask(approved
+      ? { title: 'Approve this contract for signing', fields: [{ key: 'note', label: 'Approval note (optional)' }], confirmLabel: 'Approve' }
+      : { title: 'Request changes', description: 'The reason is shown to the person who prepared the contract.', fields: [{ key: 'note', label: 'What must change?', required: true }], confirmLabel: 'Send back', danger: true })
+    if (!a) return
+    saveContract(id, { status: approved ? 'SIGNING' : 'REVIEW', approvalNote: a.note }, approved ? 'Contract approved for signing' : 'Changes requested')
   }
 
   const markSignatorySigned = (contractId: string, signatoryName: string) => {
@@ -451,6 +455,7 @@ export default function ContractsPage() {
       </div>
 
       {/* View Panel */}
+      {promptDialog}
       {signFor && (
         <Suspense fallback={null}>
           <SignDocumentDialog

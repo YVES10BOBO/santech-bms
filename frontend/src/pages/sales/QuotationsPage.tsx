@@ -8,6 +8,7 @@ import { quotationService } from '@/lib/services/operationsService'
 import { useLookups, apiError } from '@/lib/services/lookupService'
 import PageLoader from '@/components/shared/PageLoader'
 import toast from 'react-hot-toast'
+import { useTextPrompt } from '@/components/shared/TextPrompt'
 import { printDocument } from '@/lib/printDocument'
 import { CURRENCIES, toRwf, rwfHint, useRates } from '@/lib/currency'
 import VersionHistory from '@/components/shared/VersionHistory'
@@ -146,6 +147,7 @@ const emptyForm = {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function QuotationsPage() {
+  const { ask, dialog: promptDialog } = useTextPrompt()
   const { user } = useAuthStore()
   const navigate = useNavigate()
   const [quotations, setQuotations] = useState<Quotation[]>([])
@@ -308,8 +310,14 @@ export default function QuotationsPage() {
   const rejectQuotation = async (id: string) => {
     const q = quotations.find(x => x.id === id)
     const internal = q && ['INTERNAL_REVIEW', 'MANAGER_APPROVAL', 'CEO_APPROVAL'].includes(q.status)
-    const reason = window.prompt(internal ? 'Reason for sending it back (shown to the salesperson):' : 'Why did the client reject it?', '')
-    if (reason === null) return
+    const answer = await ask({
+      title: internal ? 'Send this quotation back' : 'Client rejected this quotation',
+      description: internal ? 'The reason is shown to the salesperson.' : undefined,
+      fields: [{ key: 'reason', label: internal ? 'Reason for sending it back' : 'Why did the client reject it?' }],
+      confirmLabel: internal ? 'Send back' : 'Mark rejected', danger: true,
+    })
+    if (!answer) return
+    const reason = answer.reason
     try {
       const res = await quotationService.reject(id, reason)
       replaceQuotation(toQuotation(res.data))
@@ -347,6 +355,7 @@ export default function QuotationsPage() {
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-5">
+      {promptDialog}
 
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">

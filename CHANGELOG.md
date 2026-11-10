@@ -28,6 +28,19 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 
 ## 1.8.0 — 5 November 2026
 
+### In-app question boxes instead of browser pop-ups (10 Nov)
+- **What:** the plain browser pop-up ("localhost says ... Optional approval note") is replaced by a proper box
+  inside the system, with a title, the question, a larger text area, Cancel and a clearly named button.
+- **Where:**
+  - **Contracts:** Approve (optional note) and Request changes (reason required; the button stays off until
+    something is typed).
+  - **Quotations:** Send back / Client rejected (reason).
+  - **Meetings:** Mark completed (decisions and action items in one box instead of two pop-ups).
+- **Rules:** the rules are unchanged. Esc or clicking outside cancels; Ctrl+Enter confirms.
+- **Technical:** new reusable `components/shared/TextPrompt.tsx` (`useTextPrompt`). No browser `prompt()` is used
+  in the app any more (a few "Are you sure?" confirmations still use the browser's own box).
+- **Tested:** type check and production build. Not clicked through in a browser.
+
 ### E-signatures: sign documents inside the system with a saved signature or stamp (10 Nov)
 - **What:** you can now sign a contract without printing it. Save your signature, initials or the company
   stamp (cachet) once, then place it on the document where it belongs, resize it, and sign. The signed copy

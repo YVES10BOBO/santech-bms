@@ -5,6 +5,7 @@ import { meetingService } from '@/lib/services/operationsService'
 import { useLookups, apiError } from '@/lib/services/lookupService'
 import PageLoader from '@/components/shared/PageLoader'
 import toast from 'react-hot-toast'
+import { useTextPrompt } from '@/components/shared/TextPrompt'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -203,6 +204,7 @@ function ParticipantAvatars({ participants }: { participants: string[] }) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function MeetingsPage() {
+  const { ask, dialog: promptDialog } = useTextPrompt()
   const [meetings, setMeetings] = useState<Meeting[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -321,12 +323,17 @@ export default function MeetingsPage() {
     }
   }
 
-  const markCompleted = (id: string) => {
-    const decisions = window.prompt('Decisions made (optional):', '')
-    if (decisions === null) return
-    const actions = window.prompt('Action items, comma separated (optional):', '')
-    if (actions === null) return
-    saveMeeting(id, { status: 'COMPLETED', ...(decisions ? { decisions } : {}), ...(actions ? { actionItems: actions } : {}) })
+  const markCompleted = async (id: string) => {
+    const a = await ask({
+      title: 'Complete this meeting',
+      fields: [
+        { key: 'decisions', label: 'Decisions made (optional)' },
+        { key: 'actions', label: 'Action items, comma separated (optional)' },
+      ],
+      confirmLabel: 'Mark completed',
+    })
+    if (!a) return
+    saveMeeting(id, { status: 'COMPLETED', ...(a.decisions ? { decisions: a.decisions } : {}), ...(a.actions ? { actionItems: a.actions } : {}) })
   }
 
   if (loading) return <PageLoader />
@@ -344,6 +351,7 @@ export default function MeetingsPage() {
   // ─── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-5">
+      {promptDialog}
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
