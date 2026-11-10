@@ -1579,3 +1579,21 @@ model RfqQuote {
   @@unique([rfqId, supplierId])
   @@map("rfq_quotes")
 }
+
+// ===========================
+// DROP-DOWN LISTS (Settings: admins add, rename and hide choices)
+// ===========================
+
+model ListOption {
+  id        String   @id @default(cuid())
+  list      String   // training_type, support_product, campaign_channel
+  value     String   // what is saved on records
+  label     String   // what people see
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([list, value])
+  @@map("list_options")
+}

@@ -5,7 +5,7 @@ import { campaignService } from '@/lib/services/operationsService'
 import { apiError } from '@/lib/services/lookupService'
 import PageLoader from '@/components/shared/PageLoader'
 import toast from 'react-hot-toast'
-import SelectOrOther from '@/components/shared/SelectOrOther'
+import ManagedSelect from '@/components/shared/ManagedSelect'
 
 type CampaignStatus = 'PLANNING' | 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'CANCELLED'
 type CampaignType = 'EXPO_EVENT' | 'FIELD_VISITS' | 'SOCIAL_MEDIA' | 'EMAIL_CAMPAIGN' | 'REFERRAL' | 'COLD_OUTREACH' | 'OTHER'
@@ -470,7 +470,7 @@ export default function CampaignsPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Channel</label>
-                  <SelectOrOther value={form.channel} onChange={v => setForm(f => ({ ...f, channel: v }))} options={CHANNEL_OPTIONS} placeholder="Type the channel" />
+                  <ManagedSelect list="campaign_channel" value={form.channel} onChange={v => setForm(f => ({ ...f, channel: v }))} fallback={CHANNEL_OPTIONS.map(c => ({ value: c, label: c }))} placeholder="Type the channel" />
                 </div>
               </div>
               <div>

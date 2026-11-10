@@ -716,6 +716,19 @@ only ever see their own client's records and never the staff menus or API.
 - Card grid with active/inactive toggle
 - Add/Edit (name, category, description, price, cost, tax, SLA); filters: category, status, search
 
+#### Drop-down lists (managed by admins)
+**Where:** the ⚙ button next to the box on **Training → Training Type**, **Support → Product / Service**
+and **Campaigns → Channel** (admins only; everyone else sees the plain drop-down)
+- **Add** a choice, **rename** it (click its name), **hide / show** it (eye), or **delete** it (bin)
+- A renamed choice shows its new name everywhere, including on old records
+- A choice that records already use cannot be deleted: it says how many use it and you hide it instead.
+  A hidden choice disappears from new forms but old records keep it
+- **Other** is built in and always last; anyone can pick it and type their own value
+- Every change is written to the Audit Trail
+- Only plain-text fields are managed this way. Statuses, roles, client category, lead source, visit purpose
+  and finance categories stay fixed because reports and rules depend on them
+- The starting choices are saved the first time a list is opened, so nothing needs seeding
+
 #### Audit Trail
 **Where:** Settings → Audit Trail
 - Log of every important action: Created (green), Updated (blue), Deleted (red), Approved (emerald),

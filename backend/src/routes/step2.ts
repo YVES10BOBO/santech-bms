@@ -3,6 +3,7 @@ import { getExpenseClaims, createExpenseClaim, approveExpenseClaim, rejectExpens
 import { authenticate, authorize } from '../middleware/auth'
 import { getExchangeRates, saveExchangeRates, getVersions } from '../controllers/billingController'
 import { getReminders, saveReminders } from '../controllers/reminderSettingsController'
+import { getListOptions, addListOption, updateListOption, deleteListOption } from '../controllers/listOptionsController'
 import { getMessaging, saveMessaging, sendTestMessage, getMessageLog } from '../controllers/messagingController'
 import { ADMINS, SALES } from '../lib/roles'
 import { getLeads, createLead, updateLead, advanceLead, convertLead, deleteLead } from '../controllers/leadsController'
@@ -30,8 +31,14 @@ const router = Router()
 router.use([
   '/leads', '/quotations', '/tickets', '/products', '/departments', '/visitors', '/users', '/notifications',
   '/communications', '/meetings', '/client-services', '/campaigns', '/timesheets',
-  '/documents', '/expense-claims', '/attendance', '/leave', '/tenders', '/purchases', '/trainings', '/articles', '/settings', '/versions',
+  '/documents', '/expense-claims', '/attendance', '/leave', '/tenders', '/purchases', '/trainings', '/articles', '/settings', '/versions', '/lists',
 ], authenticate)
+
+// Drop-down lists (everyone reads the active choices; admins manage them)
+router.get('/lists/:list', getListOptions)
+router.post('/lists/:list', authorize(...ADMINS), addListOption)
+router.put('/lists/:list/:id', authorize(...ADMINS), updateListOption)
+router.delete('/lists/:list/:id', authorize(...ADMINS), deleteListOption)
 
 // Leads (sales team)
 router.get('/leads', authorize(...SALES), getLeads)

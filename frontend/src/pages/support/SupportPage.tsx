@@ -6,7 +6,8 @@ import { useLookups, apiError } from '@/lib/services/lookupService'
 import PageLoader from '@/components/shared/PageLoader'
 import TicketConversation from './TicketConversation'
 import toast from 'react-hot-toast'
-import SelectOrOther from '@/components/shared/SelectOrOther'
+import ManagedSelect from '@/components/shared/ManagedSelect'
+import { useListOptions } from '@/lib/services/listService'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 type TicketStatus =
@@ -193,6 +194,7 @@ const emptyForm: TicketForm = {
 
 // ─── Component ─────────────────────────────────────────────────────────────────
 export default function SupportPage() {
+  const productList = useListOptions('support_product')
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -492,7 +494,7 @@ export default function SupportPage() {
                     </td>
                     {/* Product */}
                     <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">
-                      {ticket.product}
+                      {productList.labelOf(ticket.product)}
                     </td>
                     {/* Priority */}
                     <td className="px-4 py-3">
@@ -704,7 +706,7 @@ export default function SupportPage() {
                   <label className="block text-xs font-medium text-gray-700 mb-1">
                     Product / Service
                   </label>
-                  <SelectOrOther value={form.product} onChange={v => setForm(f => ({ ...f, product: v }))} options={PRODUCTS} placeholder="Type the product or service" />
+                  <ManagedSelect list="support_product" value={form.product} onChange={v => setForm(f => ({ ...f, product: v }))} fallback={PRODUCTS.map(p => ({ value: p, label: p }))} placeholder="Type the product or service" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Priority</label>
@@ -834,7 +836,7 @@ export default function SupportPage() {
                   <dt className="text-xs text-gray-400 font-medium uppercase tracking-wide">
                     Product
                   </dt>
-                  <dd className="text-gray-800 mt-0.5">{viewTicket.product}</dd>
+                  <dd className="text-gray-800 mt-0.5">{productList.labelOf(viewTicket.product)}</dd>
                 </div>
                 {viewTicket.projectName && (
                   <div className="col-span-2">

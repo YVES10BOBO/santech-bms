@@ -4,7 +4,8 @@ import { cn, formatDate, formatCurrency, getInitials } from '@/lib/utils'
 import { trainingService } from '@/lib/services/operationsService'
 import { useLookups, apiError } from '@/lib/services/lookupService'
 import PageLoader from '@/components/shared/PageLoader'
-import SelectOrOther from '@/components/shared/SelectOrOther'
+import ManagedSelect from '@/components/shared/ManagedSelect'
+import { useListOptions } from '@/lib/services/listService'
 import toast from 'react-hot-toast'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -100,6 +101,8 @@ const emptyAttendee = {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function TrainingPage() {
+  const typeList = useListOptions('training_type')
+  const typeLabel = (t: string) => typeList.labelOf(t, typeConfig(t).label)
   const [sessions, setSessions] = useState<TrainingSession[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -324,7 +327,7 @@ export default function TrainingPage() {
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-gray-800 text-sm leading-tight">{session.title}</p>
                     <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                      <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', typeCfg.color)}>{typeCfg.label}</span>
+                      <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', typeCfg.color)}>{typeLabel(session.type)}</span>
                       <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium inline-flex items-center gap-1', statusCfg.color)}>
                         <statusCfg.icon className="w-3 h-3" />{statusCfg.label}
                       </span>
@@ -424,7 +427,7 @@ export default function TrainingPage() {
                         <p className="font-medium text-gray-800 text-xs">{session.title}</p>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', typeCfg.color)}>{typeCfg.label}</span>
+                        <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', typeCfg.color)}>{typeLabel(session.type)}</span>
                       </td>
                       <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">{session.trainer}</td>
                       <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{formatDate(session.startDate)}</td>
@@ -462,7 +465,7 @@ export default function TrainingPage() {
               <div>
                 <p className="text-lg font-bold text-gray-800">{viewSession.title}</p>
                 <div className="flex gap-2 mt-1.5 flex-wrap">
-                  <span className={cn('text-xs px-2 py-1 rounded-full font-medium', typeConfig(viewSession.type).color)}>{typeConfig(viewSession.type).label}</span>
+                  <span className={cn('text-xs px-2 py-1 rounded-full font-medium', typeConfig(viewSession.type).color)}>{typeLabel(viewSession.type)}</span>
                   <span className={cn('text-xs px-2 py-1 rounded-full font-medium inline-flex items-center gap-1', STATUS_CONFIG[viewSession.status].color)}>
                     {React.createElement(STATUS_CONFIG[viewSession.status].icon, { className: 'w-3 h-3' })}
                     {STATUS_CONFIG[viewSession.status].label}
@@ -624,8 +627,8 @@ export default function TrainingPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Training Type</label>
-                  <SelectOrOther value={form.type} onChange={v => setForm(f => ({ ...f, type: v }))} otherValue="OTHER" placeholder="Type the training type, e.g. Robotics"
-                    options={Object.entries(TYPE_CONFIG).map(([k, v]) => ({ value: k, label: v.label }))} />
+                  <ManagedSelect list="training_type" value={form.type} onChange={v => setForm(f => ({ ...f, type: v }))} otherValue="OTHER" placeholder="Type the training type, e.g. Robotics"
+                    fallback={Object.entries(TYPE_CONFIG).map(([k, v]) => ({ value: k, label: v.label }))} />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Trainer</label>

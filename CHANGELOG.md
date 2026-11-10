@@ -28,6 +28,34 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 
 ## 1.8.0 — 5 November 2026
 
+### Admins manage drop-down lists with a ⚙ button (10 Nov)
+- **What:** next to selected drop-down boxes, an admin sees a ⚙ button to **add, rename, hide or delete**
+  choices, so changing a choice no longer needs a developer.
+- **Where:** Training → Training Type, Support → Product / Service, Campaigns → Channel. Other drop-downs are
+  unchanged for now.
+- **Rules:**
+  - Only admins (Super Admin, Admin) see the ⚙ button and can change a list; everyone can read it.
+  - **Other** is built in, always last, cannot be renamed, hidden or deleted. Anyone can still pick it and
+    type their own value.
+  - A renamed choice shows its new name everywhere (cards, lists, details).
+  - A choice used by saved records cannot be deleted ("2 records use this choice. Hide it instead"). A hidden
+    choice leaves new forms but old records still show it.
+  - Names must be unique in a list (not case sensitive), up to 60 characters.
+  - Every add, rename, hide, show and delete is written to the Audit Trail.
+- **Demo data:** the starting choices are saved the first time a list is opened, so no seeding is needed on Neon.
+- **Technical:**
+  - New table `list_options` (migration `20261110090000_list_options`, applied on deploy).
+  - Backend: `lib/listOptions.ts` (the lists and their starting choices), `listOptionsController.ts`,
+    routes `GET/POST /api/lists/:list` and `PUT/DELETE /api/lists/:list/:id` (writes: admins only).
+  - Frontend: `ManagedSelect.tsx` (drop-down + ⚙ dialog), `listService.ts` (`useListOptions`), on top of the
+    earlier `SelectOrOther.tsx`.
+  - Not applied to client category, lead source, visit purpose, statuses and finance categories, which are
+    fixed values the system's rules and reports depend on.
+- **Tested:** against a temporary database with the demo data: an employee can read but not change (403), an
+  admin adds, renames, hides and deletes, duplicates are refused (409), "Other" is protected (400), choices
+  used by records cannot be deleted (409), unknown list 404, no login 401. Also frontend type check and build.
+  The ⚙ dialog itself has not been clicked through in the browser.
+
 ### "Other" lets you type your own value (9 Nov)
 - **What:** in a drop-down with an "Other" choice, picking **Other** now shows a text box where you type your
   own value (for example a training type "Robotics"). The typed text is what is saved and shown.
