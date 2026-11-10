@@ -12,6 +12,7 @@ import prisma from '../lib/prisma'
 import { logAudit } from '../lib/audit'
 import { ADMINS, CONTRACT_VIEWERS, hasRole } from '../lib/roles'
 import type { AuthRequest } from '../middleware/auth'
+import { buildContractPdf } from '../lib/contractPdf'
 
 const fail = (res: Response, error: unknown, where: string) => {
   console.error(`${where} error:`, error)
@@ -239,4 +240,29 @@ export async function signDocument(req: AuthRequest, res: Response): Promise<voi
     })
     res.status(201).json({ success: true, data: { id: file.id, name: file.name, size: file.size, mimeType: file.mimeType, url: `/files/${file.id}` }, message: 'Document signed' })
   } catch (e) { fail(res, e, 'signDocument') }
+}
+
+// ── THE CONTRACT DOCUMENT, WRITTEN BY THE SYSTEM ─────────────────────────────
+
+/** GET /signatures/contract/:id/document — the contract as a PDF, to read before signing (not stored) */
+export async function previewContractDocument(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    if (!hasRole(req.user?.role, CONTRACT_VIEWERS)) { res.status(403).json({ success: false, message: 'You are not allowed to open contracts' }); return }
+    const doc = await buildContractPdf(req.params.id)
+    if (!doc) { res.status(404).json({ success: false, message: 'Contract not found' }); return }
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(doc.name)}"`)
+    res.send(doc.bytes)
+  } catch (e) { fail(res, e, 'previewContractDocument') }
+}
+
+/** POST /signatures/contract/:id/document — saves the contract PDF so it can be signed online */
+export async function prepareContractDocument(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    if (!hasRole(req.user?.role, CONTRACT_VIEWERS)) { res.status(403).json({ success: false, message: 'You are not allowed to sign contracts' }); return }
+    const doc = await buildContractPdf(req.params.id)
+    if (!doc) { res.status(404).json({ success: false, message: 'Contract not found' }); return }
+    const file = await prisma.storedFile.create({ data: { name: doc.name, mimeType: 'application/pdf', size: doc.bytes.length, data: doc.bytes, uploadedById: req.user!.id } })
+    res.status(201).json({ success: true, data: { id: file.id, name: file.name, size: file.size, mimeType: file.mimeType, url: `/files/${file.id}` } })
+  } catch (e) { fail(res, e, 'prepareContractDocument') }
 }

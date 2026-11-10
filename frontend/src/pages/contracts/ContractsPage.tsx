@@ -10,6 +10,7 @@ import PageLoader from '@/components/shared/PageLoader'
 import toast from 'react-hot-toast'
 import { useTextPrompt } from '@/components/shared/TextPrompt'
 import { fileService } from '@/lib/services/fileService'
+import { signatureService } from '@/lib/services/signatureService'
 import { CURRENCIES, toRwf, rwfHint, useRates } from '@/lib/currency'
 import VersionHistory from '@/components/shared/VersionHistory'
 const SignDocumentDialog = lazy(() => import('@/components/signing/SignDocumentDialog'))
@@ -460,6 +461,11 @@ export default function ContractsPage() {
         <Suspense fallback={null}>
           <SignDocumentDialog
             fileId={signFor.contract.signedDocumentFileId} fileName={signFor.contract.signedDocumentName}
+            prepareDocument={{
+              label: `Use the contract written by the system`,
+              hint: 'Made from this contract: parties, value, dates, payment terms, deliverables and a signature box for each signatory. Nothing to upload.',
+              run: () => signatureService.prepareContract(signFor.contract.id),
+            }}
             contract={{ id: signFor.contract.id, number: signFor.contract.contractNumber, signatories: (signFor.contract.signatories ?? []).filter(x => x.status === 'PENDING').map(x => x.name), defaultSignatory: signFor.signatory }}
             onClose={() => setSignFor(null)}
             onSigned={async () => {
@@ -556,7 +562,7 @@ export default function ContractsPage() {
                 <section className="rounded-xl border border-amber-100 p-4 space-y-3">
                   <div><h3 className="text-sm font-semibold text-gray-800">Contract signing</h3><p className="text-xs text-gray-500 mt-1">Track each signer and attach the completed document. Activation requires all signatures and the document.</p></div>
                   {viewContract.signatories?.length ? <div className="space-y-2">{viewContract.signatories.map(signer => <div key={signer.name} className="flex items-center justify-between gap-2 rounded-lg bg-gray-50 px-3 py-2"><div><p className="text-sm font-medium text-gray-700">{signer.name}</p><p className="text-xs text-gray-500">{signer.status === 'SIGNED' ? `Signed ${signer.signedAt ? formatDate(signer.signedAt) : ''}` : 'Signature pending'}</p></div>{signer.status === 'PENDING' && <div className="flex gap-1"><button onClick={() => setSignFor({ contract: viewContract, signatory: signer.name })} className="rounded-md bg-santech-600 px-2 py-1 text-xs text-white hover:bg-santech-700">Sign</button><button onClick={() => markSignatorySigned(viewContract.id, signer.name)} title="Use when it was signed on paper" className="rounded-md bg-white border px-2 py-1 text-xs text-santech-700 hover:bg-santech-50">Mark signed</button></div>}</div>)}</div> : <p className="text-sm text-amber-700">Add signatories by editing this contract.</p>}
-                  <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 px-3 py-3 text-sm text-gray-600 hover:bg-gray-50"><Upload className="h-4 w-4" />{viewContract.signedDocumentName || 'Attach signed contract file'}<input type="file" accept=".pdf,.doc,.docx,image/*" className="hidden" onChange={e => attachSignedDocument(viewContract.id, e.target.files?.[0])} /></label>
+                  <button onClick={() => signatureService.previewContract(viewContract.id).catch(err => toast.error(apiError(err, 'Could not open the contract')))} className="w-full flex items-center justify-center gap-2 rounded-lg border border-santech-200 bg-white px-3 py-2 text-sm text-santech-700 hover:bg-santech-50"><FileText className="h-4 w-4" />Read the contract document</button><label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 px-3 py-3 text-sm text-gray-600 hover:bg-gray-50"><Upload className="h-4 w-4" />{viewContract.signedDocumentName || 'Attach signed contract file'}<input type="file" accept=".pdf,.doc,.docx,image/*" className="hidden" onChange={e => attachSignedDocument(viewContract.id, e.target.files?.[0])} /></label>
                 </section>
               )}
               {viewContract.status === 'ACTIVE' && (

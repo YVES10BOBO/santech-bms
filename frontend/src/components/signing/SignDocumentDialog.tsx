@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import * as pdfjs from 'pdfjs-dist'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.js?url'
-import { X, Upload, Trash2, PenLine, Loader2, ShieldCheck } from 'lucide-react'
+import { X, Upload, Trash2, PenLine, Loader2, ShieldCheck, FileText } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -21,6 +21,8 @@ interface Props {
   fileName?: string
   /** Signing a contract: which signatory you sign as is recorded on the contract */
   contract?: { id: string; number: string; signatories: string[]; defaultSignatory?: string }
+  /** A document the system can write itself (the contract from its details): offered as the easy choice */
+  prepareDocument?: { label: string; hint: string; run: () => Promise<{ id: string; name: string }> }
   onClose: () => void
   onSigned: (file: SignedFile) => void
 }
@@ -35,7 +37,7 @@ let nextKey = 1
  * Sign a PDF or picture inside the system: open it, pick a saved signature / initials / company stamp,
  * drag it where it belongs, resize it, then sign with your password. Nothing is printed or re-uploaded.
  */
-export default function SignDocumentDialog({ fileId, fileName, contract, onClose, onSigned }: Props) {
+export default function SignDocumentDialog({ fileId, fileName, contract, prepareDocument, onClose, onSigned }: Props) {
   const [docId, setDocId] = useState<string | undefined>(fileId)
   const [docName, setDocName] = useState(fileName ?? 'Document')
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null)
@@ -106,6 +108,15 @@ export default function SignDocumentDialog({ fileId, fileName, contract, onClose
     } catch (e) { toast.error(apiError(e, e instanceof Error ? e.message : 'Upload failed')); setLoading(false) }
   }
 
+  const usePrepared = async () => {
+    if (!prepareDocument) return
+    setLoading(true)
+    try {
+      const f = await prepareDocument.run()
+      setDocName(f.name); setDocId(f.id)
+    } catch (e) { toast.error(apiError(e, 'The document could not be prepared')); setLoading(false) }
+  }
+
   /** The page the person is looking at (the one with most of it on screen) */
   const visiblePage = () => {
     const box = scrollRef.current?.getBoundingClientRect()
@@ -166,10 +177,21 @@ export default function SignDocumentDialog({ fileId, fileName, contract, onClose
         </div>
 
         {needsFile ? (
-          <div className="flex-1 flex items-center justify-center p-6">
+          <div className="flex-1 flex flex-col items-center justify-center gap-4 p-6">
+            {prepareDocument && (
+              <>
+                <button onClick={usePrepared} disabled={loading}
+                  className="w-full max-w-md flex flex-col items-center gap-2 rounded-xl border-2 border-santech-500 bg-santech-50 px-6 py-8 text-center text-santech-800 hover:bg-santech-100 disabled:opacity-60">
+                  {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <FileText className="w-6 h-6" />}
+                  <span className="text-sm font-semibold">{prepareDocument.label}</span>
+                  <span className="text-xs text-santech-700">{prepareDocument.hint}</span>
+                </button>
+                <p className="text-xs text-gray-400">or</p>
+              </>
+            )}
             <label className="w-full max-w-md flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed border-gray-300 px-6 py-10 text-center text-gray-600 hover:bg-gray-50">
               {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Upload className="w-6 h-6" />}
-              <span className="text-sm font-medium">Choose the document to sign</span>
+              <span className="text-sm font-medium">{prepareDocument ? 'Upload your own file instead' : 'Choose the document to sign'}</span>
               <span className="text-xs text-gray-400">PDF or PNG / JPG, up to 5 MB. A Word file must be saved as PDF first.</span>
               <input type="file" accept="application/pdf,image/png,image/jpeg" className="hidden" onChange={e => pickFile(e.target.files?.[0])} />
             </label>
@@ -232,6 +254,12 @@ export default function SignDocumentDialog({ fileId, fileName, contract, onClose
                     ))}
                   </ul>
                 </div>
+              )}
+
+              {prepareDocument && (
+                <button onClick={usePrepared} disabled={loading} className="w-full flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-xs text-santech-700 hover:bg-santech-50 disabled:opacity-50">
+                  <FileText className="w-4 h-4 flex-shrink-0" /> <span className="text-left">Sign the document written by the system instead</span>
+                </button>
               )}
 
               <div className="space-y-2">

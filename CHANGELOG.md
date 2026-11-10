@@ -28,6 +28,32 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 
 ## 1.8.0 — 5 November 2026
 
+### Sign a contract online with nothing to upload: the system writes the contract (10 Nov)
+- **What:** a contract no longer needs a file before it can be signed. The system writes the contract itself as a
+  PDF from the contract's details, and you sign it online right away. Nothing is downloaded, printed, scanned or
+  uploaded.
+- **Where:**
+  - **Contracts → open a contract in Signing → Contract signing → Read the contract document:** opens the PDF to
+    read.
+  - **Sign** (next to a signatory): the first choice is **Use the contract written by the system**. Uploading your
+    own file is still possible ("Upload your own file instead"). If the contract already has a file attached, it
+    opens that one, with a button **Sign the document written by the system instead**.
+- **What the contract contains:** company header (name, address, phone, email, TIN); "Service agreement" with the
+  contract number and date; 1. Parties (company and client with registration number, TIN, address, contact person);
+  2. Subject (the project); 3. Key terms (value and currency, start and end dates, payment terms, contacts);
+  4. Deliverables (one per line); 5. General; 6. Signatures, with a box per signatory (name, signature line, date);
+  page numbers. After signing, the certificate page with the QR code is added as before.
+- **Rules:** only admins, finance, sales and project managers can open or prepare it. It always reflects the
+  contract's current details. Characters the standard PDF font cannot show are replaced by "?".
+- **Technical:** `backend/src/lib/contractPdf.ts` (`buildContractPdf`, pdf-lib); routes
+  `GET /api/signatures/contract/:id/document` (read, not saved) and `POST .../document` (saved, to sign);
+  `SignDocumentDialog` has a new `prepareDocument` option; `ContractsPage` passes it and shows the read button.
+  No database change.
+- **Tested:** against a temporary database: the PDF builds for all 7 demo contracts, an employee gets 403, an
+  unknown contract 404; a system-written contract was signed (signature and company stamp) and the signatory was
+  marked signed with the signed copy attached. The PDF was rendered and looked at. Frontend type check and build
+  pass. The new buttons have not been clicked in a browser.
+
 ### Signed documents carry a QR code and can be verified by anyone (10 Nov)
 - **What:** a document signed in the system now has a **QR code** and short code on its certificate page. Anyone
   who scans it (the client, a lawyer, an auditor) opens a public page that says **"Genuine signed document"**,

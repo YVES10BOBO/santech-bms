@@ -325,6 +325,10 @@ again. On phones, the menu button in the top bar opens the sidebar, and its X bu
   is attached
 - **Attach signed contract file** (PDF, Word or image, up to 5 MB) and **Open signed document** from
   the contract panel
+- **Contract document written by the system:** **Read the contract document** (in Contract signing) opens a PDF made
+  from the contract's details: parties, subject, value, dates, payment terms, deliverables and a signature box per
+  signatory. When signing, **Use the contract written by the system** signs this PDF directly, so no file has to be
+  uploaded first (your own file can still be used)
 - **Sign inside the system (no printing):** next to each signatory who has not signed, **Sign** opens the
   contract as pages. Pick a saved signature, initials or the company stamp, click it to place it, **drag it
   where it belongs and pull its corner to resize**, type your password and press **Sign document**. The
