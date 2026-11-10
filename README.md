@@ -539,6 +539,8 @@ only ever see their own client's records and never the staff menus or API.
 - **Signing a document:** works on **PDF and PNG / JPG** files (a Word file must be saved as PDF first). The
   document opens as pages. Place as many signatures, initials and stamps as needed, on any page, move and
   resize them, then confirm with your **password**
+- **Documents:** any PDF or picture in the library can be signed too (file's ⋮ menu → **Sign**, or its details). The
+  signed copy is saved as a new document next to the original, so an invoice saved as PDF can be signed this way
 - **Result:** a new copy `name (signed).pdf` with the images on it and a **signature certificate** page (who,
   when, network address, fingerprint of the document before signing). **The original file stays unchanged.**
   Each signer adds their own certificate page to the same copy

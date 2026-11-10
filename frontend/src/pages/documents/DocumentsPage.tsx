@@ -1,15 +1,16 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { useSearchFromUrl } from '@/lib/useSearchFromUrl'
 import { useSearchParams } from 'react-router-dom'
 import {
   Folder, FolderOpen, FolderPlus, FolderInput, Plus, Search, X, FileText, FileSpreadsheet, FileImage, FileArchive, File as FileIcon,
   Archive, Download, Upload, Edit2, Trash2, MoreVertical, Check, ChevronRight, ChevronDown,
-  Eye, ExternalLink, FolderUp, FileUp, Loader2, CheckCircle2, AlertCircle, CalendarClock, History, type LucideIcon,
+  Eye, ExternalLink, FolderUp, FileUp, Loader2, CheckCircle2, AlertCircle, CalendarClock, History, PenLine, type LucideIcon,
 } from 'lucide-react'
 import { cn, formatDate } from '@/lib/utils'
 import { documentService, supplierService } from '@/lib/services/operationsService'
 import { useLookups, apiError } from '@/lib/services/lookupService'
 import { fileService, formatSize } from '@/lib/services/fileService'
+const SignDocumentDialog = lazy(() => import('@/components/signing/SignDocumentDialog'))
 import { useAuthStore } from '@/store/authStore'
 import DateRangePicker from '@/components/shared/DateRangePicker'
 import PageLoader from '@/components/shared/PageLoader'
@@ -228,6 +229,7 @@ export default function DocumentsPage() {
   const [form, setForm] = useState<Form>(emptyForm)
   const [file, setFile] = useState<File | null>(null)
   const [viewDoc, setViewDoc] = useState<Document | null>(null)
+  const [signDoc, setSignDoc] = useState<Document | null>(null)
   const [versions, setVersions] = useState<DocVersion[] | null>(null)
   useEffect(() => {
     setVersions(null)
@@ -756,6 +758,7 @@ export default function DocumentsPage() {
     ...(doc.fileId ? [
       { label: 'Open', icon: ExternalLink, onClick: () => fileService.open(doc.fileId!) },
       { label: 'Download', icon: Download, onClick: () => fileService.open(doc.fileId!, true, doc.name) },
+      { label: 'Sign', icon: PenLine, onClick: () => setSignDoc(doc) },
     ] : []),
     { label: 'Details', icon: Eye, onClick: () => setViewDoc(doc) },
     { label: 'Show in folder', icon: FolderOpen, onClick: () => goTo(docLocation(doc).loc) },
@@ -1428,6 +1431,12 @@ export default function DocumentsPage() {
                   Open file
                 </button>
               )}
+              {viewDoc.fileId && (
+                <button onClick={() => { const d = viewDoc; setViewDoc(null); setSignDoc(d) }}
+                  className="flex-1 py-2 border border-santech-200 text-santech-700 rounded-lg text-sm font-medium hover:bg-santech-50 inline-flex items-center justify-center gap-1.5">
+                  <PenLine className="w-4 h-4" /> Sign
+                </button>
+              )}
               {canEdit(viewDoc) && (
                 <button onClick={() => { const d = viewDoc; setViewDoc(null); startMove({ kind: 'doc', id: d.id, name: d.name, current: d.folderId || null }) }}
                   className="flex-1 py-2 border border-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50">
@@ -1455,6 +1464,30 @@ export default function DocumentsPage() {
             </div>
           </div>
         </div>
+      )}
+      {signDoc?.fileId && (
+        <Suspense fallback={null}>
+          <SignDocumentDialog
+            fileId={signDoc.fileId} fileName={signDoc.name}
+            onClose={() => setSignDoc(null)}
+            onSigned={async file => {
+              const d = signDoc
+              setSignDoc(null)
+              try {
+                // The original stays as it was; the signed copy is saved next to it
+                await documentService.create({
+                  name: file.name, category: d.category, description: `Signed copy of ${d.name}`,
+                  clientId: d.clientId || null, projectId: d.projectId || null, folderId: d.folderId || null,
+                  fileId: file.id, size: formatSize(file.size),
+                })
+                toast.success('Signed copy saved next to the original')
+                await refresh()
+              } catch (err) {
+                toast.error(apiError(err, 'The document was signed but could not be saved in Documents'))
+              }
+            }}
+          />
+        </Suspense>
       )}
     </div>
   )

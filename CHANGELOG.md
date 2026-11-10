@@ -28,6 +28,23 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 
 ## 1.8.0 — 5 November 2026
 
+### Sign any PDF or picture from the Documents library (10 Nov)
+- **What:** you can now sign any document in the Documents library, not only contracts. For example, save an
+  invoice as PDF, add it to Documents, and sign it there.
+- **Where:** Documents → a file's **⋮ menu → Sign**, or open the file's details → **Sign**.
+- **Rules:**
+  - Same signing screen as contracts: pick a saved signature, initials or the company stamp, drag it into
+    place, resize it, confirm with your password.
+  - The original document is **not changed**. The signed copy (`name (signed).pdf`, with the certificate
+    page) is saved as a **new document next to it** (same type, client, project and folder; not shared with
+    the client automatically).
+  - Only PDF and PNG / JPG files can be signed (Word must be saved as PDF first).
+  - Anyone who can see the document can sign it with their own signature; it is recorded in the Audit Trail.
+- **Technical:** `DocumentsPage.tsx` opens the same `SignDocumentDialog` (loaded on demand) and creates the
+  signed copy with the existing document save. No backend or database change.
+- **Tested:** type check and production build. The signing itself was tested earlier (contracts). Not clicked
+  through in a browser.
+
 ### In-app question boxes instead of browser pop-ups (10 Nov)
 - **What:** the plain browser pop-up ("localhost says ... Optional approval note") is replaced by a proper box
   inside the system, with a title, the question, a larger text area, Cancel and a clearly named button.
