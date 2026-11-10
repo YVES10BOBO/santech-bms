@@ -184,7 +184,8 @@ export async function getInvoices(req: AuthRequest, res: Response): Promise<void
         ],
       },
       select: {
-        id: true, invoiceNumber: true, type: true, amount: true, taxAmount: true, totalAmount: true, paidAmount: true, creditedAmount: true,
+        id: true, invoiceNumber: true, verifyCode: true, type: true, amount: true, taxAmount: true, totalAmount: true, paidAmount: true, creditedAmount: true,
+        client: { select: { tinNumber: true } },
         currency: true, issueDate: true, dueDate: true, status: true, notes: true, periodStart: true, periodEnd: true,
         payments: { select: { amount: true, paymentDate: true, paymentMethod: true, reference: true }, orderBy: { paymentDate: 'desc' } },
         creditFor: { select: { invoiceNumber: true } },

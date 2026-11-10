@@ -28,6 +28,37 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 
 ## 1.8.0 — 5 November 2026
 
+### QR code on invoices and a public page that confirms they are genuine (10 Nov)
+- **What:** every printed invoice and credit note now carries a **QR code** and a short code. Anyone who scans
+  it (a customer, an accountant, a tax officer) opens a public page that says **"Genuine document"** and shows
+  who issued it, the number, date, client, total and whether it is paid. Invoices also show the **client's TIN**.
+  This is how a receipt from a tax machine can be checked, but done by Santech's own system.
+- **Where:**
+  - **Finance → Invoices → PDF**, **Customer portal → Invoices → PDF**: the QR box sits above the
+    "For Santech / Received by" lines. Invoices and credit notes only (proformas and quotations have none).
+  - **Public page** `/verify/<code>` (no login): green "Genuine document", or "Genuine, but cancelled" for a
+    cancelled invoice, or "Document not recognised" for a wrong code.
+- **Rules:**
+  - The page shows very little: issuer (name, TIN), document and number, date, client name, total, payment state.
+    Nothing can be changed there.
+  - The code is long and random (32 characters), so invoice numbers cannot be used to guess another invoice.
+  - At most 40 checks per minute from one address.
+  - This is **not** an RRA EBM receipt. VAT-registered companies must still issue tax invoices through an
+    RRA-approved EBM. The QR only proves a document came from Santech's system and is unchanged.
+- **Demo data:** all 13 existing invoices got their codes automatically when the migration ran.
+- **Technical:**
+  - New column `invoices.verifyCode` (unique, filled by the database for new and existing rows; migration
+    `20261110180000_invoice_verify_code`).
+  - Backend: public route `/api/verify/invoice/:code` (`routes/verify.ts`); staff invoices now include the
+    client's TIN, and the portal invoice list includes the code and client TIN.
+  - Frontend: `lib/printDocument.ts` draws the QR (package `qrcode`, added with pnpm); new page
+    `pages/public/VerifyPage.tsx` and the route `/verify/:code`.
+- **Tested:** against a temporary database with the demo data: codes unique and 32 characters, the public check
+  works without login and shows only the minimal fields, paid and unpaid states, a wrong or malformed code gives
+  404, an invoice number is not accepted as a code, the portal list carries the code, and the rate limit
+  returns 429. Frontend type check and production build pass. The printed page and the public page have not
+  been looked at in a browser.
+
 ### Sign any PDF or picture from the Documents library (10 Nov)
 - **What:** you can now sign any document in the Documents library, not only contracts. For example, save an
   invoice as PDF, add it to Documents, and sign it there.

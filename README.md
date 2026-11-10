@@ -413,6 +413,10 @@ again. On phones, the menu button in the top bar opens the sidebar, and its X bu
 - **PDF:** open an invoice → **PDF** → *Save as PDF*. Proformas print as *PROFORMA INVOICE* (not a tax
   invoice), credit notes as *CREDIT NOTE* with the invoice they reduce; an invoice shows its credit
   notes and the balance due.
+- **QR code and verification:** a printed invoice or credit note has a QR code. Scanning it opens a public
+  page (no login, read only) that confirms the document is genuine and shows the issuer, number, date, client,
+  total and payment state; a cancelled invoice shows as "Genuine, but cancelled". The invoice also shows the
+  client's TIN. This is not an RRA EBM receipt: VAT-registered companies must still use an approved EBM
 - Stats: total invoiced, total collected, outstanding, overdue count
 
 ### Procurement

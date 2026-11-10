@@ -8,6 +8,7 @@ import AuthLayout from '@/components/layout/AuthLayout'
 
 // Auth pages
 import LoginPage from '@/pages/auth/LoginPage'
+import VerifyPage from '@/pages/public/VerifyPage'
 
 // Main pages
 import DashboardPage from '@/pages/dashboard/DashboardPage'
@@ -106,6 +107,9 @@ export default function App() {
             </PublicRoute>
           }
         />
+
+        {/* Anyone who scans the QR code on an invoice (no login) */}
+        <Route path="/verify/:code" element={<VerifyPage />} />
 
         {/* Customer and supplier portals (their own layout, no staff menus) */}
         <Route path="/portal" element={<PortalRoute role="CUSTOMER"><CustomerPortalPage /></PortalRoute>} />

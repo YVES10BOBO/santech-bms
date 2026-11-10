@@ -242,7 +242,7 @@ function Invoices({ rows, clientName, santech, paymentDetails, reload }: { rows?
   const balance = (i: Any) => Math.max(0, i.totalAmount - i.paidAmount - (i.creditedAmount ?? 0))
   const kindLabel: Record<string, string> = { INVOICE: 'Invoice', PROFORMA: 'Proforma', CREDIT_NOTE: 'Credit note' }
   const pdf = (i: Any) => printDocument({
-    kind: i.type === 'INVOICE' ? 'INVOICE' : i.type, number: i.invoiceNumber, date: i.issueDate, dueOrValid: i.dueDate, clientName: clientName ?? '',
+    kind: i.type === 'INVOICE' ? 'INVOICE' : i.type, number: i.invoiceNumber, date: i.issueDate, dueOrValid: i.dueDate, clientName: clientName ?? '', clientTin: i.client?.tinNumber, verifyCode: i.verifyCode,
     reference: [i.contract?.contractNumber, i.project?.name, i.subscription?.systemName].filter(Boolean).join(' · '),
     lines: [{ description: i.notes || i.project?.name || 'Services', quantity: 1, unitPrice: i.amount, total: i.amount }],
     subtotal: i.amount, vatAmount: i.taxAmount, total: i.totalAmount, paid: i.paidAmount, credited: i.creditedAmount, creditFor: i.creditFor?.invoiceNumber, currency: i.currency,

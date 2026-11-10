@@ -574,6 +574,8 @@ model Contract {
 model Invoice {
   id             String          @id @default(cuid())
   invoiceNumber  String          @unique
+  /// Secret code in the QR on the printed invoice; the public page /verify/<code> confirms the invoice is genuine
+  verifyCode     String          @unique @default(dbgenerated("replace((gen_random_uuid())::text, '-'::text, ''::text)"))
   type           String          @default("INVOICE") // INVOICE, PROFORMA (no payments; becomes an invoice), CREDIT_NOTE
   clientId       String
   client         Client          @relation(fields: [clientId], references: [id])

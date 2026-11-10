@@ -21,6 +21,8 @@ interface Invoice {
   invoiceNumber: string
   clientId: string
   clientName: string
+  clientTin: string
+  verifyCode: string
   contractNumber: string
   projectName: string
   amount: number
@@ -79,6 +81,8 @@ const toInvoice = (inv: any): Invoice => ({
   invoiceNumber: inv.invoiceNumber,
   clientId: inv.clientId ?? inv.client?.id ?? '',
   clientName: inv.client ? inv.client.companyName || inv.client.fullName || inv.client.teamName || inv.client.delegationName || '' : '',
+  clientTin: inv.client?.tinNumber ?? '',
+  verifyCode: inv.verifyCode ?? '',
   contractNumber: inv.contract?.contractNumber ?? '',
   projectName: inv.project?.name ?? inv.contract?.projectName ?? '',
   amount: Number(inv.amount),
@@ -293,7 +297,7 @@ export default function InvoicesPage() {
   const pdf = (inv: Invoice) => printDocument({
     kind: inv.type === 'INVOICE' ? 'INVOICE' : inv.type,
     number: inv.invoiceNumber, date: inv.issueDate, dueOrValid: inv.dueDate,
-    clientName: inv.clientName,
+    clientName: inv.clientName, clientTin: inv.clientTin, verifyCode: inv.verifyCode,
     reference: [inv.contractNumber, inv.projectName, inv.service && `${inv.service}${inv.periodStart ? ` (${formatDate(inv.periodStart)} – ${formatDate(inv.periodEnd)})` : ''}`].filter(Boolean).join(' · '),
     lines: [{ description: inv.notes || inv.projectName || inv.service || 'Services rendered', quantity: 1, unitPrice: inv.amount, total: inv.amount }],
     subtotal: inv.amount, vatAmount: inv.taxAmount, total: inv.totalAmount, paid: inv.paidAmount, credited: inv.creditedAmount,

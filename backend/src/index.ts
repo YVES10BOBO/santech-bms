@@ -71,6 +71,7 @@ import step2Router from './routes/step2'
 import reportsRouter from './routes/reports'
 import filesRouter from './routes/files'
 import signaturesRouter from './routes/signatures'
+import verifyRouter from './routes/verify'
 import { customerPortal, supplierPortal, portalAdmin, suppliers } from './routes/portal'
 import searchRouter from './routes/search'
 import prisma from './lib/prisma'
@@ -93,6 +94,7 @@ app.use('/api/lookups', lookupsRouter)
 // Leads, quotations, tickets, products, departments, visitors, users, notifications
 app.use('/api/reports', reportsRouter)
 app.use('/api/files', filesRouter)
+app.use('/api/verify', verifyRouter) // public: confirms a printed invoice is genuine (QR code)
 app.use('/api/signatures', signaturesRouter) // saved signatures / stamps and signing documents
 app.use('/api/portal', customerPortal)          // customer portal
 app.use('/api/supplier-portal', supplierPortal) // supplier portal

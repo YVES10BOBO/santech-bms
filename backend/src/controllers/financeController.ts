@@ -21,7 +21,7 @@ const userName = { select: { id: true, firstName: true, lastName: true } }
 // ── INVOICES ──────────────────────────────────────────────────────────────────
 
 const invoiceInclude = {
-  client: { select: { id: true, companyName: true, fullName: true, teamName: true, delegationName: true } },
+  client: { select: { id: true, companyName: true, fullName: true, teamName: true, delegationName: true, tinNumber: true } },
   contract: { select: { id: true, contractNumber: true, projectName: true } },
   project: { select: { id: true, name: true } },
   milestone: { select: { id: true, name: true } },
