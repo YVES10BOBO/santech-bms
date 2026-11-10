@@ -186,7 +186,7 @@ again. On phones, the menu button in the top bar opens the sidebar, and its X bu
   still waking up (Render free plan)
 - **Top-bar search** across clients, leads, quotations, contracts, invoices, projects, tasks, documents
   and staff, only in the areas your role can open
-- **My Profile** (profile menu, top right): change your name, phone and password
+- **My Profile** (profile menu, top right): change your name, phone and password, and save your signatures and initials
 
 ### Dashboard
 **Where:** Dashboard
@@ -325,6 +325,11 @@ again. On phones, the menu button in the top bar opens the sidebar, and its X bu
   is attached
 - **Attach signed contract file** (PDF, Word or image, up to 5 MB) and **Open signed document** from
   the contract panel
+- **Sign inside the system (no printing):** next to each signatory who has not signed, **Sign** opens the
+  contract as pages. Pick a saved signature, initials or the company stamp, click it to place it, **drag it
+  where it belongs and pull its corner to resize**, type your password and press **Sign document**. The
+  signatory is marked signed and the signed copy is attached. **Mark signed** stays for contracts signed on
+  paper. See *My signatures* below
 - **Project created automatically:** when a contract becomes Active and no project is linked to it,
   a project is created (status Planning) with the contract's client, value and dates and its
   responsible manager as project manager (or the person who activated it). The manager is notified.
@@ -523,6 +528,26 @@ only ever see their own client's records and never the staff menus or API.
 - Calls, emails, WhatsApp, SMS, meetings and notes — inbound or outbound — with summary and duration
 - Follow-up dates create reminders in Notifications
 - Every entry appears on the client's Client 360° timeline
+
+### My signatures (e-signature)
+**Where:** My Profile → My signatures (everyone); signing starts from a contract's **Sign** button
+- **Save once, use many times:** add your signature or initials as a **picture** (PNG or JPG; a photo of your
+  signature on white paper works, the white is removed for you), **draw** it with the mouse or a finger, or
+  **type** your name in a handwriting style. Mark one as default. Up to 12 per person
+- **Company stamp (cachet):** an admin saves it once (Add company stamp); every staff member can then place
+  it on documents they sign. Signatures and initials are private to their owner
+- **Signing a document:** works on **PDF and PNG / JPG** files (a Word file must be saved as PDF first). The
+  document opens as pages. Place as many signatures, initials and stamps as needed, on any page, move and
+  resize them, then confirm with your **password**
+- **Result:** a new copy `name (signed).pdf` with the images on it and a **signature certificate** page (who,
+  when, network address, fingerprint of the document before signing). **The original file stays unchanged.**
+  Each signer adds their own certificate page to the same copy
+- **Contracts:** the contract's signatory you chose is marked signed and the signed copy becomes the contract's
+  signed document. The contract still becomes **Active** in the usual step (all signatories signed + signed file)
+- Only staff who may handle contracts (admins, finance, sales and project managers) can sign a contract.
+  Every signing is in the Audit Trail with the fingerprints. Portal logins cannot use it
+- This is an **electronic signature** for ordinary business agreements; it is not a certified digital
+  certificate
 
 ### Documents
 **Where:** Documents → All Documents (Super Admin and Admin). Works like Google Drive.
@@ -975,6 +1000,7 @@ PostgreSQL on Neon, managed with Prisma (see `backend/prisma/schema.prisma`; 10 
 - [x] Financial statements: balance sheet, cash flow, accounts payable and receivable
 - [x] Document library like Google Drive: automatic folders, admin-made folders and subfolders, grid/list views, search, archive, admin delete
 - [x] Clear login errors; only failed logins count toward the login limit
+- [x] E-signatures: save a signature, initials or the company stamp once, place it on a PDF or picture and sign inside the system
 - [x] "Other" in a drop-down lets you type your own value (Training type, Support product, Campaign channel)
 
 ### 📋 Possible next steps

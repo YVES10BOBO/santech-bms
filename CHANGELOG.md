@@ -28,6 +28,43 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 
 ## 1.8.0 — 5 November 2026
 
+### E-signatures: sign documents inside the system with a saved signature or stamp (10 Nov)
+- **What:** you can now sign a contract without printing it. Save your signature, initials or the company
+  stamp (cachet) once, then place it on the document where it belongs, resize it, and sign. The signed copy
+  is created and attached to the contract.
+- **Where:**
+  - **My Profile → My signatures:** add a signature or initials by uploading a picture (white background
+    removed automatically), drawing it, or typing your name. Mark a default. Admins also save the
+    **company stamp** here.
+  - **Contracts → open a contract → Signatories → Sign** (next to each signatory who has not signed).
+    **Mark signed** is still there for contracts signed on paper.
+- **Rules:**
+  - Works on **PDF and PNG / JPG** files, up to 5 MB. A Word file must be saved as PDF first (a clear message
+    says so). The contract's attached file is signed if there is one; otherwise you choose a file.
+  - Each person's signatures are private; the company stamp is shared by all staff, saved only by admins.
+  - Up to 12 saved images per person; each image up to 600 KB (resized in the browser).
+  - Signing needs your **password** (a wrong one is refused without logging you out).
+  - The original file is never changed. The result is `name (signed).pdf` with a **signature certificate** page
+    (signer, time, network address, SHA-256 fingerprint of the document before signing). Several signers add
+    their own certificate page to the same copy.
+  - Only admins, finance managers, sales managers and project managers can sign a contract. A signatory can only
+    be signed once; a contract still becomes Active in the usual step (all signed + signed file attached).
+  - Each signing is written to the Audit Trail (original and signed fingerprints). Portal logins cannot use it.
+- **Demo data:** none needed (signatures belong to each person). To demo: My Profile → Add signature, then
+  Contracts → CT-2026-901 → Sign.
+- **Technical:**
+  - New table `saved_signatures` (migration `20261110120000_saved_signatures`, applied on deploy).
+  - Backend: `signaturesController.ts`, routes `/api/signatures` (`GET/POST`, `PUT/DELETE /:id`, `POST /sign`);
+    the PDF is stamped with `pdf-lib` on the server.
+  - Frontend: `components/signing/SignatureLibrary.tsx`, `SignDocumentDialog.tsx` (pages drawn with `pdfjs-dist`,
+    loaded only when the dialog opens), `lib/signatureImage.ts`, `lib/services/signatureService.ts`.
+  - New packages added with pnpm (not npm): `pdf-lib` (backend), `pdfjs-dist` (frontend).
+- **Tested:** against a temporary database with the demo data, 25 checks all passed (saving, private/shared,
+  invalid PNG, wrong password, outside the page, Word file, contract signing and permissions, original file
+  unchanged, portal login blocked), and the signed PDF was opened and looked at (signature on page 1, stamp
+  on page 2, certificate page). Frontend type check and production build pass. The dialog itself (dragging and
+  resizing with the mouse) has not been clicked through in a browser.
+
 ### Admins manage drop-down lists with a ⚙ button (10 Nov)
 - **What:** next to selected drop-down boxes, an admin sees a ⚙ button to **add, rename, hide or delete**
   choices, so changing a choice no longer needs a developer.

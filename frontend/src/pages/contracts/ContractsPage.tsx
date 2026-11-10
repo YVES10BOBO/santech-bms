@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { lazy, Suspense, useEffect, useState } from 'react'
 import { useSearchFromUrl } from '@/lib/useSearchFromUrl'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Plus, Search, X, FileText, Eye, AlertCircle, CheckCircle2, Clock, ThumbsUp, ThumbsDown, FolderPlus, Upload } from 'lucide-react'
@@ -11,6 +11,7 @@ import toast from 'react-hot-toast'
 import { fileService } from '@/lib/services/fileService'
 import { CURRENCIES, toRwf, rwfHint, useRates } from '@/lib/currency'
 import VersionHistory from '@/components/shared/VersionHistory'
+const SignDocumentDialog = lazy(() => import('@/components/signing/SignDocumentDialog'))
 
 type ContractStatus = 'DRAFT' | 'REVIEW' | 'APPROVAL' | 'SIGNING' | 'ACTIVE' | 'RENEWAL' | 'COMPLETED' | 'CANCELLED'
 type SignatureStatus = 'PENDING' | 'SIGNED'
@@ -129,6 +130,7 @@ export default function ContractsPage() {
   const [viewContract, setViewContract] = useState<Contract | null>(null)
   const [error, setError] = useState('')
   const [signatureError, setSignatureError] = useState('')
+  const [signFor, setSignFor] = useState<{ contract: Contract; signatory: string } | null>(null)
   // Quotation hand-off carries names; match them to real records once lookups load
   const [pendingQuotation, setPendingQuotation] = useState<{ clientName: string; manager: string } | null>(null)
   const [rowsPerPage, setRowsPerPage] = useState(5)
@@ -449,6 +451,24 @@ export default function ContractsPage() {
       </div>
 
       {/* View Panel */}
+      {signFor && (
+        <Suspense fallback={null}>
+          <SignDocumentDialog
+            fileId={signFor.contract.signedDocumentFileId} fileName={signFor.contract.signedDocumentName}
+            contract={{ id: signFor.contract.id, number: signFor.contract.contractNumber, signatories: (signFor.contract.signatories ?? []).filter(x => x.status === 'PENDING').map(x => x.name), defaultSignatory: signFor.signatory }}
+            onClose={() => setSignFor(null)}
+            onSigned={async () => {
+              setSignFor(null)
+              try {
+                const fresh = (await contractService.getAll({ limit: '500' })).data as Record<string, unknown>[]
+                const list = fresh.map(toContract)
+                setContracts(list)
+                setViewContract(prev => (prev ? list.find(c => c.id === prev.id) ?? prev : prev))
+              } catch { /* the list refreshes on the next visit */ }
+            }}
+          />
+        </Suspense>
+      )}
       {viewContract && (
         <div className="fixed inset-0 z-50 flex justify-end bg-black/40" onClick={() => setViewContract(null)}>
           <div className="bg-white w-full max-w-md h-full overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
@@ -530,7 +550,7 @@ export default function ContractsPage() {
               {viewContract.status === 'SIGNING' && (
                 <section className="rounded-xl border border-amber-100 p-4 space-y-3">
                   <div><h3 className="text-sm font-semibold text-gray-800">Contract signing</h3><p className="text-xs text-gray-500 mt-1">Track each signer and attach the completed document. Activation requires all signatures and the document.</p></div>
-                  {viewContract.signatories?.length ? <div className="space-y-2">{viewContract.signatories.map(signer => <div key={signer.name} className="flex items-center justify-between gap-2 rounded-lg bg-gray-50 px-3 py-2"><div><p className="text-sm font-medium text-gray-700">{signer.name}</p><p className="text-xs text-gray-500">{signer.status === 'SIGNED' ? `Signed ${signer.signedAt ? formatDate(signer.signedAt) : ''}` : 'Signature pending'}</p></div>{signer.status === 'PENDING' && <button onClick={() => markSignatorySigned(viewContract.id, signer.name)} className="rounded-md bg-white border px-2 py-1 text-xs text-santech-700 hover:bg-santech-50">Mark signed</button>}</div>)}</div> : <p className="text-sm text-amber-700">Add signatories by editing this contract.</p>}
+                  {viewContract.signatories?.length ? <div className="space-y-2">{viewContract.signatories.map(signer => <div key={signer.name} className="flex items-center justify-between gap-2 rounded-lg bg-gray-50 px-3 py-2"><div><p className="text-sm font-medium text-gray-700">{signer.name}</p><p className="text-xs text-gray-500">{signer.status === 'SIGNED' ? `Signed ${signer.signedAt ? formatDate(signer.signedAt) : ''}` : 'Signature pending'}</p></div>{signer.status === 'PENDING' && <div className="flex gap-1"><button onClick={() => setSignFor({ contract: viewContract, signatory: signer.name })} className="rounded-md bg-santech-600 px-2 py-1 text-xs text-white hover:bg-santech-700">Sign</button><button onClick={() => markSignatorySigned(viewContract.id, signer.name)} title="Use when it was signed on paper" className="rounded-md bg-white border px-2 py-1 text-xs text-santech-700 hover:bg-santech-50">Mark signed</button></div>}</div>)}</div> : <p className="text-sm text-amber-700">Add signatories by editing this contract.</p>}
                   <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 px-3 py-3 text-sm text-gray-600 hover:bg-gray-50"><Upload className="h-4 w-4" />{viewContract.signedDocumentName || 'Attach signed contract file'}<input type="file" accept=".pdf,.doc,.docx,image/*" className="hidden" onChange={e => attachSignedDocument(viewContract.id, e.target.files?.[0])} /></label>
                 </section>
               )}

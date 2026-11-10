@@ -6,6 +6,7 @@ import { authService } from '@/lib/services/authService'
 import { apiError } from '@/lib/services/lookupService'
 import { getInitials } from '@/lib/utils'
 import toast from 'react-hot-toast'
+import SignatureLibrary from '@/components/signing/SignatureLibrary'
 
 const ROLE_LABELS: Record<string, string> = {
   SUPER_ADMIN: 'Super Admin', ADMIN: 'Admin (HR)', FINANCE_MANAGER: 'Finance Manager', SALES_MANAGER: 'Sales Manager',
@@ -108,6 +109,8 @@ export default function ProfilePage() {
           <Save className="w-4 h-4" /> {saving === 'profile' ? 'Saving…' : 'Save details'}
         </button>
       </form>
+
+      <SignatureLibrary />
 
       <div ref={passwordRef} id="password">
         <form onSubmit={savePassword} className="bms-card p-5 space-y-4">

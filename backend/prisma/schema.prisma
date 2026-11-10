@@ -257,6 +257,7 @@ model User {
   leadsAssigned         Lead[]             @relation("LeadAssignedTo")
   quotationsAssigned    Quotation[]        @relation("QuotationAssignedTo")
   notifications         Notification[]
+  savedSignatures       SavedSignature[]
   ticketsAssigned       SupportTicket[]    @relation("TicketAssignedTo")
   ticketsCreated        SupportTicket[]    @relation("TicketCreatedBy")
   departmentsHeaded     Department[]       @relation("DepartmentHead")
@@ -1596,4 +1597,24 @@ model ListOption {
 
   @@unique([list, value])
   @@map("list_options")
+}
+
+// ===========================
+// E-SIGNATURES: saved signature / initials / company stamp images
+// ===========================
+
+model SavedSignature {
+  id        String   @id @default(cuid())
+  userId    String? // null = company stamp (cachet), usable by every staff member who signs
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind      String // SIGNATURE, INITIALS, STAMP
+  name      String
+  data      Bytes // PNG with a transparent background
+  width     Int
+  height    Int
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("saved_signatures")
 }
