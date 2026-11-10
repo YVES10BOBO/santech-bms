@@ -31,6 +31,15 @@ export const LISTS: ListDef[] = [
     usage: value => prisma.supportTicket.count({ where: { product: value } }),
   },
   {
+    key: 'campaign_type', title: 'Campaign types', other: 'OTHER',
+    defaults: [
+      { value: 'EXPO_EVENT', label: 'Expo / Event' }, { value: 'FIELD_VISITS', label: 'Field Visits' }, { value: 'SOCIAL_MEDIA', label: 'Social Media' },
+      { value: 'EMAIL_CAMPAIGN', label: 'Email Campaign' }, { value: 'REFERRAL', label: 'Referral' }, { value: 'COLD_OUTREACH', label: 'Cold Outreach' },
+      { value: 'OTHER', label: 'Other' },
+    ],
+    usage: value => prisma.campaign.count({ where: { type: value } }),
+  },
+  {
     key: 'campaign_channel', title: 'Campaign channels', other: 'Other',
     defaults: ['Social Media', 'Events', 'Email', 'Direct', 'Referral', 'Other'].map(v => ({ value: v, label: v })),
     usage: value => prisma.campaign.count({ where: { channel: value } }),

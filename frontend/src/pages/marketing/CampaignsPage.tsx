@@ -6,9 +6,10 @@ import { apiError } from '@/lib/services/lookupService'
 import PageLoader from '@/components/shared/PageLoader'
 import toast from 'react-hot-toast'
 import ManagedSelect from '@/components/shared/ManagedSelect'
+import { useListOptions } from '@/lib/services/listService'
 
 type CampaignStatus = 'PLANNING' | 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'CANCELLED'
-type CampaignType = 'EXPO_EVENT' | 'FIELD_VISITS' | 'SOCIAL_MEDIA' | 'EMAIL_CAMPAIGN' | 'REFERRAL' | 'COLD_OUTREACH' | 'OTHER'
+type CampaignType = 'EXPO_EVENT' | 'FIELD_VISITS' | 'SOCIAL_MEDIA' | 'EMAIL_CAMPAIGN' | 'REFERRAL' | 'COLD_OUTREACH' | 'OTHER' | (string & {})
 type ChannelType = 'Social Media' | 'Events' | 'Email' | 'Direct' | 'Referral' | 'Other' | (string & {})
 
 interface Campaign {
@@ -65,7 +66,7 @@ const statusStyle: Record<CampaignStatus, string> = {
   CANCELLED: 'bg-red-100 text-red-500',
 }
 
-const typeLabel: Record<CampaignType, string> = {
+const typeLabel: Record<string, string> = {
   EXPO_EVENT: 'Expo / Event',
   FIELD_VISITS: 'Field Visits',
   SOCIAL_MEDIA: 'Social Media',
@@ -112,6 +113,8 @@ const emptyForm: NewCampaignForm = {
 }
 
 export default function CampaignsPage() {
+  const typeList = useListOptions('campaign_type')
+  const typeName = (t: string) => typeList.labelOf(t, typeLabel[t])
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -176,7 +179,7 @@ export default function CampaignsPage() {
       return
     }
     const payload = {
-      name: form.name, type: form.type, objective: form.objective, targetAudience: form.targetAudience,
+      name: form.name, type: form.type.trim() || 'OTHER', objective: form.objective, targetAudience: form.targetAudience,
       startDate: form.startDate, endDate: form.endDate, budget: parseFloat(form.budget),
       channel: form.channel, assignedTeam: form.assignedTeam, notes: form.notes,
       ...(editId ? {
@@ -276,7 +279,9 @@ export default function CampaignsPage() {
           onChange={e => setTypeFilter(e.target.value as CampaignType | 'All')}
           className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500"
         >
-          {TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          {(typeList.data
+            ? [{ value: 'All', label: 'All Types' }, ...typeList.data.choices.filter(c => c.isActive).map(c => ({ value: c.value, label: c.label }))]
+            : TYPE_OPTIONS).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
       </div>
 
@@ -294,7 +299,7 @@ export default function CampaignsPage() {
                     <p className="font-semibold text-gray-800 leading-tight">{campaign.name}</p>
                     <div className="flex items-center gap-2 mt-1">
                       <span className="text-xs bg-santech-50 text-santech-700 px-2 py-0.5 rounded-full">
-                        {typeLabel[campaign.type]}
+                        {typeName(campaign.type)}
                       </span>
                     </div>
                   </div>
@@ -409,7 +414,7 @@ export default function CampaignsPage() {
                         <p className="text-xs text-gray-400">{campaign.assignedTeam}</p>
                       </td>
                       <td className="px-4 py-3">
-                        <span className="text-xs bg-santech-50 text-santech-700 px-2 py-0.5 rounded-full whitespace-nowrap">{typeLabel[campaign.type]}</span>
+                        <span className="text-xs bg-santech-50 text-santech-700 px-2 py-0.5 rounded-full whitespace-nowrap">{typeName(campaign.type)}</span>
                       </td>
                       <td className="px-4 py-3">
                         <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap', statusStyle[campaign.status])}>{campaign.status}</span>
@@ -464,9 +469,8 @@ export default function CampaignsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Type</label>
-                  <select name="type" value={form.type} onChange={handleFormChange} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-santech-500">
-                    {TYPE_OPTIONS.filter(o => o.value !== 'All').map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                  </select>
+                  <ManagedSelect list="campaign_type" value={form.type} onChange={v => setForm(f => ({ ...f, type: v }))} otherValue="OTHER" placeholder="Type the campaign type"
+                    fallback={TYPE_OPTIONS.filter(o => o.value !== 'All').map(o => ({ value: o.value, label: o.label }))} />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Channel</label>
@@ -554,7 +558,7 @@ export default function CampaignsPage() {
                     {detailCampaign.status}
                   </span>
                 </div>
-                <span className="text-xs bg-santech-50 text-santech-700 px-2 py-0.5 rounded-full">{typeLabel[detailCampaign.type]}</span>
+                <span className="text-xs bg-santech-50 text-santech-700 px-2 py-0.5 rounded-full">{typeName(detailCampaign.type)}</span>
               </div>
 
               {/* Dates */}

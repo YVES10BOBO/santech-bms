@@ -718,7 +718,7 @@ only ever see their own client's records and never the staff menus or API.
 
 #### Drop-down lists (managed by admins)
 **Where:** the ⚙ button next to the box on **Training → Training Type**, **Support → Product / Service**
-and **Campaigns → Channel** (admins only; everyone else sees the plain drop-down)
+and **Campaigns → Type** and **Channel** (admins only; everyone else sees the plain drop-down)
 - **Add** a choice, **rename** it (click its name), **hide / show** it (eye), or **delete** it (bin)
 - A renamed choice shows its new name everywhere, including on old records
 - A choice that records already use cannot be deleted: it says how many use it and you hide it instead.

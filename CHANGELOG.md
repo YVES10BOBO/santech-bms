@@ -31,8 +31,10 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 ### Admins manage drop-down lists with a ⚙ button (10 Nov)
 - **What:** next to selected drop-down boxes, an admin sees a ⚙ button to **add, rename, hide or delete**
   choices, so changing a choice no longer needs a developer.
-- **Where:** Training → Training Type, Support → Product / Service, Campaigns → Channel. Other drop-downs are
-  unchanged for now.
+- **Where:** Training → Training Type, Support → Product / Service, Campaigns → Type and Channel. Other
+  drop-downs are unchanged for now.
+- **Update (10 Nov):** Campaigns → **Type** was added the same day (it had no ⚙ at first). Its filter on the
+  Campaigns page follows the list too.
 - **Rules:**
   - Only admins (Super Admin, Admin) see the ⚙ button and can change a list; everyone can read it.
   - **Other** is built in, always last, cannot be renamed, hidden or deleted. Anyone can still pick it and
