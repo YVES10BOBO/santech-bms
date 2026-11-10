@@ -4,7 +4,7 @@ import toast from 'react-hot-toast'
 import { cn } from '@/lib/utils'
 import { apiError } from '@/lib/services/lookupService'
 import { signatureService, type SavedSignature, type SignatureKind } from '@/lib/services/signatureService'
-import { fileToDataUrl, processImage, trimCanvas, typedSignature, type ProcessedImage } from '@/lib/signatureImage'
+import { fileToDataUrl, imageHasTransparency, processImage, trimCanvas, typedSignature, type ProcessedImage } from '@/lib/signatureImage'
 import { useAuthStore } from '@/store/authStore'
 
 const CHECKER = 'bg-[linear-gradient(45deg,#f1f5f9_25%,transparent_25%,transparent_75%,#f1f5f9_75%),linear-gradient(45deg,#f1f5f9_25%,transparent_25%,transparent_75%,#f1f5f9_75%)] bg-[length:16px_16px] bg-[position:0_0,8px_8px] bg-white'
@@ -50,7 +50,7 @@ export default function SignatureLibrary() {
           </div>
         </>
       )}
-      {adding && <AddDialog kind={adding} onClose={() => setAdding(null)} onSaved={() => { setAdding(null); load() }} />}
+      {adding && <AddSignatureDialog kind={adding} onClose={() => setAdding(null)} onSaved={() => { setAdding(null); load() }} />}
     </div>
   )
 }
@@ -75,10 +75,13 @@ function Grid({ list, empty, onDefault, onDelete }: { list: SavedSignature[]; em
   )
 }
 
-type Mode = 'upload' | 'draw' | 'type'
+export type Mode = 'upload' | 'draw' | 'type'
 
-function AddDialog({ kind, onClose, onSaved }: { kind: SignatureKind; onClose: () => void; onSaved: () => void }) {
-  const [mode, setMode] = useState<Mode>('upload')
+/** Add a signature, initials or stamp by uploading a picture, drawing it or typing a name. Also used on the signing screen. */
+export function AddSignatureDialog({ kind, onClose, onSaved, initialFile, initialMode = 'upload', saveLabel = 'Save' }: {
+  kind: SignatureKind; onClose: () => void; onSaved: (s: SavedSignature) => void; initialFile?: File; initialMode?: Mode; saveLabel?: string
+}) {
+  const [mode, setMode] = useState<Mode>(initialMode)
   const [name, setName] = useState('')
   const [image, setImage] = useState<ProcessedImage | null>(null)
   const [busy, setBusy] = useState(false)
@@ -88,9 +91,9 @@ function AddDialog({ kind, onClose, onSaved }: { kind: SignatureKind; onClose: (
     if (!image) return
     setBusy(true)
     try {
-      await signatureService.create({ kind, name: name.trim(), ...image })
+      const created = await signatureService.create({ kind, name: name.trim(), ...image })
       toast.success('Saved')
-      onSaved()
+      onSaved(created)
     } catch (e) { toast.error(apiError(e)) } finally { setBusy(false) }
   }
 
@@ -113,7 +116,7 @@ function AddDialog({ kind, onClose, onSaved }: { kind: SignatureKind; onClose: (
               ))}
           </div>
 
-          {mode === 'upload' && <UploadPane kind={kind} onImage={setImage} />}
+          {mode === 'upload' && <UploadPane kind={kind} onImage={setImage} initialFile={initialFile} />}
           {mode === 'draw' && <DrawPane onImage={setImage} />}
           {mode === 'type' && <TypePane onImage={setImage} />}
 
@@ -131,14 +134,14 @@ function AddDialog({ kind, onClose, onSaved }: { kind: SignatureKind; onClose: (
         </div>
         <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-100">
           <button onClick={onClose} className="px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
-          <button onClick={save} disabled={!image || busy} className="px-4 py-2 bg-santech-600 text-white rounded-lg text-sm font-medium hover:bg-santech-700 disabled:opacity-50">{busy ? 'Saving…' : 'Save'}</button>
+          <button onClick={save} disabled={!image || busy} className="px-4 py-2 bg-santech-600 text-white rounded-lg text-sm font-medium hover:bg-santech-700 disabled:opacity-50">{busy ? 'Saving…' : saveLabel}</button>
         </div>
       </div>
     </div>
   )
 }
 
-function UploadPane({ kind, onImage }: { kind: SignatureKind; onImage: (i: ProcessedImage | null) => void }) {
+function UploadPane({ kind, onImage, initialFile }: { kind: SignatureKind; onImage: (i: ProcessedImage | null) => void; initialFile?: File }) {
   const [src, setSrc] = useState<string | null>(null)
   const [removeWhite, setRemoveWhite] = useState(true)
   const [error, setError] = useState('')
@@ -154,9 +157,14 @@ function UploadPane({ kind, onImage }: { kind: SignatureKind; onImage: (i: Proce
     if (!file) return
     if (!/^image\/(png|jpe?g|webp|gif)$/.test(file.type)) { setError('Choose a PNG or JPG picture'); return }
     if (file.size > 5 * 1024 * 1024) { setError('Choose a picture smaller than 5 MB'); return }
-    setRemoveWhite(file.type !== 'image/png') // PNGs are usually already cut out
-    setSrc(await fileToDataUrl(file))
+    const url = await fileToDataUrl(file)
+    // A cut-out PNG keeps its background; a photo or scan gets its paper removed
+    setRemoveWhite(!(file.type === 'image/png' && await imageHasTransparency(url).catch(() => false)))
+    setSrc(url)
   }
+  // A picture chosen, dropped or pasted on the signing screen opens straight in the preview
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (initialFile) pick(initialFile) }, [])
 
   return (
     <div className="space-y-3">
@@ -169,7 +177,7 @@ function UploadPane({ kind, onImage }: { kind: SignatureKind; onImage: (i: Proce
       {src && (
         <label className="flex items-center gap-2 text-sm text-gray-700">
           <input type="checkbox" checked={removeWhite} onChange={e => setRemoveWhite(e.target.checked)} />
-          Remove the white background
+          Remove the paper background
         </label>
       )}
       {error && <p className="text-sm text-red-600">{error}</p>}

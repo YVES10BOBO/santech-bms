@@ -44,15 +44,37 @@ export async function processImage(src: string, opts: { removeWhite: boolean; ma
   const data = ctx.getImageData(0, 0, canvas.width, canvas.height)
   const px = data.data
   if (opts.removeWhite) {
-    // The darker (or more colourful) a pixel is, the more it is ink; near-white paper becomes see-through
+    // The paper colour is what the edges of the picture mostly are (white, light blue, grey…).
+    // Pixels close to it become see-through; ink keeps its colour.
+    const bg = paperColour(px, canvas.width, canvas.height)
     for (let i = 0; i < px.length; i += 4) {
-      const lightest = Math.min(px[i], px[i + 1], px[i + 2])
-      const ink = Math.min(1, Math.max(0, (245 - lightest) / 90))
+      const d = Math.hypot(px[i] - bg[0], px[i + 1] - bg[1], px[i + 2] - bg[2])
+      const ink = Math.min(1, Math.max(0, (d - 28) / 60))
       px[i + 3] = Math.round(px[i + 3] * ink)
     }
     ctx.putImageData(data, 0, 0)
   }
   return trimCanvas(canvas)
+}
+
+/** Median colour of the picture's border: the paper the signature was written on */
+function paperColour(px: Uint8ClampedArray, w: number, h: number): [number, number, number] {
+  const r: number[] = [], g: number[] = [], b: number[] = []
+  const take = (x: number, y: number) => { const i = (y * w + x) * 4; r.push(px[i]); g.push(px[i + 1]); b.push(px[i + 2]) }
+  const step = Math.max(1, Math.floor((w + h) / 400))
+  for (let x = 0; x < w; x += step) { take(x, 0); take(x, h - 1) }
+  for (let y = 0; y < h; y += step) { take(0, y); take(w - 1, y) }
+  const med = (a: number[]) => a.sort((p, q) => p - q)[Math.floor(a.length / 2)] ?? 255
+  return [med(r), med(g), med(b)]
+}
+
+/** Does this picture already have a see-through background (a cut-out PNG)? */
+export async function imageHasTransparency(src: string): Promise<boolean> {
+  const im = await loadImage(src)
+  const c = document.createElement('canvas')
+  c.width = Math.min(im.naturalWidth, 400); c.height = Math.max(1, Math.round(im.naturalHeight * (c.width / im.naturalWidth)))
+  c.getContext('2d', { willReadFrequently: true })!.drawImage(im, 0, 0, c.width, c.height)
+  return hasTransparency(c)
 }
 
 /** Cuts away the empty (transparent) margin around the drawing, keeping a small border */

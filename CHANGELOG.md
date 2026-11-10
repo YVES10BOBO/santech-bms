@@ -28,6 +28,29 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 
 ## 1.8.0 — 5 November 2026
 
+### Signing works like inserting a picture in Word (10 Nov)
+- **What:** while the document is open for signing you can now add your signature on the spot, the way you insert
+  a picture in Word, instead of saving it in My Profile first.
+- **Where:** the signing screen (Contracts → Sign, Documents → Sign), panel on the right:
+  - **Upload picture:** pick a photo or scan of your signature (or a stamp) from this device. A preview opens with
+    the paper background removed; **Save and place on the page** puts it on the page and keeps it for next time.
+  - **Draw / type:** draw it with the mouse or a finger, or type your name.
+  - **Drag and drop:** drag a saved signature from the panel onto the exact spot on the page, or drop a picture
+    file from your computer straight onto the page.
+  - **Paste:** Ctrl+V of a copied picture adds it the same way.
+  - **Resize from any of the four corners** (it keeps its shape), drag to move, **Remove** button or the Delete key.
+- **Better background removal:** the paper colour is taken from the edges of the picture, so light-blue, grey or
+  cream paper (and phone photos) is removed too, not only pure white. A PNG that is already see-through is kept as
+  it is. The same improvement applies in My Profile → My signatures.
+- **Rules:** unchanged: a signature added here is saved to your own signatures (the 12-image limit applies), the
+  signing still needs your password, and the original document is never changed.
+- **Technical:** `SignDocumentDialog.tsx` (upload / draw buttons, drop and paste handling, four resize corners,
+  Delete key), `SignatureLibrary.tsx` exports `AddSignatureDialog` for reuse, `signatureImage.ts` (paper colour from
+  the border median, transparency check). Frontend only.
+- **Tested:** type check and production build; the new background removal was run on a photo of a signature on
+  light-blue paper and the paper disappeared. Dragging, dropping, pasting and resizing have not been tried in a
+  browser.
+
 ### Sign a contract online with nothing to upload: the system writes the contract (10 Nov)
 - **What:** a contract no longer needs a file before it can be signed. The system writes the contract itself as a
   PDF from the contract's details, and you sign it online right away. Nothing is downloaded, printed, scanned or

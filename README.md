@@ -549,6 +549,10 @@ only ever see their own client's records and never the staff menus or API.
   resize them, then confirm with your **password**
 - **Documents:** any PDF or picture in the library can be signed too (file's ⋮ menu → **Sign**, or its details). The
   signed copy is saved as a new document next to the original, so an invoice saved as PDF can be signed this way
+- **On the spot, like Word:** on the signing screen, **Upload picture** (from this device), **Draw / type**, drag a
+  saved signature onto the page, drop a picture file on the page, or paste one (Ctrl+V). Resize from any corner, move
+  by dragging, remove with the button or the Delete key. A signature added this way is kept for next time. The paper
+  background (white, light blue, grey) is removed automatically
 - **Result:** a new copy `name (signed).pdf` with the images on it and a **signature certificate** page (who,
   when, network address, fingerprint of the document before signing). **The original file stays unchanged.**
   Each signer adds their own certificate page to the same copy
