@@ -44,8 +44,8 @@ export default function SignatureLibrary() {
 
           <div className="border-t border-gray-100 pt-4">
             <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2"><Stamp className="w-4 h-4 text-santech-600" /> Company stamp (cachet)</h3>
-            <p className="text-xs text-gray-500 mb-3">Shared with every staff member who signs documents. Only an admin can add or remove it.</p>
-            <Grid list={stamps} empty="No company stamp saved yet." onDelete={isAdmin ? s => window.confirm(`Delete "${s.name}"?`) && run(() => signatureService.remove(s.id), 'Deleted') : undefined} />
+            <p className="text-xs text-gray-500 mb-3">Only admins, finance, sales and project managers can see and place it when they sign. Only an admin can add or remove it.</p>
+            <Grid list={stamps} empty="No company stamp to show. An admin saves it here; it is visible to admins, finance, sales and project managers." onDelete={isAdmin ? s => window.confirm(`Delete "${s.name}"?`) && run(() => signatureService.remove(s.id), 'Deleted') : undefined} />
             {isAdmin && <button onClick={() => setAdding('STAMP')} className="mt-3 flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50"><Plus className="w-4 h-4" /> Add company stamp</button>}
           </div>
         </>

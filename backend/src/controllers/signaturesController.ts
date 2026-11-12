@@ -20,6 +20,8 @@ const fail = (res: Response, error: unknown, where: string) => {
 }
 
 const KINDS = ['SIGNATURE', 'INITIALS', 'STAMP']
+/** The company stamp (cachet) means "the company agrees": only these roles can see it and place it on a document */
+const canStamp = (role?: string) => hasRole(role as never, CONTRACT_VIEWERS)
 const MAX_IMAGE_BYTES = 600 * 1024
 const MAX_PER_USER = 12
 const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
@@ -33,7 +35,7 @@ const toDto = (s: { id: string; userId: string | null; kind: string; name: strin
 export async function getSignatures(req: AuthRequest, res: Response): Promise<void> {
   try {
     const rows = await prisma.savedSignature.findMany({
-      where: { OR: [{ userId: req.user!.id }, { userId: null }] },
+      where: { OR: [{ userId: req.user!.id }, ...(canStamp(req.user?.role) ? [{ userId: null }] : [])] },
       orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
     })
     res.json({ success: true, data: rows.map(toDto) })
@@ -142,8 +144,8 @@ export async function signDocument(req: AuthRequest, res: Response): Promise<voi
 
     // The images used must be mine or a company stamp
     const ids = [...new Set((placements as Placement[]).map(p => p.signatureId))]
-    const images = await prisma.savedSignature.findMany({ where: { id: { in: ids }, OR: [{ userId: me.id }, { userId: null }] } })
-    if (images.length !== ids.length) { res.status(400).json({ success: false, message: 'One of the signatures is not available to you' }); return }
+    const images = await prisma.savedSignature.findMany({ where: { id: { in: ids }, OR: [{ userId: me.id }, ...(canStamp(me.role) ? [{ userId: null }] : [])] } })
+    if (images.length !== ids.length) { res.status(400).json({ success: false, message: 'One of the signatures or the company stamp is not available to you' }); return }
 
     const bytes = new Uint8Array(source.data)
     let pdf: PDFDocument

@@ -542,8 +542,9 @@ only ever see their own client's records and never the staff menus or API.
 - **Save once, use many times:** add your signature or initials as a **picture** (PNG or JPG; a photo of your
   signature on white paper works, the white is removed for you), **draw** it with the mouse or a finger, or
   **type** your name in a handwriting style. Mark one as default. Up to 12 per person
-- **Company stamp (cachet):** an admin saves it once (Add company stamp); every staff member can then place
-  it on documents they sign. Signatures and initials are private to their owner
+- **Company stamp (cachet):** an admin saves it once (Add company stamp). Admins, finance managers, sales managers and
+  project managers can then place it on documents they sign, with one click on **Add company stamp** (it lands next to
+  the signature) or by dragging it. Other staff do not see it. Signatures and initials are private to their owner
 - **Signing a document:** works on **PDF and PNG / JPG** files (a Word file must be saved as PDF first). The
   document opens as pages. Place as many signatures, initials and stamps as needed, on any page, move and
   resize them, then confirm with your **password**

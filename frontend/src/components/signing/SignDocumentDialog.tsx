@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import * as pdfjs from 'pdfjs-dist'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.js?url'
-import { X, Upload, Trash2, PenLine, Loader2, ShieldCheck, FileText, ImagePlus, Pencil, Download, Share2 } from 'lucide-react'
+import { X, Upload, Trash2, PenLine, Loader2, ShieldCheck, FileText, ImagePlus, Pencil, Download, Share2, Stamp } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -158,6 +158,29 @@ export default function SignDocumentDialog({ fileId, fileName, contract, prepare
     const box = scrollRef.current.getBoundingClientRect(), r = el.getBoundingClientRect()
     const centerY = (Math.min(r.bottom, box.bottom) + Math.max(r.top, box.top)) / 2
     placeAt(sig, pageIndex, 0.5, (centerY - r.top) / r.height)
+  }
+
+  /**
+   * One click to put the company stamp (cachet) in a sensible place: next to the last signature on the page
+   * (half on the signature, as a stamp is usually pressed), otherwise at the bottom right of the visible page.
+   */
+  const addStamp = () => {
+    const stamp = sigs?.find(x => x.shared)
+    if (!stamp) return
+    const mine = [...items].reverse().find(i => !i.sig.shared)
+    if (mine) {
+      const el = pageRefs.current[mine.page - 1]
+      if (!el) return
+      const w = START_WIDTH.STAMP
+      const h = (w * el.clientWidth * (stamp.height / stamp.width)) / el.clientHeight
+      const x = Math.min(Math.max(mine.x + mine.w * 0.55, 0), 1 - w)
+      const y = Math.min(Math.max(mine.y + mine.h / 2 - h / 2, 0), 1 - h)
+      const item: Item = { key: nextKey++, sig: stamp, page: mine.page, x, y, w, h }
+      setItems(prev => [...prev, item]); setSelected(item.key)
+      return
+    }
+    const pageIndex = visiblePage()
+    placeAt(stamp, pageIndex, 0.75, 0.85)
   }
 
   /** Something dropped on a page: one of the signatures on the right, or a picture from the computer */
@@ -330,6 +353,13 @@ export default function SignDocumentDialog({ fileId, fileName, contract, prepare
                     <Pencil className="w-4 h-4" /> Draw / type
                   </button>
                 </div>
+                {sigs?.some(x => x.shared) && (
+                  <button onClick={addStamp} disabled={!ready}
+                    className="w-full mb-3 flex items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-2 py-2 text-xs font-medium text-red-800 hover:bg-red-100 disabled:opacity-40"
+                    title="Puts the company stamp next to your signature">
+                    <Stamp className="w-4 h-4" /> Add company stamp
+                  </button>
+                )}
                 {!sigs ? <p className="text-xs text-gray-400">Loading…</p> : sigs.length === 0 ? (
                   <p className="text-xs text-gray-500">No saved signature yet. Upload a picture of it or draw it: it is kept for next time.</p>
                 ) : (

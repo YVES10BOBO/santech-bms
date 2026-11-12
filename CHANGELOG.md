@@ -28,6 +28,24 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 
 ## 1.8.0 — 5 November 2026
 
+### One-click "Add company stamp" while signing, and who may use the stamp (12 Nov)
+- **What:** the signing screen has an **Add company stamp** button. One click puts the company cachet next to your
+  signature (half on top of it, the way a stamp is pressed), or at the bottom right of the page if you have not
+  placed a signature yet. Drag or resize it afterwards like any picture.
+- **Where:** signing screen (Contracts → Sign, Documents → Sign), panel on the right, above your saved signatures.
+  The button shows only when a company stamp has been saved (My signatures → Company stamp → Add company stamp).
+- **Rules:**
+  - The stamp now means "the company agrees", so it is limited: only **admins, finance managers, sales managers and
+    project managers** can see it and place it. Other staff (employees, sales staff, marketing) do not see it and
+    the server refuses it if they try. They can still sign with their own signature.
+  - Only an admin can add or delete the stamp (as before).
+  - Every signing that uses the stamp is in the Audit Trail with who signed.
+- **Technical:** `signaturesController.ts` (`canStamp`, applied to the list and to signing); `SignDocumentDialog.tsx`
+  (`addStamp`); `SignatureLibrary.tsx` (wording). No database change.
+- **Tested:** against a temporary database: admin, finance manager and sales manager see the stamp; an employee and
+  sales staff do not; an employee placing the stamp gets 400 and can still sign with their own signature; a finance
+  manager signs with the stamp. Frontend type check and build pass. The button has not been clicked in a browser.
+
 ### Documents: open in the system with a toolbar, share after signing, find signed copies (12 Nov)
 - **What:** a document now opens inside the system as pages, with a toolbar on top: **Sign, Download, Share**.
   After you sign, the system offers to **share the signed copy with the people who need it**. Signed copies are
