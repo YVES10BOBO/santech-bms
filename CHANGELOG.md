@@ -28,6 +28,36 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 
 ## 1.8.0 — 5 November 2026
 
+### Documents: open in the system with a toolbar, share after signing, find signed copies (12 Nov)
+- **What:** a document now opens inside the system as pages, with a toolbar on top: **Sign, Download, Share**.
+  After you sign, the system offers to **share the signed copy with the people who need it**. Signed copies are
+  marked and can be found with one click.
+- **Where:** Documents:
+  - **Open** (a file's ⋮ menu, double-click, or "Open and read" in its details) opens the viewer. Click **Sign** in
+    the toolbar to bring up the signature panel (**Stop signing** goes back to reading). **Download** saves the file.
+  - A file's **⋮ → Sign** opens the viewer already in signing mode.
+  - After **Sign document**: the signed copy is saved next to the original and a **Share** box opens ("Share it
+    with the people who need it").
+  - **Share** (⋮ menu, or the toolbar button): the **client** or **supplier** of the document (they download it in
+    their portal; only the person who added the document or an admin can switch that), **colleagues** (pick names,
+    add a message: they get a notification and an email when emailing is on), and **Copy link**.
+  - A green **Signed** badge on signed copies (hover to see who signed), and a **Signed only** filter next to the
+    Type filter.
+  - Links like `/documents?doc=<id>` (from the notification or Copy link) open that document in the viewer.
+- **Word and other files:** only PDF and PNG / JPG open in the viewer. For a Word file the viewer says so and
+  offers **Download the file**; to sign it, save it as PDF first.
+- **Rules:** any staff member can read any document, as before. Sharing with a colleague only sends a
+  notification, it does not change who can see the document. Every share is in the Audit Trail.
+- **Technical:**
+  - Backend: `GET /api/documents` now returns `signedBy` (names, oldest first) and accepts `signed=1` and `id=`;
+    new `POST /api/documents/:id/share` (`shareDocument` in `officeController.ts`). No database change.
+  - Frontend: `SignDocumentDialog.tsx` gets a view mode and the toolbar (`viewFirst`, `details`, `onShare`);
+    new `pages/documents/ShareDocumentDialog.tsx`; `DocumentsPage.tsx` uses them.
+- **Tested:** against a temporary database: a signed copy lists its signer, other documents are not marked,
+  `signed=1` and `id=` filters work, a share creates the colleague's notification with the link and message, bad
+  requests give 400/404/401. Frontend type check and production build pass. The viewer, toolbar and share box have
+  not been clicked through in a browser.
+
 ### "My signatures" in the profile menu (12 Nov)
 - **What:** the profile menu (your name, top right) now has **My signatures**, which opens My Profile and scrolls
   straight to the signatures section. Before, it was only reachable by opening My Profile and scrolling down.

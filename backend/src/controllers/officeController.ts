@@ -43,6 +43,54 @@ const ONE_DAY = 24 * 60 * 60 * 1000
  *   ?status=ACTIVE|ARCHIVED ?from=YYYY-MM-DD ?to=YYYY-MM-DD ?limit= (newest first)
  * The totals always count the whole library, so the cards stay steady while filtering.
  */
+/** For files that are signed copies: who signed, oldest first (a copy can be signed again by the next person) */
+async function signersByFile(fileIds: string[]): Promise<Map<string, string[]>> {
+  const out = new Map<string, string[]>()
+  if (!fileIds.length) return out
+  const first = await prisma.signedDocument.findMany({ where: { fileId: { in: fileIds } }, select: { fileId: true, signerName: true, previousCode: true } })
+  for (const r of first) {
+    const names = [r.signerName]
+    let next = r.previousCode
+    for (let i = 0; next && i < 10; i++) {
+      const prev = await prisma.signedDocument.findUnique({ where: { code: next }, select: { signerName: true, previousCode: true } })
+      if (!prev) break
+      names.unshift(prev.signerName)
+      next = prev.previousCode
+    }
+    out.set(r.fileId, names)
+  }
+  return out
+}
+
+/** POST /documents/:id/share { userIds, message? } — tells colleagues about a document (bell, and email when switched on) */
+export async function shareDocument(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const doc = await prisma.document.findUnique({ where: { id: req.params.id }, select: { id: true, name: true } })
+    if (!doc) { res.status(404).json({ success: false, message: 'Document not found' }); return }
+    const ids: string[] = [...new Set((Array.isArray(req.body?.userIds) ? (req.body.userIds as unknown[]) : []).map(x => String(x)))].slice(0, 40)
+    if (!ids.length) { res.status(400).json({ success: false, message: 'Choose at least one colleague' }); return }
+    const people = await prisma.user.findMany({
+      where: { id: { in: ids }, isActive: true, role: { notIn: ['CUSTOMER', 'SUPPLIER'] } },
+      select: { id: true, firstName: true, lastName: true },
+    })
+    if (!people.length) { res.status(400).json({ success: false, message: 'None of the chosen people can receive documents' }); return }
+    const me = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { firstName: true, lastName: true } })
+    const message = String(req.body?.message ?? '').trim().slice(0, 300)
+    const from = me ? `${me.firstName} ${me.lastName}` : 'A colleague'
+    for (const p of people) {
+      await notify(p.id, {
+        type: 'SYSTEM', title: 'Document shared with you', link: `/documents?doc=${doc.id}`,
+        description: `${from} shared "${doc.name}" with you${message ? `: ${message}` : ''}`,
+      })
+    }
+    await logAudit(req, {
+      action: 'UPDATE', entity: 'Document', entityId: doc.id, entityName: doc.name,
+      description: `Shared "${doc.name}" with ${people.map(p => `${p.firstName} ${p.lastName}`).join(', ')}`,
+    })
+    res.json({ success: true, message: `Shared with ${people.length} ${people.length === 1 ? 'person' : 'people'}` })
+  } catch (e) { fail(res, e, 'shareDocument') }
+}
+
 export async function getDocuments(req: AuthRequest, res: Response): Promise<void> {
   try {
     const q = req.query
@@ -52,6 +100,8 @@ export async function getDocuments(req: AuthRequest, res: Response): Promise<voi
     if (q.clientId) where.clientId = q.clientId === 'none' ? null : String(q.clientId)
     if (q.projectId) where.projectId = q.projectId === 'none' ? null : String(q.projectId)
     if (q.folderId) where.folderId = q.folderId === 'none' ? null : String(q.folderId)
+    if (q.id) where.id = String(q.id)
+    if (q.signed === '1') where.fileId = { in: (await prisma.signedDocument.findMany({ select: { fileId: true } })).map(r => r.fileId) }
     if (q.expiring) where.expiryDate = { not: null, lte: new Date(Date.now() + 30 * ONE_DAY) }
     if (q.from || q.to) {
       where.date = {
@@ -71,9 +121,10 @@ export async function getDocuments(req: AuthRequest, res: Response): Promise<voi
     ])
     const count = (match: (g: { category: string; status: string }) => boolean) =>
       groups.filter(match).reduce((sum, g) => sum + g._count._all, 0)
+    const signers = await signersByFile(rows.map(r => r.fileId).filter((x): x is string => !!x))
     res.json({
       success: true,
-      data: rows,
+      data: rows.map(r => ({ ...r, signedBy: r.fileId ? signers.get(r.fileId) ?? null : null })),
       totals: {
         all: count(() => true),
         active: count(g => g.status === 'ACTIVE'),

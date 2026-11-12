@@ -19,7 +19,7 @@ import { getCommunications, createCommunication, updateCommunication, getMeeting
 import { getSubscriptions, saveSubscription, paySubscription, renewSubscription, getCampaigns, saveCampaign, getTimesheets, createTimesheet, reviewTimesheet } from '../controllers/growthController'
 import { FINANCE, PROJECT_LEADS } from '../lib/roles'
 import {
-  getDocuments, getDocumentVersions, getDocumentFolders, createDocumentFolder, updateDocumentFolder, deleteDocumentFolder, saveDocument, deleteDocument, getAttendance, saveAttendance, requestLeave, reviewLeave,
+  getDocuments, shareDocument, getDocumentVersions, getDocumentFolders, createDocumentFolder, updateDocumentFolder, deleteDocumentFolder, saveDocument, deleteDocument, getAttendance, saveAttendance, requestLeave, reviewLeave,
   getTenders, saveTender, getPurchases, createPurchase, updatePurchase, updatePurchaseStatus,
   getTrainings, saveTraining, addAttendee, updateAttendee,
   getArticles, saveArticle, viewArticle, getCompany, saveCompany,
@@ -112,6 +112,7 @@ router.post('/documents/folders', authorize(...ADMINS), createDocumentFolder)   
 router.put('/documents/folders/:id', authorize(...ADMINS), updateDocumentFolder)    // rename / colour / move
 router.delete('/documents/folders/:id', authorize(...ADMINS), deleteDocumentFolder) // contents move up a level
 router.get('/documents', getDocuments)
+router.post('/documents/:id/share', shareDocument) // tell colleagues about a document
 router.get('/documents/:id/versions', getDocumentVersions) // earlier files of a document
 router.post('/documents', saveDocument)
 router.put('/documents/:id', saveDocument)

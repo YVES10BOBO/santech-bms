@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import * as pdfjs from 'pdfjs-dist'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.js?url'
-import { X, Upload, Trash2, PenLine, Loader2, ShieldCheck, FileText, ImagePlus, Pencil } from 'lucide-react'
+import { X, Upload, Trash2, PenLine, Loader2, ShieldCheck, FileText, ImagePlus, Pencil, Download, Share2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -23,6 +23,12 @@ interface Props {
   contract?: { id: string; number: string; signatories: string[]; defaultSignatory?: string }
   /** A document the system can write itself (the contract from its details): offered as the easy choice */
   prepareDocument?: { label: string; hint: string; run: () => Promise<{ id: string; name: string }> }
+  /** Open to read first, with a toolbar (Sign, Download, Share). Without it the dialog opens ready to sign. */
+  viewFirst?: boolean
+  /** A line under the title in view mode: type, client, who added it… */
+  details?: string
+  /** Shows a Share button in the toolbar */
+  onShare?: () => void
   onClose: () => void
   onSigned: (file: SignedFile) => void
 }
@@ -37,7 +43,7 @@ let nextKey = 1
  * Sign a PDF or picture inside the system: open it, pick a saved signature / initials / company stamp,
  * drag it where it belongs, resize it, then sign with your password. Nothing is printed or re-uploaded.
  */
-export default function SignDocumentDialog({ fileId, fileName, contract, prepareDocument, onClose, onSigned }: Props) {
+export default function SignDocumentDialog({ fileId, fileName, contract, prepareDocument, viewFirst, details, onShare, onClose, onSigned }: Props) {
   const [docId, setDocId] = useState<string | undefined>(fileId)
   const [docName, setDocName] = useState(fileName ?? 'Document')
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null)
@@ -52,6 +58,7 @@ export default function SignDocumentDialog({ fileId, fileName, contract, prepare
   const [password, setPassword] = useState('')
   const [signatory, setSignatory] = useState(contract?.defaultSignatory ?? contract?.signatories[0] ?? '')
   const [signing, setSigning] = useState(false)
+  const [signMode, setSignMode] = useState(!viewFirst)
   // adding a new signature right here: from a picture on this device, a drop or a paste, or drawn
   const [adding, setAdding] = useState<{ mode: AddMode; file?: File; drop?: { page: number; fx: number; fy: number } } | null>(null)
 
@@ -92,7 +99,7 @@ export default function SignDocumentDialog({ fileId, fileName, contract, prepare
           await new Promise<void>((ok, bad) => { img.onload = () => ok(); img.onerror = () => bad(new Error('x')); img.src = url })
           if (!cancelled) { setImageUrl(url); setPages([{ w: img.naturalWidth, h: img.naturalHeight }]) }
         } else {
-          if (!cancelled) setLoadError('Only PDF and PNG / JPG documents can be signed here. Save a Word file as PDF first, then choose it again.')
+          if (!cancelled) setLoadError('This file type cannot be shown or signed here. Only PDF and PNG / JPG open in the viewer. For a Word file, save it as PDF first (File, Save as, PDF), or download it to open it in Word.')
         }
       } catch (e) {
         if (!cancelled) setLoadError(apiError(e, 'This document could not be opened. It may be damaged or password protected.'))
@@ -156,6 +163,7 @@ export default function SignDocumentDialog({ fileId, fileName, contract, prepare
   /** Something dropped on a page: one of the signatures on the right, or a picture from the computer */
   const dropOnPage = (e: React.DragEvent, pageIndex: number) => {
     e.preventDefault()
+    if (!signMode) return
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
     const fx = (e.clientX - r.left) / r.width, fy = (e.clientY - r.top) / r.height
     const id = e.dataTransfer.getData('application/x-santech-signature')
@@ -177,13 +185,13 @@ export default function SignDocumentDialog({ fileId, fileName, contract, prepare
   // Ctrl+V of a picture (for example a signature copied from another file) adds it like an upload
   useEffect(() => {
     const onPaste = (e: ClipboardEvent) => {
-      if (!pages.length || adding) return
+      if (!pages.length || adding || !signMode) return
       const file = Array.from(e.clipboardData?.files ?? []).find(f => f.type.startsWith('image/'))
       if (file) { e.preventDefault(); setAdding({ mode: 'upload', file }) }
     }
     window.addEventListener('paste', onPaste)
     return () => window.removeEventListener('paste', onPaste)
-  }, [pages.length, adding])
+  }, [pages.length, adding, signMode])
 
   // Delete key removes the selected signature (not while typing)
   useEffect(() => {
@@ -219,12 +227,40 @@ export default function SignDocumentDialog({ fileId, fileName, contract, prepare
   return (
     <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-2 sm:p-4">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-6xl h-[94vh] flex flex-col">
-        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
-          <div className="min-w-0">
-            <h3 className="font-semibold text-gray-900 flex items-center gap-2"><PenLine className="w-5 h-5 text-santech-600" /> Sign document</h3>
-            <p className="text-xs text-gray-500 truncate">{contract ? `Contract ${contract.number} · ` : ''}{needsFile ? 'Choose the document' : docName}</p>
+        <div className="flex items-center gap-3 px-5 py-3 border-b border-gray-100 flex-wrap">
+          <div className="min-w-0 flex-1">
+            <h3 className="font-semibold text-gray-900 flex items-center gap-2 min-w-0">
+              {signMode ? <PenLine className="w-5 h-5 text-santech-600 flex-shrink-0" /> : <FileText className="w-5 h-5 text-santech-600 flex-shrink-0" />}
+              <span className="truncate">{signMode ? 'Sign document' : docName}</span>
+            </h3>
+            <p className="text-xs text-gray-500 truncate">
+              {contract ? `Contract ${contract.number} · ` : ''}{needsFile ? 'Choose the document' : signMode ? docName : (details || 'Read the document, then sign, download or share it')}
+            </p>
           </div>
-          <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+          {!needsFile && ready && (
+            <div className="flex items-center gap-2 flex-wrap">
+              {!signMode && (
+                <button onClick={() => setSignMode(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-santech-600 text-white rounded-lg text-sm font-medium hover:bg-santech-700">
+                  <PenLine className="w-4 h-4" /> Sign
+                </button>
+              )}
+              {signMode && viewFirst && (
+                <button onClick={() => { setSignMode(false); setItems([]); setSelected(null) }} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
+                  Stop signing
+                </button>
+              )}
+              <button onClick={() => docId && fileService.open(docId, true, docName).catch(e => toast.error(apiError(e, 'Download failed')))}
+                className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50">
+                <Download className="w-4 h-4" /> Download
+              </button>
+              {onShare && (
+                <button onClick={onShare} className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50">
+                  <Share2 className="w-4 h-4" /> Share
+                </button>
+              )}
+            </div>
+          )}
+          <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600" aria-label="Close"><X className="w-5 h-5" /></button>
         </div>
 
         {needsFile ? (
@@ -254,7 +290,13 @@ export default function SignDocumentDialog({ fileId, fileName, contract, prepare
               {loadError && (
                 <div className="max-w-md mx-auto bg-white rounded-lg p-5 text-sm text-red-600 text-center">
                   {loadError}
-                  <button onClick={() => { setDocId(undefined); setLoadError('') }} className="block mx-auto mt-3 text-santech-700 hover:underline">Choose another document</button>
+                  {docId && (
+                    <button onClick={() => fileService.open(docId, true, docName).catch(e => toast.error(apiError(e, 'Download failed')))}
+                      className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 bg-santech-600 text-white rounded-lg text-sm font-medium hover:bg-santech-700">
+                      <Download className="w-4 h-4" /> Download the file
+                    </button>
+                  )}
+                  {!viewFirst && <button onClick={() => { setDocId(undefined); setLoadError('') }} className="block mx-auto mt-3 text-santech-700 hover:underline">Choose another document</button>}
                 </div>
               )}
               {ready && pages.map((size, i) => {
@@ -274,7 +316,7 @@ export default function SignDocumentDialog({ fileId, fileName, contract, prepare
               })}
             </div>
 
-            <aside className="w-full md:w-72 flex-shrink-0 border-t md:border-t-0 md:border-l border-gray-100 p-4 overflow-y-auto space-y-4 max-h-[40vh] md:max-h-none">
+            {signMode && <aside className="w-full md:w-72 flex-shrink-0 border-t md:border-t-0 md:border-l border-gray-100 p-4 overflow-y-auto space-y-4 max-h-[40vh] md:max-h-none">
               <div>
                 <p className="text-xs font-semibold text-gray-700 mb-2">1. Add to the document</p>
                 <div className="grid grid-cols-2 gap-2 mb-3">
@@ -347,7 +389,7 @@ export default function SignDocumentDialog({ fileId, fileName, contract, prepare
                 </button>
                 <p className="text-[11px] text-gray-400">A signed copy is created with a certificate page (who, when, fingerprint). The original stays unchanged.</p>
               </div>
-            </aside>
+            </aside>}
           </div>
         )}
       </div>

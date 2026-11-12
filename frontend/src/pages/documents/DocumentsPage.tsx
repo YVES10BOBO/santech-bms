@@ -4,13 +4,14 @@ import { useSearchParams } from 'react-router-dom'
 import {
   Folder, FolderOpen, FolderPlus, FolderInput, Plus, Search, X, FileText, FileSpreadsheet, FileImage, FileArchive, File as FileIcon,
   Archive, Download, Upload, Edit2, Trash2, MoreVertical, Check, ChevronRight, ChevronDown,
-  Eye, ExternalLink, FolderUp, FileUp, Loader2, CheckCircle2, AlertCircle, CalendarClock, History, PenLine, type LucideIcon,
+  Eye, ExternalLink, FolderUp, FileUp, Loader2, CheckCircle2, AlertCircle, CalendarClock, History, PenLine, Share2, BadgeCheck, type LucideIcon,
 } from 'lucide-react'
 import { cn, formatDate } from '@/lib/utils'
 import { documentService, supplierService } from '@/lib/services/operationsService'
 import { useLookups, apiError } from '@/lib/services/lookupService'
 import { fileService, formatSize } from '@/lib/services/fileService'
 const SignDocumentDialog = lazy(() => import('@/components/signing/SignDocumentDialog'))
+import ShareDocumentDialog from './ShareDocumentDialog'
 import { useAuthStore } from '@/store/authStore'
 import DateRangePicker from '@/components/shared/DateRangePicker'
 import PageLoader from '@/components/shared/PageLoader'
@@ -45,6 +46,8 @@ interface Document {
   supplierId: string
   supplierName: string
   sharedWithSupplier: boolean
+  /** Set when this file is a signed copy: who signed it, oldest first */
+  signedBy: string[] | null
 }
 
 interface DocVersion { id: string; version: number; fileId: string; name: string; size: string | null; uploadedByName: string | null; createdAt: string }
@@ -106,6 +109,7 @@ const toDoc = (d: any): Document => ({
   versions: d._count?.versions ?? 0,
   sharedWithClient: !!d.sharedWithClient,
   supplierId: d.supplierId ?? '', supplierName: d.supplier?.name ?? '', sharedWithSupplier: !!d.sharedWithSupplier,
+  signedBy: Array.isArray(d.signedBy) ? d.signedBy : null,
 })
 
 /** How soon a document expires: red when expired, amber within 30 days, grey later */
@@ -229,7 +233,10 @@ export default function DocumentsPage() {
   const [form, setForm] = useState<Form>(emptyForm)
   const [file, setFile] = useState<File | null>(null)
   const [viewDoc, setViewDoc] = useState<Document | null>(null)
-  const [signDoc, setSignDoc] = useState<Document | null>(null)
+  // the in-system viewer (read, then sign / download / share) and the share box
+  const [viewer, setViewer] = useState<{ doc: Document; sign: boolean } | null>(null)
+  const [shareDoc, setShareDoc] = useState<{ doc: Document; justSigned?: boolean } | null>(null)
+  const [signedOnly, setSignedOnly] = useState(false)
   const [versions, setVersions] = useState<DocVersion[] | null>(null)
   useEffect(() => {
     setVersions(null)
@@ -318,11 +325,11 @@ export default function DocumentsPage() {
   }
 
   const searching = searchQuery !== ''
-  const filtered = !!(typeFilter || dateFrom || dateTo)
+  const filtered = !!(typeFilter || dateFrom || dateTo || signedOnly)
 
   /** Which documents belong in the current view */
   const filesQuery = (): Record<string, string> | null => {
-    const common = { category: typeFilter, from: dateFrom, to: dateTo }
+    const common = { category: typeFilter, from: dateFrom, to: dateTo, signed: signedOnly ? '1' : '' }
     if (searching) return { ...common, search: searchQuery, status: loc.kind === 'archive' ? 'ARCHIVED' : 'ACTIVE' }
     switch (loc.kind) {
       case 'root': return { ...common, status: 'ACTIVE', limit: filtered ? '' : '8' }
@@ -357,8 +364,23 @@ export default function DocumentsPage() {
 
   const refresh = () => Promise.all([loadTree(), loadFiles()])
 
+  // A link like /documents?doc=<id> (from a notification or a copied link) opens that document
+  const wanted = params.get('doc')
+  useEffect(() => {
+    if (!wanted) return
+    documentService.getAll({ id: wanted })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then((res: any) => {
+        const d = (res.data ?? [])[0]
+        if (d) setViewer({ doc: toDoc(d), sign: false }); else toast.error('That document was not found')
+      })
+      .catch(err => toast.error(apiError(err, 'Could not open the document')))
+      .finally(() => { const next = new URLSearchParams(params); next.delete('doc'); setParams(next, { replace: true }) })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wanted])
+
   useEffect(() => { loadTree() }, [])
-  useEffect(() => { loadFiles() }, [key, searchQuery, typeFilter, dateFrom, dateTo]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { loadFiles() }, [key, searchQuery, typeFilter, dateFrom, dateTo, signedOnly]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Admin-made folders ──
   const custom = tree?.custom ?? []
@@ -756,10 +778,11 @@ export default function DocumentsPage() {
   ]
   const fileMenu = (doc: Document): MenuItem[] => [
     ...(doc.fileId ? [
-      { label: 'Open', icon: ExternalLink, onClick: () => fileService.open(doc.fileId!) },
+      { label: 'Open', icon: ExternalLink, onClick: () => setViewer({ doc, sign: false }) },
       { label: 'Download', icon: Download, onClick: () => fileService.open(doc.fileId!, true, doc.name) },
-      { label: 'Sign', icon: PenLine, onClick: () => setSignDoc(doc) },
+      { label: 'Sign', icon: PenLine, onClick: () => setViewer({ doc, sign: true }) },
     ] : []),
+    { label: 'Share', icon: Share2, onClick: () => setShareDoc({ doc }) },
     { label: 'Details', icon: Eye, onClick: () => setViewDoc(doc) },
     { label: 'Show in folder', icon: FolderOpen, onClick: () => goTo(docLocation(doc).loc) },
     ...(canEdit(doc) ? [
@@ -895,6 +918,10 @@ export default function DocumentsPage() {
               {CATEGORIES.map(c => <option key={c} value={c}>{TYPES[c].label}</option>)}
             </select>
           )}
+          <button onClick={() => setSignedOnly(v => !v)} aria-pressed={signedOnly}
+            className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm', signedOnly ? 'border-green-300 bg-green-50 text-green-800 font-medium' : 'border-gray-300 text-gray-700 hover:bg-gray-50')}>
+            <BadgeCheck className="w-4 h-4" /> Signed only
+          </button>
           <DateRangePicker startDate={dateFrom} endDate={dateTo} onChange={(start, end) => { setDateFrom(start); setDateTo(end) }} />
           <select value={sort} onChange={e => setSort(e.target.value as Sort)} className={chipCls} aria-label="Sort">
             <option value="newest">Last modified: newest</option>
@@ -902,7 +929,7 @@ export default function DocumentsPage() {
             <option value="name">Name A–Z</option>
           </select>
           {(filtered || search) && (
-            <button onClick={() => { setTypeFilter(''); setDateFrom(''); setDateTo(''); setSearch('') }} className="text-sm text-santech-600 hover:underline font-medium px-1">
+            <button onClick={() => { setTypeFilter(''); setDateFrom(''); setDateTo(''); setSignedOnly(false); setSearch('') }} className="text-sm text-santech-600 hover:underline font-medium px-1">
               Clear
             </button>
           )}
@@ -970,7 +997,7 @@ export default function DocumentsPage() {
                         tabIndex={0}
                         {...dragProps(doc)}
                         onClick={() => setViewDoc(doc)}
-                        onDoubleClick={() => doc.fileId && fileService.open(doc.fileId)}
+                        onDoubleClick={() => doc.fileId && setViewer({ doc, sign: false })}
                         onKeyDown={e => { if (e.key === 'Enter') setViewDoc(doc) }}
                         title={`${doc.name}\n${where.label} · ${formatDate(doc.date)}`}
                         className="flex flex-col rounded-xl bg-[#f0f4f9] hover:bg-[#e1e5ea] p-2 cursor-pointer transition-colors min-w-0 focus:outline-none focus:ring-2 focus:ring-santech-500"
@@ -986,6 +1013,7 @@ export default function DocumentsPage() {
                           <k.Icon className={cn('w-12 h-12', k.color)} strokeWidth={1.4} />
                           <span className={cn('absolute bottom-2 left-2 text-[10px] px-1.5 py-0.5 rounded-full font-medium', TYPES[doc.category].chip)}>{TYPES[doc.category].label}</span>
                           {doc.status === 'ARCHIVED' && <span className="absolute top-2 right-2 text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-medium">Archived</span>}
+                          {doc.signedBy && <span title={`Signed by ${doc.signedBy.join(', ')}`} className="absolute top-2 left-2 flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 font-medium"><BadgeCheck className="w-3 h-3" /> Signed</span>}
                           {!doc.fileId && <span className="absolute top-2 left-2 text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 font-medium">No file</span>}
                           {(() => { const x = expiryInfo(doc.expiryDate); return x?.soon ? <span className={cn('absolute bottom-2 right-2 text-[10px] px-1.5 py-0.5 rounded-full font-medium', x.chip)}>{x.label}</span> : null })()}
                         </div>
@@ -1033,6 +1061,7 @@ export default function DocumentsPage() {
                             {doc.status === 'ARCHIVED' && <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-medium shrink-0">Archived</span>}
                             {(() => { const x = expiryInfo(doc.expiryDate); return x?.soon ? <span className={cn('text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0', x.chip)}>{x.label}</span> : null })()}
                             {doc.version > 1 && <span className="hidden lg:inline text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 font-medium shrink-0">v{doc.version}</span>}
+                            {doc.signedBy && <span title={`Signed by ${doc.signedBy.join(', ')}`} className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 font-medium shrink-0"><BadgeCheck className="w-3 h-3" /> Signed</span>}
                             {doc.sharedWithClient && <span className="hidden md:inline text-[10px] px-1.5 py-0.5 rounded bg-sky-100 text-sky-700 font-medium shrink-0">Shared with client</span>}
                           </div>
                         </td>
@@ -1426,13 +1455,13 @@ export default function DocumentsPage() {
             )}
             <div className="flex gap-2 flex-wrap">
               {viewDoc.fileId && (
-                <button onClick={() => fileService.open(viewDoc.fileId!)}
+                <button onClick={() => { const d = viewDoc; setViewDoc(null); setViewer({ doc: d, sign: false }) }}
                   className="flex-1 py-2 bg-santech-600 text-white rounded-lg text-sm font-medium hover:bg-santech-700">
-                  Open file
+                  Open and read
                 </button>
               )}
               {viewDoc.fileId && (
-                <button onClick={() => { const d = viewDoc; setViewDoc(null); setSignDoc(d) }}
+                <button onClick={() => { const d = viewDoc; setViewDoc(null); setViewer({ doc: d, sign: true }) }}
                   className="flex-1 py-2 border border-santech-200 text-santech-700 rounded-lg text-sm font-medium hover:bg-santech-50 inline-flex items-center justify-center gap-1.5">
                   <PenLine className="w-4 h-4" /> Sign
                 </button>
@@ -1465,29 +1494,37 @@ export default function DocumentsPage() {
           </div>
         </div>
       )}
-      {signDoc?.fileId && (
+      {viewer?.doc.fileId && (
         <Suspense fallback={null}>
           <SignDocumentDialog
-            fileId={signDoc.fileId} fileName={signDoc.name}
-            onClose={() => setSignDoc(null)}
+            key={`${viewer.doc.id}-${viewer.sign}`}
+            fileId={viewer.doc.fileId} fileName={viewer.doc.name} viewFirst={!viewer.sign}
+            details={[TYPES[viewer.doc.category].label, viewer.doc.clientName, viewer.doc.projectName, viewer.doc.uploadedBy && `added by ${viewer.doc.uploadedBy}`, formatDate(viewer.doc.date), viewer.doc.signedBy && `signed by ${viewer.doc.signedBy.join(', ')}`].filter(Boolean).join(' · ')}
+            onShare={() => setShareDoc({ doc: viewer.doc })}
+            onClose={() => setViewer(null)}
             onSigned={async file => {
-              const d = signDoc
-              setSignDoc(null)
+              const d = viewer.doc
+              setViewer(null)
               try {
-                // The original stays as it was; the signed copy is saved next to it
-                await documentService.create({
+                // The original stays as it was; the signed copy is saved next to it, then offered for sharing
+                const res = await documentService.create({
                   name: file.name, category: d.category, description: `Signed copy of ${d.name}`,
                   clientId: d.clientId || null, projectId: d.projectId || null, folderId: d.folderId || null,
                   fileId: file.id, size: formatSize(file.size),
                 })
                 toast.success('Signed copy saved next to the original')
                 await refresh()
+                if (res?.data) setShareDoc({ doc: toDoc(res.data), justSigned: true })
               } catch (err) {
                 toast.error(apiError(err, 'The document was signed but could not be saved in Documents'))
               }
             }}
           />
         </Suspense>
+      )}
+      {shareDoc && (
+        <ShareDocumentDialog doc={shareDoc.doc} justSigned={shareDoc.justSigned} canChangeSharing={canEdit(shareDoc.doc)}
+          onClose={() => setShareDoc(null)} onChanged={() => { loadFiles() }} />
       )}
     </div>
   )

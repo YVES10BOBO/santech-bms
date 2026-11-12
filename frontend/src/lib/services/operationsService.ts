@@ -121,6 +121,8 @@ export const documentService = {
   update: (id: string, b: Body) => put(`/documents/${id}`, b),
   /** Permanent delete — admins only, document must be archived first */
   remove: (id: string) => del(`/documents/${id}`),
+  /** Tell colleagues about a document (bell notification, and email when switched on) */
+  share: (id: string, userIds: string[], message: string) => post(`/documents/${id}/share`, { userIds, message }),
 }
 
 export const attendanceService = {
