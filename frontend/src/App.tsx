@@ -112,6 +112,7 @@ export default function App() {
         {/* Anyone who scans the QR code on an invoice (no login) */}
         <Route path="/verify/:code" element={<VerifyPage />} />
         <Route path="/verify/signed/:code" element={<VerifySignedPage />} />
+        <Route path="/verify/quotation/:code" element={<VerifyPage kind="quotation" />} />
 
         {/* Customer and supplier portals (their own layout, no staff menus) */}
         <Route path="/portal" element={<PortalRoute role="CUSTOMER"><CustomerPortalPage /></PortalRoute>} />

@@ -6,6 +6,7 @@
 import { Router } from 'express'
 import rateLimit from 'express-rate-limit'
 import prisma from '../lib/prisma'
+import { quotationApproval } from '../lib/quotationApproval'
 
 const router = Router()
 router.use(rateLimit({ windowMs: 60 * 1000, max: 40, standardHeaders: true, legacyHeaders: false, message: { success: false, message: 'Too many checks. Try again in a minute.' } }))
@@ -40,6 +41,37 @@ router.get('/invoice/:code', async (req, res) => {
     })
   } catch (e) {
     console.error('verify error:', e)
+    res.status(500).json({ success: false, message: 'Could not check this document right now' })
+  }
+})
+
+router.get('/quotation/:code', async (req, res) => {
+  try {
+    const code = String(req.params.code ?? '')
+    if (!/^[a-f0-9]{32}$/.test(code)) { res.status(404).json({ success: false, valid: false, message: 'This code is not valid' }); return }
+    const q = await prisma.quotation.findUnique({
+      where: { verifyCode: code },
+      select: {
+        quotationNumber: true, status: true, approvalHistory: true, createdAt: true, validUntil: true, totalAmount: true, currency: true,
+        client: { select: { companyName: true, fullName: true, teamName: true, delegationName: true } },
+      },
+    })
+    if (!q) { res.status(404).json({ success: false, valid: false, message: 'No document matches this code' }); return }
+    const company = ((await prisma.setting.findUnique({ where: { key: 'company' } }))?.value ?? {}) as Record<string, string>
+    const a = quotationApproval(q)
+    res.json({
+      success: true, valid: true,
+      data: {
+        documentType: 'Quotation', number: q.quotationNumber, issueDate: q.createdAt, validUntil: q.validUntil,
+        client: q.client.companyName || q.client.fullName || q.client.teamName || q.client.delegationName || '',
+        total: q.totalAmount, currency: q.currency,
+        state: a.approved ? 'APPROVED' : a.rejected ? 'REJECTED' : 'NOT_APPROVED',
+        approvedBy: a.by, approvedAt: a.at,
+        issuer: { name: company.name || 'Santech Innovate', tin: company.tin || '' },
+      },
+    })
+  } catch (e) {
+    console.error('verify quotation error:', e)
     res.status(500).json({ success: false, message: 'Could not check this document right now' })
   }
 })

@@ -9,6 +9,7 @@ import { portalService } from '@/lib/services/operationsService'
 import { apiError } from '@/lib/services/lookupService'
 import { fileService } from '@/lib/services/fileService'
 import { printDocument } from '@/lib/printDocument'
+import { portalStamp } from '@/lib/quotationPrint'
 import PageLoader from '@/components/shared/PageLoader'
 import toast from 'react-hot-toast'
 import PortalShell, { PortalAccount, PortalUpdates, Tile, type PortalTab } from './PortalShell'
@@ -155,6 +156,7 @@ function Quotations({ rows, reload, clientName }: { rows?: Any[]; reload: () => 
   }
   const pdf = (q: Any) => printDocument({
     kind: 'QUOTATION', number: q.quotationNumber, date: q.sentAt ?? q.createdAt, dueOrValid: q.validUntil ?? undefined, clientName: clientName ?? '', contactName: q.contactName ?? undefined,
+    approval: q.approval ?? undefined, verifyCode: q.verifyCode, stampLoader: portalStamp(q.id),
     lines: q.items, subtotal: q.subtotal, discountRate: q.discountRate, discountAmount: q.discountAmount, vatRate: q.vatRate, vatAmount: q.vatAmount, total: q.totalAmount,
     currency: q.currency, paymentTerms: q.paymentTerms ?? undefined, notes: q.notes ?? undefined,
   })

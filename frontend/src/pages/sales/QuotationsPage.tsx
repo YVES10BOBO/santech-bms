@@ -9,6 +9,7 @@ import { useLookups, apiError } from '@/lib/services/lookupService'
 import PageLoader from '@/components/shared/PageLoader'
 import toast from 'react-hot-toast'
 import { useTextPrompt } from '@/components/shared/TextPrompt'
+import { quotationApprovalOf, staffStamp } from '@/lib/quotationPrint'
 import { printDocument } from '@/lib/printDocument'
 import { CURRENCIES, toRwf, rwfHint, useRates } from '@/lib/currency'
 import VersionHistory from '@/components/shared/VersionHistory'
@@ -65,6 +66,7 @@ interface Quotation {
   sentAt: string
   acceptedAt: string
   approvalHistory?: ApprovalEvent[]
+  verifyCode: string
 }
 
 // ─── Mock data ────────────────────────────────────────────────────────────────
@@ -103,6 +105,7 @@ function toQuotation(q: any): Quotation {
     sentAt: q.sentAt ? String(q.sentAt).slice(0, 10) : '',
     acceptedAt: q.acceptedAt ? String(q.acceptedAt).slice(0, 10) : '',
     approvalHistory: Array.isArray(q.approvalHistory) ? q.approvalHistory : [],
+    verifyCode: q.verifyCode ?? '',
   }
 }
 
@@ -518,6 +521,7 @@ export default function QuotationsPage() {
                   clientName: viewQuotation.clientName, contactName: viewQuotation.contactName, contactPhone: viewQuotation.contactPhone, contactEmail: viewQuotation.contactEmail,
                   lines: viewQuotation.items, subtotal: viewQuotation.subtotal, discountRate: viewQuotation.discountRate, discountAmount: viewQuotation.discountAmount, vatRate: viewQuotation.vatRate, vatAmount: viewQuotation.vatAmount,
                   total: viewQuotation.totalAmount, currency: viewQuotation.currency, paymentTerms: viewQuotation.paymentTerms, notes: viewQuotation.notes,
+                  approval: quotationApprovalOf(viewQuotation), verifyCode: viewQuotation.verifyCode, stampLoader: staffStamp(viewQuotation.id),
                 })} className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg bg-santech-50 text-santech-700 hover:bg-santech-100 font-medium"><Download className="w-3.5 h-3.5" /> PDF</button>
                 <button onClick={() => setViewQuotation(null)}><X className="w-5 h-5 text-gray-400" /></button>
               </div>

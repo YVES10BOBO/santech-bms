@@ -28,6 +28,41 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 
 ## 1.8.0 — 5 November 2026
 
+### Quotations print with the company stamp, approver and QR only once approved (12 Nov)
+- **What:** a quotation's PDF now shows whether management has approved it. **Approved:** the company stamp (cachet)
+  sits next to "For Santech", a green line says "Approved by Jean Mutabazi on 9 Oct 2026", and a QR code lets anyone
+  check it. **Not approved:** it prints with a large red **NOT APPROVED** mark (or **REJECTED**), no stamp and no QR,
+  so nobody can hand a client an unapproved quotation that looks official.
+- **Where:**
+  - **Sales → Quotations → open a quotation → PDF**, **Client 360° → Documents**, and **Customer portal → Quotations → PDF**.
+  - **Public check page** `/verify/quotation/<code>` (no login): "Genuine and approved" with who approved it and when;
+    "Genuine, but not approved" (amber) for a draft; "Genuine, but rejected"; "Document not recognised" for a wrong code.
+- **Rules:**
+  - "Approved" means management's decision is recorded: status Approved, Sent, Viewed, Negotiation, Accepted or
+    Converted (or Expired / Rejected by the client after it was approved). Draft, Internal review, Manager approval,
+    CEO approval, and a quotation rejected before approval are **not approved**.
+  - The stamp is the company stamp saved in My signatures → Company stamp. If none is saved, the approved quotation
+    prints without a stamp but still with the approver line and QR.
+  - The stamp picture is only sent to the browser for an approved quotation: sales staff and admins get it through
+    `/api/quotations/:id/stamp`, a client only for their own quotation through `/api/portal/quotations/:id/stamp`.
+    This does not widen who can place the stamp on signed documents (admins, finance, sales and project managers).
+  - The client sees who approved and when, not the internal approval history (it can contain internal notes).
+  - The check page shows only: issuer, number, date, client, total, status and approver. At most 40 checks per minute.
+- **Demo data:** the 5 demo quotations got their codes automatically when the migration ran. QT-2026-001 shows
+  "Approved by Jean Mutabazi on 9 Oct 2026". Demo quotations without an approval record (for example QT-2026-005)
+  print "Approved by management" without a name.
+- **Technical:**
+  - New column `quotations.verifyCode` (unique, filled by the database; migration `20261112120000_quotation_verify_code`).
+  - Backend: `lib/quotationApproval.ts` (the rule), `GET /api/verify/quotation/:code`, the two stamp endpoints, and the
+    portal quotation list now carries `approval` and `verifyCode`.
+  - Frontend: `lib/printDocument.ts` (stamp, approver line, watermark, QR), `lib/quotationPrint.ts`, `VerifyPage`
+    now also serves quotations, and the route `/verify/quotation/:code`.
+- **Tested:** against a temporary database: all 5 quotations got distinct 32-character codes; an approved quotation is
+  checked as APPROVED with the approver; a draft is checked as NOT_APPROVED; the stamp is returned only for an
+  approved quotation (and is refused for an employee); the client portal list has the approval and code but not the
+  internal history, the client can fetch the stamp for their own quotation and gets 404 for another client's. Frontend
+  type check and production build pass. The printed page and the check page have not been looked at in a browser.
+
 ### One-click "Add company stamp" while signing, and who may use the stamp (12 Nov)
 - **What:** the signing screen has an **Add company stamp** button. One click puts the company cachet next to your
   signature (half on top of it, the way a stamp is pressed), or at the bottom right of the page if you have not

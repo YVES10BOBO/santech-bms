@@ -10,6 +10,8 @@ import { notify, notifyRoles } from '../lib/notifications'
 import { nextDocumentNumber } from '../lib/numbering'
 import { openBalance, toRwf } from '../lib/currency'
 import { ADMINS, FINANCE } from '../lib/roles'
+import { approvedQuotationStamp } from './signaturesController'
+import { quotationApproval } from '../lib/quotationApproval'
 import { CLIENT_CONTRACT_STATUSES, CLIENT_QUOTATION_STATUSES, portalUser, messageSelect, shapeMessage, cleanMessage } from '../lib/portal'
 import { checkProject, markDealWon } from '../lib/links'
 import type { AuthRequest } from '../middleware/auth'
@@ -87,10 +89,19 @@ export async function getQuotations(req: AuthRequest, res: Response): Promise<vo
     const me = await portalUser(req, res, 'CUSTOMER'); if (!me) return
     const rows = await prisma.quotation.findMany({
       where: { clientId: me.clientId!, status: { in: [...CLIENT_QUOTATION_STATUSES] } },
-      select: quoteSelect, orderBy: { createdAt: 'desc' },
+      select: { ...quoteSelect, verifyCode: true, approvalHistory: true }, orderBy: { createdAt: 'desc' },
     })
-    res.json({ success: true, data: rows })
+    // The client gets who approved and when, not the internal approval history (it can hold internal notes)
+    res.json({ success: true, data: rows.map(({ approvalHistory, ...q }) => ({ ...q, approval: quotationApproval({ status: q.status, approvalHistory }) })) })
   } catch (e) { fail(res, e, 'portal.getQuotations') }
+}
+
+/** GET /portal/quotations/:id/stamp - the company stamp for printing an approved quotation of this client */
+export async function getQuotationStamp(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const own = await ownQuote(req, res); if (!own) return
+    res.json({ success: true, data: { dataUrl: await approvedQuotationStamp(own.q.id) } })
+  } catch (e) { fail(res, e, 'portal.getQuotationStamp') }
 }
 
 /** Loads one of the client's own quotations that the client can see */

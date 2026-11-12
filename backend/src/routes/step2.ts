@@ -3,6 +3,7 @@ import { getExpenseClaims, createExpenseClaim, approveExpenseClaim, rejectExpens
 import { authenticate, authorize } from '../middleware/auth'
 import { getExchangeRates, saveExchangeRates, getVersions } from '../controllers/billingController'
 import { getReminders, saveReminders } from '../controllers/reminderSettingsController'
+import { getQuotationStamp } from '../controllers/signaturesController'
 import { getListOptions, addListOption, updateListOption, deleteListOption } from '../controllers/listOptionsController'
 import { getMessaging, saveMessaging, sendTestMessage, getMessageLog } from '../controllers/messagingController'
 import { ADMINS, SALES } from '../lib/roles'
@@ -50,6 +51,7 @@ router.delete('/leads/:id', authorize(...ADMINS), deleteLead)
 
 // Quotations (each approval step is checked in the controller)
 router.get('/quotations', authorize(...SALES), getQuotations)
+router.get('/quotations/:id/stamp', authorize(...SALES), getQuotationStamp) // the company stamp, only for an approved quotation (printing)
 router.post('/quotations', authorize(...SALES), createQuotation)
 router.put('/quotations/:id', authorize(...SALES), updateQuotation)
 router.post('/quotations/:id/advance', authorize(...SALES), advanceQuotation)

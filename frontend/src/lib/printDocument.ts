@@ -17,7 +17,9 @@ export interface PrintDoc {
   contactPhone?: string
   contactEmail?: string
   clientTin?: string            // the buyer's TIN, shown on invoices and credit notes
-  verifyCode?: string           // invoices and credit notes: the QR code opens /verify/<code>
+  verifyCode?: string           // invoices, credit notes and approved quotations: the QR code opens the public check page
+  approval?: { approved: boolean; rejected?: boolean; by?: string; at?: string } // quotations: approved by management?
+  stampLoader?: () => Promise<string | null | undefined> // quotations: fetches the company stamp (only given when approved)
   lines: PrintLine[]
   subtotal: number
   discountRate?: number
@@ -54,7 +56,13 @@ export async function printDocument(doc: PrintDoc): Promise<void> {
   const billed = doc.kind !== 'QUOTATION'
   const balance = doc.total - (doc.paid ?? 0) - (doc.credited ?? 0)
   // QR code that opens the public page confirming this invoice is genuine
-  const verifyUrl = doc.verifyCode && (doc.kind === 'INVOICE' || doc.kind === 'CREDIT_NOTE') ? `${window.location.origin}/verify/${doc.verifyCode}` : ''
+  const approvedQuote = doc.kind === 'QUOTATION' && !!doc.approval?.approved
+  const verifyUrl = !doc.verifyCode ? ''
+    : doc.kind === 'INVOICE' || doc.kind === 'CREDIT_NOTE' ? `${window.location.origin}/verify/${doc.verifyCode}`
+    : approvedQuote ? `${window.location.origin}/verify/quotation/${doc.verifyCode}` : ''
+  // the company stamp, printed only on an approved quotation
+  let stamp = ''
+  if (approvedQuote && doc.stampLoader) { try { stamp = (await doc.stampLoader()) || '' } catch { /* print without the stamp */ } }
   let qr = ''
   if (verifyUrl) { try { qr = await QRCode.toDataURL(verifyUrl, { margin: 1, width: 220, errorCorrectionLevel: 'M' }) } catch { /* print without the QR */ } }
 
@@ -80,10 +88,14 @@ export async function printDocument(doc: PrintDoc): Promise<void> {
   .notes { margin-top: 22px; padding: 10px; background: #f3f4f6; border-radius: 6px }
   .verify { display: flex; gap: 12px; align-items: center; margin-top: 22px; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; width: 62% }
   .verify img { width: 84px; height: 84px } .verify p { margin: 2px 0; font-size: 10px; color: #4b5563 } .verify b { color: #111827 }
+  .mark { position: fixed; top: 38%; left: 0; right: 0; text-align: center; font-size: 58px; font-weight: 800; letter-spacing: 4px; color: rgba(220,38,38,.16); transform: rotate(-24deg); pointer-events: none }
+  .approved { margin-top: 16px; padding: 8px 12px; border: 1px solid #86efac; background: #f0fdf4; color: #166534; border-radius: 6px; font-size: 11px }
+  .sign { position: relative } .stampimg { position: absolute; left: 24px; bottom: 6px; width: 104px; height: auto; transform: rotate(-8deg); opacity: .92 }
   .foot { margin-top: 36px; display: flex; justify-content: space-between }
   .sign { width: 40%; border-top: 1px solid #9ca3af; padding-top: 4px; text-align: center; color: #6b7280 }
   .bottom { margin-top: 30px; text-align: center; color: #9ca3af; font-size: 10px }
 </style></head><body>
+${doc.kind === 'QUOTATION' && doc.approval && !doc.approval.approved ? `<div class="mark">${doc.approval.rejected ? 'REJECTED' : 'NOT APPROVED'}</div>` : ''}
 <div class="head">
   <div class="co"><img class="logo" src="${window.location.origin}/assets/santech_logo_blue.png" alt="Santech">
     <h1>${esc(c.name || 'Santech Innovate')}</h1>
@@ -123,8 +135,9 @@ ${(doc.kind === 'INVOICE' || doc.kind === 'PROFORMA') && (c.bankName || c.momoCo
 ${doc.kind === 'PROFORMA' ? '<div class="notes"><b>Proforma invoice.</b> This is not a tax invoice. The final invoice is issued when the order is confirmed or the advance is paid.</div>' : ''}
 ${doc.kind === 'CREDIT_NOTE' ? '<div class="notes"><b>Credit note.</b> This amount is deducted from what is owed on the invoice above.</div>' : ''}
 ${doc.notes ? `<div class="notes"><b>Notes:</b> ${esc(doc.notes)}</div>` : ''}
-${qr ? `<div class="verify"><img src="${qr}" alt="QR code"><div><p><b>Verify this ${doc.kind === 'CREDIT_NOTE' ? 'credit note' : 'invoice'}</b></p><p>Scan the QR code, or open</p><p>${esc(verifyUrl.replace(/^https?:\/\//, '').slice(0, 44))}…</p><p>Document ${esc(doc.number)} · code ${esc(doc.verifyCode!.slice(0, 8).toUpperCase())}</p></div></div>` : ''}
-<div class="foot"><div class="sign">For ${esc(c.name || 'Santech Innovate')}</div><div class="sign">${doc.kind === 'QUOTATION' || doc.kind === 'PROFORMA' ? 'Client acceptance' : doc.kind === 'PURCHASE_ORDER' ? 'Supplier acceptance' : 'Received by'}</div></div>
+${qr ? `<div class="verify"><img src="${qr}" alt="QR code"><div><p><b>Verify this ${doc.kind === 'CREDIT_NOTE' ? 'credit note' : doc.kind === 'QUOTATION' ? 'quotation' : 'invoice'}</b></p><p>Scan the QR code, or open</p><p>${esc(verifyUrl.replace(/^https?:\/\//, '').slice(0, 44))}…</p><p>Document ${esc(doc.number)} · code ${esc(doc.verifyCode!.slice(0, 8).toUpperCase())}</p></div></div>` : ''}
+${approvedQuote ? `<div class="approved">&#10003; <b>Approved by ${esc(doc.approval!.by || 'management')}</b>${doc.approval!.at ? ` on ${day(doc.approval!.at)}` : ''}. Scan the QR code to check this quotation.</div>` : ''}
+<div class="foot"><div class="sign">${stamp ? `<img class="stampimg" src="${stamp}" alt="Company stamp">` : ''}For ${esc(c.name || 'Santech Innovate')}</div><div class="sign">${doc.kind === 'QUOTATION' || doc.kind === 'PROFORMA' ? 'Client acceptance' : doc.kind === 'PURCHASE_ORDER' ? 'Supplier acceptance' : 'Received by'}</div></div>
 <div class="bottom">Generated by SAN-BMS · ${new Date().toLocaleString('en-GB')}</div>
 <script>window.onload = () => setTimeout(() => window.print(), 300)</script>
 </body></html>`)

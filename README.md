@@ -288,6 +288,9 @@ again. On phones, the menu button in the top bar opens the sidebar, and its X bu
 - Reminder to the salesperson (and Sales Manager) 3 days before a sent quotation's *valid until* date
 - **PDF:** open a quotation → **PDF** → the print window opens → *Save as PDF*. The page carries the
   company details from Settings → Company Profile.
+- **Approved or not:** once management has approved a quotation, its PDF shows the company stamp, "Approved by <name> on
+  <date>" and a QR code that opens a public page confirming the quotation and its approval. Before approval the PDF
+  carries a large red **NOT APPROVED** mark and no stamp or QR, so an unapproved quotation cannot pass as official
 
 #### Tenders
 **Where:** Sales → Tenders

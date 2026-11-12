@@ -13,6 +13,7 @@ import { logAudit } from '../lib/audit'
 import { ADMINS, CONTRACT_VIEWERS, hasRole } from '../lib/roles'
 import type { AuthRequest } from '../middleware/auth'
 import { buildContractPdf } from '../lib/contractPdf'
+import { quotationApproval } from '../lib/quotationApproval'
 
 const fail = (res: Response, error: unknown, where: string) => {
   console.error(`${where} error:`, error)
@@ -267,4 +268,20 @@ export async function prepareContractDocument(req: AuthRequest, res: Response): 
     const file = await prisma.storedFile.create({ data: { name: doc.name, mimeType: 'application/pdf', size: doc.bytes.length, data: doc.bytes, uploadedById: req.user!.id } })
     res.status(201).json({ success: true, data: { id: file.id, name: file.name, size: file.size, mimeType: file.mimeType, url: `/files/${file.id}` } })
   } catch (e) { fail(res, e, 'prepareContractDocument') }
+}
+
+/**
+ * The company stamp as a picture, only for a quotation that management has approved: the printed quotation shows it
+ * next to the approval. Returns null when the quotation is not approved or no stamp was saved.
+ */
+export async function approvedQuotationStamp(quotationId: string): Promise<string | null> {
+  const q = await prisma.quotation.findUnique({ where: { id: quotationId }, select: { status: true, approvalHistory: true } })
+  if (!q || !quotationApproval(q).approved) return null
+  const stamp = await prisma.savedSignature.findFirst({ where: { userId: null, kind: 'STAMP' }, orderBy: { createdAt: 'asc' } })
+  return stamp ? `data:image/png;base64,${Buffer.from(stamp.data).toString('base64')}` : null
+}
+
+/** GET /quotations/:id/stamp (sales staff) */
+export async function getQuotationStamp(req: AuthRequest, res: Response): Promise<void> {
+  try { res.json({ success: true, data: { dataUrl: await approvedQuotationStamp(req.params.id) } }) } catch (e) { fail(res, e, 'getQuotationStamp') }
 }

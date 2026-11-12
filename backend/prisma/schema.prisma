@@ -834,6 +834,8 @@ model Lead {
 model Quotation {
   id              String          @id @default(cuid())
   quotationNumber String          @unique
+  /// Secret code in the QR on the approved printed quotation; the public page /verify/quotation/<code> confirms it
+  verifyCode      String          @unique @default(dbgenerated("replace((gen_random_uuid())::text, '-'::text, ''::text)"))
   clientId        String
   client          Client          @relation(fields: [clientId], references: [id])
   contactName     String?

@@ -4,17 +4,22 @@ import { CheckCircle2, XCircle, AlertTriangle, Loader2 } from 'lucide-react'
 import api from '@/lib/api'
 
 interface Result {
+  state: 'PAID' | 'PARTLY_PAID' | 'UNPAID' | 'OVERDUE' | 'CANCELLED' | 'NOT_APPLICABLE' | 'APPROVED' | 'NOT_APPROVED' | 'REJECTED'
+  approvedBy?: string | null
+  approvedAt?: string | null
   documentType: string
   number: string
   issueDate: string
   client: string
   total: number
   currency: string
-  state: 'PAID' | 'PARTLY_PAID' | 'UNPAID' | 'OVERDUE' | 'CANCELLED' | 'NOT_APPLICABLE'
   issuer: { name: string; tin: string }
 }
 
 const STATE_TEXT: Record<Result['state'], { label: string; color: string } | null> = {
+  APPROVED: { label: 'Approved', color: 'bg-green-100 text-green-700' },
+  NOT_APPROVED: { label: 'Not approved yet', color: 'bg-amber-100 text-amber-800' },
+  REJECTED: { label: 'Rejected', color: 'bg-red-100 text-red-700' },
   PAID: { label: 'Paid', color: 'bg-green-100 text-green-700' },
   PARTLY_PAID: { label: 'Partly paid', color: 'bg-amber-100 text-amber-700' },
   UNPAID: { label: 'Not yet paid', color: 'bg-blue-100 text-blue-700' },
@@ -27,20 +32,22 @@ const money = (n: number, cur: string) =>
   `${cur} ${cur === 'RWF' ? Math.round(n).toLocaleString('en-US') : n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
 /** Public page behind the QR code on a printed invoice: confirms the document is genuine. No login, read only. */
-export default function VerifyPage() {
+export default function VerifyPage({ kind = 'invoice' }: { kind?: 'invoice' | 'quotation' }) {
   const { code } = useParams()
   const [data, setData] = useState<Result | null>(null)
   const [status, setStatus] = useState<'loading' | 'ok' | 'invalid' | 'error'>('loading')
 
   useEffect(() => {
     let dead = false
-    api.get(`/verify/invoice/${code}`)
+    api.get(`/verify/${kind}/${code}`)
       .then(r => { if (!dead) { setData(r.data.data); setStatus('ok') } })
       .catch(e => { if (!dead) setStatus(e.response?.status === 404 ? 'invalid' : 'error') })
     return () => { dead = true }
-  }, [code])
+  }, [code, kind])
 
   const cancelled = data?.state === 'CANCELLED'
+  const notApproved = data?.state === 'NOT_APPROVED' || data?.state === 'REJECTED'
+  const bad = cancelled || notApproved
 
   return (
     <div className="min-h-screen bg-[#f4f6fa] flex flex-col items-center justify-center p-4">
@@ -66,20 +73,20 @@ export default function VerifyPage() {
 
         {status === 'ok' && data && (
           <>
-            <div className={`p-6 text-center ${cancelled ? 'bg-red-50' : 'bg-green-50'}`}>
-              {cancelled ? <AlertTriangle className="w-14 h-14 text-red-500 mx-auto" /> : <CheckCircle2 className="w-14 h-14 text-green-600 mx-auto" />}
-              <h1 className="mt-2 text-lg font-bold text-gray-900">{cancelled ? 'Genuine, but cancelled' : 'Genuine document'}</h1>
-              <p className="text-sm text-gray-600">{cancelled ? 'This document was issued by the company below and has since been cancelled.' : 'This document was issued by the company below.'}</p>
+            <div className={`p-6 text-center ${bad ? (cancelled || data.state === 'REJECTED' ? 'bg-red-50' : 'bg-amber-50') : 'bg-green-50'}`}>
+              {bad ? <AlertTriangle className="w-14 h-14 text-red-500 mx-auto" /> : <CheckCircle2 className="w-14 h-14 text-green-600 mx-auto" />}
+              <h1 className="mt-2 text-lg font-bold text-gray-900">{cancelled ? 'Genuine, but cancelled' : data.state === 'REJECTED' ? 'Genuine, but rejected' : notApproved ? 'Genuine, but not approved' : data.state === 'APPROVED' ? 'Genuine and approved' : 'Genuine document'}</h1>
+              <p className="text-sm text-gray-600">{cancelled ? 'This document was issued by the company below and has since been cancelled.' : notApproved ? 'This quotation exists in the company\'s system but management has not approved it. Do not rely on it.' : data.state === 'APPROVED' ? `Approved by ${data.approvedBy || 'management'}${data.approvedAt ? ` on ${new Date(data.approvedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}` : ''}.` : 'This document was issued by the company below.'}</p>
             </div>
             <dl className="p-6 space-y-3 text-sm">
               <Row label="Issued by" value={`${data.issuer.name}${data.issuer.tin ? ` (TIN ${data.issuer.tin})` : ''}`} />
               <Row label="Document" value={`${data.documentType} ${data.number}`} />
               <Row label="Date" value={new Date(data.issueDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })} />
-              <Row label="Billed to" value={data.client} />
+              <Row label={kind === 'quotation' ? 'Prepared for' : 'Billed to'} value={data.client} />
               <Row label="Total" value={money(data.total, data.currency)} bold />
               {STATE_TEXT[data.state] && (
                 <div className="flex justify-between items-center">
-                  <dt className="text-gray-500">Payment</dt>
+                  <dt className="text-gray-500">{kind === 'quotation' ? 'Status' : 'Payment'}</dt>
                   <dd><span className={`px-2.5 py-1 rounded-full text-xs font-medium ${STATE_TEXT[data.state]!.color}`}>{STATE_TEXT[data.state]!.label}</span></dd>
                 </div>
               )}

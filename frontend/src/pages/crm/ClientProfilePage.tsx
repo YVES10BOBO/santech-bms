@@ -1,4 +1,5 @@
 
+import { quotationApprovalOf, staffStamp } from '@/lib/quotationPrint'
 import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
@@ -560,6 +561,8 @@ export default function ClientProfilePage() {
                 subtotal: Number(q.subtotal ?? 0), discountRate: Number(q.discountRate ?? 0), discountAmount: Number(q.discountAmount ?? 0), vatRate: Number(q.vatRate ?? 0), vatAmount: Number(q.vatAmount ?? 0),
                 total: Number(q.totalAmount ?? 0), currency: String(q.currency ?? 'RWF'),
                 paymentTerms: q.paymentTerms ? String(q.paymentTerms) : undefined, notes: q.notes ? String(q.notes) : undefined,
+                approval: quotationApprovalOf({ status: String(q.status ?? ''), approvalHistory: q.approvalHistory }),
+                verifyCode: q.verifyCode ? String(q.verifyCode) : undefined, stampLoader: staffStamp(String(q.id)),
               },
             })),
             ...invoices.map((inv): ClientDocument => ({
