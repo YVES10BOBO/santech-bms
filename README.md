@@ -538,7 +538,7 @@ only ever see their own client's records and never the staff menus or API.
 - Every entry appears on the client's Client 360° timeline
 
 ### My signatures (e-signature)
-**Where:** My Profile → My signatures (everyone); signing starts from a contract's **Sign** button
+**Where:** top right → your name → **My signatures** (or My Profile, scroll down); signing starts from a contract's **Sign** button
 - **Save once, use many times:** add your signature or initials as a **picture** (PNG or JPG; a photo of your
   signature on white paper works, the white is removed for you), **draw** it with the mouse or a finger, or
   **type** your name in a handwriting style. Mark one as default. Up to 12 per person

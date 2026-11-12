@@ -18,6 +18,7 @@ export default function ProfilePage() {
   const { user, updateUser } = useAuthStore()
   const location = useLocation()
   const passwordRef = useRef<HTMLDivElement>(null)
+  const signaturesRef = useRef<HTMLDivElement>(null)
   const [profile, setProfile] = useState({ firstName: user?.firstName ?? '', lastName: user?.lastName ?? '', phone: user?.phone ?? '' })
   const [pw, setPw] = useState({ current: '', next: '', confirm: '' })
   const [saving, setSaving] = useState<'profile' | 'password' | null>(null)
@@ -25,6 +26,7 @@ export default function ProfilePage() {
   // "Change password" in the top-bar menu opens this page at the password card
   useEffect(() => {
     if (location.hash === '#password') passwordRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    if (location.hash === '#signatures') signaturesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [location.hash])
 
   if (!user) return null
@@ -110,7 +112,9 @@ export default function ProfilePage() {
         </button>
       </form>
 
-      <SignatureLibrary />
+      <div ref={signaturesRef} id="signatures">
+        <SignatureLibrary />
+      </div>
 
       <div ref={passwordRef} id="password">
         <form onSubmit={savePassword} className="bms-card p-5 space-y-4">

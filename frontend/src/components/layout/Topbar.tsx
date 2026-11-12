@@ -1,4 +1,4 @@
-import { Bell, KeyRound, LogOut, Menu, Search, UserCircle, X, Loader2 } from 'lucide-react'
+import { Bell, KeyRound, LogOut, Menu, Search, UserCircle, X, Loader2, PenLine } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
@@ -183,6 +183,9 @@ export default function Topbar({ onOpenMobileSidebar }: TopbarProps) {
                 </div>
                 <button onClick={() => go('/profile')} className="w-full flex items-center gap-2 text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
                   <UserCircle className="w-4 h-4 text-gray-400" /> My Profile
+                </button>
+                <button onClick={() => go('/profile#signatures')} className="w-full flex items-center gap-2 text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                  <PenLine className="w-4 h-4 text-gray-400" /> My signatures
                 </button>
                 <button onClick={() => go('/profile#password')} className="w-full flex items-center gap-2 text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
                   <KeyRound className="w-4 h-4 text-gray-400" /> Change password

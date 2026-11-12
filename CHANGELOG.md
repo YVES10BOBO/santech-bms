@@ -28,6 +28,13 @@ Version numbers before 1.1.0 were assigned afterwards, from the git history.
 
 ## 1.8.0 — 5 November 2026
 
+### "My signatures" in the profile menu (12 Nov)
+- **What:** the profile menu (your name, top right) now has **My signatures**, which opens My Profile and scrolls
+  straight to the signatures section. Before, it was only reachable by opening My Profile and scrolling down.
+- **Where:** top right → your name → **My signatures** (address `/profile#signatures`).
+- **Technical:** `Topbar.tsx` (menu item), `ProfilePage.tsx` (scrolls to `#signatures`).
+- **Tested:** type check.
+
 ### Signing works like inserting a picture in Word (10 Nov)
 - **What:** while the document is open for signing you can now add your signature on the spot, the way you insert
   a picture in Word, instead of saving it in My Profile first.
